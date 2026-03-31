@@ -1,0 +1,1138 @@
+@import "tailwindcss";
+
+/* ==== Dark theme tokens (default) ==== */
+:root {
+  color-scheme: dark;
+
+  --bg:         #0f0f0f;
+  --surface:    #1a1a1a;
+  --border:     #333;
+  --text:       #f1f1f1;
+  --text-muted: #aaa;
+
+  --primary:     #646cff;
+  --art-primary: #646cff;
+  --art-warning: oklch(75% 0.18 85);
+  --art-success: oklch(68% 0.19 145);
+  --art-danger:  oklch(62% 0.22 25);
+
+  --art-accent:       var(--art-primary);
+  --art-field-focus:  var(--text-muted);
+
+  /* Button surface tint direction — dark theme mixes with white, light mixes with black */
+  --btn-tint:  white;
+  --btn-ghost-hover: rgb(255 255 255 / 0.12);
+  --btn-ghost-press: rgb(255 255 255 / 0.18);
+}
+
+/* ==== Light theme ==== */
+.theme-light {
+  color-scheme: light;
+
+  --bg:         #f5f5f5;
+  --surface:    #ffffff;
+  --border:     #e0e0e0;
+  --text:       #111111;
+  --text-muted: #666666;
+
+  --primary:     #4f46e5;
+  --art-primary: #4f46e5;
+  --art-warning: oklch(60% 0.18 75);
+  --art-success: oklch(50% 0.19 145);
+  --art-danger:  oklch(50% 0.22 25);
+
+  --btn-tint:  black;
+  --btn-ghost-hover: rgb(0 0 0 / 0.07);
+  --btn-ghost-press: rgb(0 0 0 / 0.12);
+}
+
+/* ==== High Contrast theme ==== */
+/* Source: Windows High Contrast Black / EN 301 549 (WCAG 2.1 AA reference palette).
+   All foreground/bg pairs satisfy ≥ 4.5:1 (AA). Muted uses #aaa = 4.52:1 on black. */
+.theme-contrast {
+  color-scheme: dark;
+
+  --bg:         #000000;
+  --surface:    #000000;  /* no surface layers in HC — everything flat */
+  --border:     #ffffff;
+  --text:       #ffffff;
+  --text-muted: #aaaaaa;  /* 4.52:1 on black — WCAG AA minimum */
+
+  --art-primary: #1aebff;  /* Windows HC highlight/selected */
+  --art-warning: #ffff00;  /* Windows HC hyperlink/callout yellow */
+  --art-success: #00ff00;  /* Windows HC success green */
+  --art-danger:  #ff6060;  /* bright red, >4.5:1 on black */
+}
+
+
+/* Color modifier classes — apply to a container or directly on a component */
+.art-primary { --art-accent: var(--art-primary); }
+.art-warning  { --art-accent: var(--art-warning);  }
+.art-success  { --art-accent: var(--art-success);  }
+.art-danger   { --art-accent: var(--art-danger);   }
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+@keyframes art-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+body {
+  @apply min-h-screen leading-normal;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: none;
+}
+
+@layer components {
+  /* ===== Buttons ===== */
+  .btn {
+    @apply inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors cursor-pointer;
+    --btn-hover-border: var(--text);
+    border-color: var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+  }
+  .btn:not(:disabled):hover { border-color: var(--btn-hover-border); background: color-mix(in srgb, var(--btn-tint) 5%, var(--surface)); }
+  .btn:not(:disabled):active { background: color-mix(in srgb, var(--btn-tint) 10%, var(--surface)); }
+  .btn:disabled { @apply cursor-not-allowed; filter: grayscale(1); opacity: 0.35; }
+  .btn.art-primary, .btn.art-warning, .btn.art-success, .btn.art-danger {
+    border-color: color-mix(in srgb, var(--art-accent) 45%, var(--border));
+    color: var(--art-accent);
+  }
+  .btn.art-primary:not(:disabled):hover, .btn.art-warning:not(:disabled):hover, .btn.art-success:not(:disabled):hover, .btn.art-danger:not(:disabled):hover {
+    border-color: var(--art-accent);
+    background: color-mix(in srgb, var(--art-accent) 8%, var(--surface));
+  }
+  .btn.art-primary:not(:disabled):active, .btn.art-warning:not(:disabled):active, .btn.art-success:not(:disabled):active, .btn.art-danger:not(:disabled):active {
+    background: color-mix(in srgb, var(--art-accent) 16%, var(--surface));
+  }
+
+  /* default variant: neutral gray fill without color, vivid accent fill with color */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors cursor-pointer;
+    background: color-mix(in srgb, var(--btn-tint) 14%, var(--surface));
+    border-color: color-mix(in srgb, var(--btn-tint) 14%, var(--surface));
+    color: var(--text);
+    font-family: inherit;
+  }
+  .btn-primary:not(:disabled):hover { background: color-mix(in srgb, var(--btn-tint) 22%, var(--surface)); border-color: color-mix(in srgb, var(--btn-tint) 22%, var(--surface)); }
+  .btn-primary:not(:disabled):active { background: color-mix(in srgb, var(--btn-tint) 10%, var(--surface)); border-color: color-mix(in srgb, var(--btn-tint) 10%, var(--surface)); }
+  .btn-primary:disabled { @apply cursor-not-allowed; filter: grayscale(1); opacity: 0.35; }
+  .btn-primary.art-primary, .btn-primary.art-warning, .btn-primary.art-success, .btn-primary.art-danger {
+    background: color-mix(in srgb, var(--art-accent) 82%, #000);
+    border-color: color-mix(in srgb, var(--art-accent) 82%, #000);
+    color: #fff;
+  }
+  .btn-primary.art-primary:not(:disabled):hover, .btn-primary.art-warning:not(:disabled):hover,
+  .btn-primary.art-success:not(:disabled):hover, .btn-primary.art-danger:not(:disabled):hover {
+    background: color-mix(in srgb, var(--art-accent) 72%, #000);
+    border-color: color-mix(in srgb, var(--art-accent) 72%, #000);
+    opacity: 1;
+  }
+  .btn-primary.art-primary:not(:disabled):active, .btn-primary.art-warning:not(:disabled):active,
+  .btn-primary.art-success:not(:disabled):active, .btn-primary.art-danger:not(:disabled):active {
+    background: color-mix(in srgb, var(--art-accent) 62%, #000);
+    border-color: color-mix(in srgb, var(--art-accent) 62%, #000);
+    opacity: 1;
+  }
+
+  .btn-ghost.art-primary, .btn-ghost.art-warning, .btn-ghost.art-success, .btn-ghost.art-danger { color: var(--art-accent); }
+  .btn-ghost.art-primary:not(:disabled):hover, .btn-ghost.art-warning:not(:disabled):hover, .btn-ghost.art-success:not(:disabled):hover, .btn-ghost.art-danger:not(:disabled):hover {
+    background: color-mix(in srgb, var(--art-accent) 10%, transparent);
+  }
+  .btn-ghost.art-primary:not(:disabled):active, .btn-ghost.art-warning:not(:disabled):active, .btn-ghost.art-success:not(:disabled):active, .btn-ghost.art-danger:not(:disabled):active {
+    background: color-mix(in srgb, var(--art-accent) 22%, transparent);
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 bg-transparent border border-transparent px-4 py-2 text-sm rounded-lg cursor-pointer transition-colors;
+    color: inherit;
+    font-family: inherit;
+  }
+  .btn-ghost:not(:disabled):hover { background: var(--btn-ghost-hover); }
+  .btn-ghost:not(:disabled):active { background: var(--btn-ghost-press); }
+  .btn-ghost:disabled { @apply cursor-not-allowed; opacity: 0.25; }
+
+  /* Button size modifiers — applied alongside .btn / .btn-primary / .btn-ghost */
+  /* art-btn--md is the default and has no overrides */
+  .art-btn--sm { @apply px-3 py-1 text-xs; }
+  .art-btn--lg { @apply px-5 py-2.5 text-base; }
+
+  /* ===== ArtSlider ===== */
+  /* Custom slider — replaces input[type=range] to avoid ::-webkit-slider-thumb vendor CSS */
+  /* Color driven by --art-accent (set via .art-{color} modifier on self or parent) */
+  .art-slider {
+    @apply relative h-1 rounded-full cursor-pointer select-none;
+    background: color-mix(in srgb, var(--art-accent) 30%, transparent);
+  }
+  .art-slider-fill {
+    @apply absolute inset-y-0 left-0 rounded-full pointer-events-none;
+    background: var(--art-accent);
+  }
+  .art-slider-thumb {
+    @apply absolute top-1/2 w-3 h-3 rounded-full pointer-events-none opacity-0 transition-opacity;
+    background: var(--art-accent);
+    transform: translate(-50%, -50%);
+  }
+  .art-slider:hover .art-slider-thumb { @apply opacity-100; }
+  .art-slider--sm  { height: 3px; }
+  .art-slider--sm .art-slider-thumb { @apply w-2.5 h-2.5; }
+
+  /* ===== ArtProgress ===== */
+  /* Display-only counterpart to ArtSlider — no thumb, no interaction, role=progressbar */
+  .art-progress {
+    @apply relative h-1 rounded-full cursor-default select-none;
+    background: color-mix(in srgb, var(--art-accent) 30%, transparent);
+  }
+  .art-progress-fill {
+    @apply absolute inset-y-0 left-0 rounded-full pointer-events-none;
+    background: var(--art-accent);
+  }
+  .art-progress--sm { height: 3px; }
+
+  /* ===== Art Field -- shared base for ArtInput & ArtTextarea ===== */
+  .art-field-wrapper { @apply flex flex-col w-full; }
+  .art-field-inner  { @apply relative flex w-full; }
+
+  .art-field {
+    @apply w-full min-w-40 min-h-9 text-sm rounded-md px-3 py-2;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+  }
+
+  /* Field size modifiers — art-field--md is the default, no overrides needed */
+  .art-field--sm { @apply min-h-7 text-xs px-2 py-1; }
+  .art-field--lg { @apply min-h-11 text-base px-4 py-3; }
+
+  .art-field:disabled {
+    cursor: not-allowed;
+    opacity: 0.38;
+    background: color-mix(in srgb, var(--surface) 60%, transparent);
+  }
+  .art-field-wrapper:has(.art-field:disabled) .art-field-icon { opacity: 0.38; }
+
+  .art-field-icon {
+    @apply absolute left-3 top-1/2 -translate-y-1/2;
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+
+  /* Pad the input away from icon / clear button via :has() — reliable regardless of Tailwind scan */
+  .art-field-inner:has(.art-field-icon) .art-field { padding-left: 2.25rem; }
+  .art-field-inner:has(.art-field-clear) .art-field { padding-right: 2.25rem; }
+
+  /* Positions the clear button inside the field — visual styling is ArtIconButton's responsibility */
+  .art-field-clear { position: absolute; right: 0.25rem; top: 50%; transform: translateY(-50%); }
+
+  .art-field-helper { @apply text-[0.78rem] mt-1 leading-[1.3]; color: #e06464; }
+
+  .art-textarea { resize: vertical; scrollbar-gutter: stable; }
+
+  /* Custom scrollbar — applied to all scrollable Art elements */
+  .art-scrollable { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  .art-scrollable::-webkit-scrollbar       { width: 6px; }
+  .art-scrollable::-webkit-scrollbar-track { background: transparent; }
+  .art-scrollable::-webkit-scrollbar-thumb { background: var(--border); border-radius: 9999px; }
+  .art-scrollable::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+  /* Textarea corner: color-scheme: dark (on :root) makes the browser render the
+     native resize handle in dark-palette colors — no overrides needed. */
+  .art-textarea.art-scrollable::-webkit-scrollbar-corner { background: var(--surface); }
+
+  /* Colored field — tint text, background, and icon when an art-* color class is on the wrapper */
+  .art-field-wrapper.art-primary,
+  .art-field-wrapper.art-warning,
+  .art-field-wrapper.art-success,
+  .art-field-wrapper.art-danger  { --art-field-focus: var(--art-accent); }
+
+  .art-field-wrapper.art-primary .art-field,
+  .art-field-wrapper.art-warning .art-field,
+  .art-field-wrapper.art-success .art-field,
+  .art-field-wrapper.art-danger  .art-field {
+    color: var(--art-accent);
+    background: color-mix(in srgb, var(--art-accent) 8%, var(--surface));
+    border-color: color-mix(in srgb, var(--art-accent) 40%, var(--border));
+  }
+  .art-field-wrapper.art-primary .art-field-icon,
+  .art-field-wrapper.art-warning .art-field-icon,
+  .art-field-wrapper.art-success .art-field-icon,
+  .art-field-wrapper.art-danger  .art-field-icon { color: var(--art-accent); }
+
+  /* ===== Navbar — grid centres search between logo and upload ===== */
+  .navbar {
+    display: grid;
+    grid-template-columns: 1fr minmax(0, 540px) 1fr;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .navbar-logo { @apply font-bold text-lg; color: var(--text); white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+  .navbar-search { @apply w-full; }
+  .navbar-upload { @apply flex items-center transition-colors; color: var(--text-muted); justify-self: end; }
+  .navbar-upload:hover { color: var(--text); }
+
+  /* ===== ArtComboBox / ArtSelect ===== */
+  .art-combobox { @apply relative w-full; }
+  /* readOnly — pointer cursor so the field feels clickable as a dialog trigger */
+  .art-combobox:has(input[readonly]) { cursor: pointer; }
+  .art-combobox:has(input[readonly]) * { cursor: pointer; }
+  .art-combobox-list {
+    /* position/width/z-index handled by the portal wrapper div in ArtComboBox */
+    @apply p-1 list-none rounded-md shadow-lg max-h-80 overflow-y-auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+  .art-combobox-option { @apply px-3 py-2 rounded-md cursor-pointer text-sm transition-colors; }
+  .art-combobox-option--muted { @apply cursor-default; color: var(--text-muted); }
+
+  /* ==== Option inner row ==== */
+  .art-combobox-option-inner { @apply flex items-center gap-2; }
+
+  /* ==== Neutral option states ==== */
+  .art-combobox-option--active,
+  .art-combobox-option:hover  { background: var(--border); }
+  /* Click feedback — e.preventDefault() on onMouseDown suppresses CSS :active,
+     so we use a data-pressing attribute set/removed via direct DOM in ArtListbox.
+     :active kept as fallback for usages without preventDefault. */
+  .art-combobox-option:active,
+  .art-combobox-option[data-pressing] { background: color-mix(in srgb, white 18%, var(--border)); }
+
+  /* ==== Colored option states — text always tinted, bg tint on interaction ==== */
+  .art-combobox-option.art-primary,
+  .art-combobox-option.art-warning,
+  .art-combobox-option.art-success,
+  .art-combobox-option.art-danger { color: var(--art-accent); }
+
+  /* Hover / keyboard cursor */
+  .art-combobox-option.art-primary:hover, .art-combobox-option.art-primary.art-combobox-option--active,
+  .art-combobox-option.art-warning:hover, .art-combobox-option.art-warning.art-combobox-option--active,
+  .art-combobox-option.art-success:hover, .art-combobox-option.art-success.art-combobox-option--active,
+  .art-combobox-option.art-danger:hover,  .art-combobox-option.art-danger.art-combobox-option--active {
+    background: color-mix(in srgb, var(--art-accent) 10%, transparent);
+  }
+  /* Click — deeper tint (both :active fallback and data-pressing) */
+  .art-combobox-option.art-primary:active, .art-combobox-option.art-primary[data-pressing],
+  .art-combobox-option.art-warning:active, .art-combobox-option.art-warning[data-pressing],
+  .art-combobox-option.art-success:active, .art-combobox-option.art-success[data-pressing],
+  .art-combobox-option.art-danger:active,  .art-combobox-option.art-danger[data-pressing]  { background: color-mix(in srgb, var(--art-accent) 22%, transparent); }
+
+  /* ===== ArtListbox ===== */
+  /* Inline variant — bordered scrollable list used in dialogs / panels */
+  .art-listbox--inline {
+    list-style: none; overflow-y: auto; border-radius: 6px; padding: 4px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    max-height: 15rem;
+  }
+  /* Prominent divider between action rows and regular option rows */
+  .art-listbox-section-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+    list-style: none;
+  }
+
+  /* Multi-select chips input */
+  .art-combobox-chips-field {
+    display: flex; align-items: center; gap: 4px; cursor: text;
+    /* override art-field's py-2 so badge sm (~26px) fits inside min-h-9 (36px) */
+    padding-top: 4px; padding-bottom: 4px;
+  }
+  .art-combobox-chips-field--collapsed { flex-wrap: nowrap; overflow: hidden; }
+  .art-combobox-chips-field--expanded  { flex-wrap: wrap; align-items: flex-start; }
+  .art-combobox-chips-field:focus-within { border-color: var(--art-field-focus); }
+
+  /* "+N more" expand button */
+  .art-combobox-chips-more {
+    flex-shrink: 0; white-space: nowrap; cursor: pointer;
+    background: none; border: none; padding: 2px 6px; border-radius: 4px;
+    font-size: 0.78rem; color: var(--text-muted);
+    transition: color 0.15s, background 0.15s;
+  }
+  .art-combobox-chips-more:hover { color: var(--text); background: var(--border); }
+  .art-combobox-chips-input {
+    flex: 1; min-width: 60px; background: transparent; border: none; outline: none;
+    font-size: inherit; color: var(--text); padding: 0;
+  }
+  .art-combobox-chips-input::placeholder { color: var(--text-muted); }
+  .art-combobox-chips-field.art-field--disabled { cursor: not-allowed; opacity: 0.38; }
+
+  /* ==== Selected states ==== */
+
+  /* Neutral selected — slightly brighter than hover so it reads as "active choice" */
+  .art-combobox-option--selected { background: color-mix(in srgb, white 8%, var(--border)); }
+  .art-combobox-option--selected:hover,
+  .art-combobox-option--selected.art-combobox-option--active { background: color-mix(in srgb, white 14%, var(--border)); }
+  .art-combobox-option--selected:active,
+  .art-combobox-option--selected[data-pressing] { background: color-mix(in srgb, white 22%, var(--border)); }
+
+  /* Colored selected — accent tint bg so color context is preserved */
+  .art-combobox-option--selected.art-primary,
+  .art-combobox-option--selected.art-warning,
+  .art-combobox-option--selected.art-success,
+  .art-combobox-option--selected.art-danger { background: color-mix(in srgb, var(--art-accent) 14%, transparent); }
+
+  .art-combobox-option--selected.art-primary:hover, .art-combobox-option--selected.art-primary.art-combobox-option--active,
+  .art-combobox-option--selected.art-warning:hover, .art-combobox-option--selected.art-warning.art-combobox-option--active,
+  .art-combobox-option--selected.art-success:hover, .art-combobox-option--selected.art-success.art-combobox-option--active,
+  .art-combobox-option--selected.art-danger:hover,  .art-combobox-option--selected.art-danger.art-combobox-option--active {
+    background: color-mix(in srgb, var(--art-accent) 22%, transparent);
+  }
+  .art-combobox-option--selected.art-primary:active, .art-combobox-option--selected.art-primary[data-pressing],
+  .art-combobox-option--selected.art-warning:active, .art-combobox-option--selected.art-warning[data-pressing],
+  .art-combobox-option--selected.art-success:active, .art-combobox-option--selected.art-success[data-pressing],
+  .art-combobox-option--selected.art-danger:active,  .art-combobox-option--selected.art-danger[data-pressing]  { background: color-mix(in srgb, var(--art-accent) 30%, transparent); }
+
+  /* ArtSelect trigger — same art-field base but rendered as <button> */
+  .art-select-trigger {
+    @apply flex items-center gap-2 cursor-pointer text-left w-full;
+    font-family: inherit;
+  }
+  .art-select-trigger:focus { outline: none; border-color: var(--art-field-focus); }
+  .art-select-trigger:disabled { @apply cursor-not-allowed; opacity: 0.38; }
+
+  /* Colored trigger — when selected option has a color, tint the whole trigger */
+  .art-select-trigger.art-primary,
+  .art-select-trigger.art-warning,
+  .art-select-trigger.art-success,
+  .art-select-trigger.art-danger {
+    color: var(--art-accent);
+    background: color-mix(in srgb, var(--art-accent) 8%, var(--surface));
+    border-color: color-mix(in srgb, var(--art-accent) 40%, var(--border));
+  }
+
+  /* ---- Tooltip — portal-rendered (position: fixed via inline style), visual only ---- */
+  .art-tooltip {
+    white-space: nowrap;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    background: var(--surface-2, #2a2a2a);
+    color: var(--text);
+    border: 1px solid var(--border);
+    pointer-events: none;
+    z-index: 10200;
+  }
+
+  /* ---- IconButton — size only, btn-ghost handles the rest ---- */
+  .art-icon-btn { width: 2rem; height: 2rem; padding: 0; justify-content: center; }
+  .art-icon-btn.art-btn--sm { width: 1.5rem; height: 1.5rem; }
+  .art-icon-btn.art-btn--lg { width: 2.75rem; height: 2.75rem; }
+  /* Outlined icon btn: icon matches the border tone — not stark white on a subtle gray border */
+  .art-icon-btn.btn { color: var(--text-muted); }
+
+  /* ---- IconToggle: on-state per variant ---- */
+
+  /* ghost: transparent → subtle fill when on */
+  .art-icon-toggle--on { background: var(--btn-ghost-press); }
+  .art-icon-toggle--on:not(:disabled):hover { background: color-mix(in srgb, var(--btn-tint) 24%, transparent); }
+  /* ghost + color: accent tint fills in when on */
+  .art-icon-toggle--on.art-primary,
+  .art-icon-toggle--on.art-warning,
+  .art-icon-toggle--on.art-success,
+  .art-icon-toggle--on.art-danger { background: color-mix(in srgb, var(--art-accent) 14%, transparent); }
+  .art-icon-toggle--on.art-primary:not(:disabled):hover,
+  .art-icon-toggle--on.art-warning:not(:disabled):hover,
+  .art-icon-toggle--on.art-success:not(:disabled):hover,
+  .art-icon-toggle--on.art-danger:not(:disabled):hover { background: color-mix(in srgb, var(--art-accent) 22%, transparent); }
+
+  /* outlined: border accent + light fill signals selection */
+  .btn.art-icon-toggle--on { background: color-mix(in srgb, var(--btn-tint) 10%, var(--surface)); border-color: var(--btn-hover-border); }
+  .btn.art-icon-toggle--on:not(:disabled):hover { background: color-mix(in srgb, var(--btn-tint) 16%, var(--surface)); }
+  /* outlined + color: full accent border + accent fill */
+  .btn.art-icon-toggle--on.art-primary,
+  .btn.art-icon-toggle--on.art-warning,
+  .btn.art-icon-toggle--on.art-success,
+  .btn.art-icon-toggle--on.art-danger { background: color-mix(in srgb, var(--art-accent) 16%, var(--surface)); border-color: var(--art-accent); }
+  .btn.art-icon-toggle--on.art-primary:not(:disabled):hover,
+  .btn.art-icon-toggle--on.art-warning:not(:disabled):hover,
+  .btn.art-icon-toggle--on.art-success:not(:disabled):hover,
+  .btn.art-icon-toggle--on.art-danger:not(:disabled):hover { background: color-mix(in srgb, var(--art-accent) 22%, var(--surface)); }
+
+  /* default: neutral fill → accent fill when on */
+  .btn-primary.art-icon-toggle--on { background: color-mix(in srgb, var(--btn-tint) 22%, var(--surface)); border-color: color-mix(in srgb, var(--btn-tint) 22%, var(--surface)); }
+  .btn-primary.art-icon-toggle--on:not(:disabled):hover { background: color-mix(in srgb, var(--btn-tint) 28%, var(--surface)); border-color: color-mix(in srgb, var(--btn-tint) 28%, var(--surface)); }
+  /* default + color: matches btn-primary accent look when on */
+  .btn-primary.art-icon-toggle--on.art-primary,
+  .btn-primary.art-icon-toggle--on.art-warning,
+  .btn-primary.art-icon-toggle--on.art-success,
+  .btn-primary.art-icon-toggle--on.art-danger { background: color-mix(in srgb, var(--art-accent) 82%, #000); border-color: color-mix(in srgb, var(--art-accent) 82%, #000); color: #fff; }
+  .btn-primary.art-icon-toggle--on.art-primary:not(:disabled):hover,
+  .btn-primary.art-icon-toggle--on.art-warning:not(:disabled):hover,
+  .btn-primary.art-icon-toggle--on.art-success:not(:disabled):hover,
+  .btn-primary.art-icon-toggle--on.art-danger:not(:disabled):hover { background: color-mix(in srgb, var(--art-accent) 72%, #000); border-color: color-mix(in srgb, var(--art-accent) 72%, #000); }
+
+  /* ---- Button spinner (used by ArtButton loading state) ---- */
+  .art-btn-spinner {
+    display: inline-block;
+    width: 16px;   /* md — matches ICON_SIZE.md */
+    height: 16px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: art-spin 0.55s linear infinite;
+    flex-shrink: 0;
+  }
+  .art-btn--sm .art-btn-spinner { width: 14px; height: 14px; }
+  .art-btn--lg .art-btn-spinner { width: 20px; height: 20px; }
+
+  /* ===== ArtLabel ===== */
+  .art-label {
+    @apply block text-sm font-normal mb-1 select-none;
+    color: var(--text-muted);
+    padding-left: 0.325rem;
+  }
+  .art-label-required { @apply ml-0.5; }
+
+  /* ===== ArtBadge ===== */
+  .art-badge {
+    @apply inline-flex items-center gap-1 rounded-lg font-medium select-none border;
+    font-size: 0.875rem; line-height: 1.4; border-color: transparent;
+    --badge-px: 13px; --badge-py: 4px;
+    padding: var(--badge-py) var(--badge-px);
+  }
+  /* sm = chip/compact, md = default, lg = prominent */
+  .art-badge--sm { font-size: 0.72rem; --badge-px: 6px;  --badge-py: 1px; }
+  .art-badge--lg { font-size: 1rem;    --badge-px: 18px; --badge-py: 6px; }
+  /* Leading icon / trailing dismiss: shrink that side to ~half so icon/button sit flush naturally */
+  .art-badge--with-icon  { padding-left:  calc(var(--badge-px) / 2); }
+  .art-badge--removable  { padding-right: calc(var(--badge-px) / 2); }
+  .art-badge--outlined { border-color: var(--border); background: var(--surface); color: var(--text); }
+  .art-badge--outlined.art-primary, .art-badge--outlined.art-warning,
+  .art-badge--outlined.art-success,  .art-badge--outlined.art-danger {
+    border-color: color-mix(in srgb, var(--art-accent) 45%, var(--border)); color: var(--art-accent);
+  }
+
+  .art-badge--default { background: color-mix(in srgb, white 14%, var(--surface)); color: var(--text); }
+  .art-badge--default.art-primary, .art-badge--default.art-warning,
+  .art-badge--default.art-success,  .art-badge--default.art-danger {
+    background: color-mix(in srgb, var(--art-accent) 82%, #000); color: #fff;
+  }
+
+  .art-badge--ghost { color: var(--text-muted); }
+  .art-badge--ghost.art-primary, .art-badge--ghost.art-warning,
+  .art-badge--ghost.art-success,  .art-badge--ghost.art-danger { color: var(--art-accent); }
+
+  /* Chip mode — dismiss button inside ArtBadge */
+  .art-badge-remove { opacity: 0.55; }
+  .art-badge-remove:hover { opacity: 1; }
+  /* Constrain button size so it doesn't inflate badge height; remove circular hover bg inside badge */
+  .art-badge .art-icon-btn { width: 1.125rem; height: 1.125rem; }
+  .art-badge .art-icon-btn:hover { background: transparent; }
+  .art-badge .art-icon-btn:active { background: rgba(255,255,255,0.12); border-radius: 2px; }
+
+  /* Reduce right padding when badge has a remove button */
+  .art-badge--removable { padding-right: 4px; }
+
+  /* ===== ArtSwitch ===== */
+  .art-switch-root {
+    display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;
+  }
+  .art-switch-root--disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+
+  /* Hide native checkbox visually but keep it in DOM for form semantics */
+  .art-switch-input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+
+  .art-switch-track {
+    position: relative; display: flex; align-items: center; flex-shrink: 0;
+    width: 2.75rem; height: 1.5rem; border-radius: 9999px;
+    background: var(--border);
+    transition: background 0.2s;
+  }
+  .art-switch-thumb {
+    position: absolute; left: 3px;
+    width: 1.125rem; height: 1.125rem; border-radius: 9999px;
+    background: var(--text-muted);
+    transition: left 0.2s, background 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  }
+
+  /* ==== Checked state ==== */
+  .art-switch-input:checked + .art-switch-track { background: var(--art-accent); }
+  .art-switch-input:checked + .art-switch-track .art-switch-thumb {
+    left: calc(100% - 1.125rem - 3px);
+    background: #fff;
+  }
+
+  /* ==== Hover / press ==== */
+  .art-switch-root:hover .art-switch-track { filter: brightness(1.1); }
+  .art-switch-root:active .art-switch-track { filter: brightness(0.9); }
+
+  /* ==== Sizes ==== */
+  .art-switch--sm .art-switch-track { width: 2rem; height: 1.125rem; }
+  .art-switch--sm .art-switch-thumb { width: 0.75rem; height: 0.75rem; }
+  .art-switch--sm .art-switch-input:checked + .art-switch-track .art-switch-thumb {
+    left: calc(100% - 0.75rem - 3px);
+  }
+  .art-switch--lg .art-switch-track { width: 3.5rem; height: 1.875rem; }
+  .art-switch--lg .art-switch-thumb { width: 1.5rem; height: 1.5rem; }
+  .art-switch--lg .art-switch-input:checked + .art-switch-track .art-switch-thumb {
+    left: calc(100% - 1.5rem - 3px);
+  }
+
+  .art-switch-label { font-size: 0.875rem; color: var(--text); }
+
+  /* ===== ArtCopyButton / ArtCopyText ===== */
+  .art-copy-text {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 6px 2px 10px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--surface);
+    max-width: 100%;
+  }
+  .art-copy-text--mono .art-copy-text-value { font-family: ui-monospace, monospace; font-size: 0.84rem; }
+  .art-copy-text-value {
+    font-size: 0.875rem; color: var(--text-muted); overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* ===== ArtTabs ===== */
+  .art-tabs {
+    display: flex; align-items: flex-end; gap: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .art-tab {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; border: none; border-bottom: 2px solid transparent;
+    margin-bottom: -1px;  /* overlap the container border */
+    background: transparent; color: var(--text-muted); font-size: 0.875rem;
+    font-family: inherit; cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.1s;
+    border-radius: 6px 6px 0 0;
+  }
+  .art-tab:not(:disabled):hover  { color: var(--text); background: color-mix(in srgb, var(--btn-tint) 5%, transparent); }
+  .art-tab:not(:disabled):active { background: color-mix(in srgb, var(--btn-tint) 10%, transparent); }
+  .art-tab--active { color: var(--text); border-bottom-color: var(--text); }
+  .art-tab--active.art-primary, .art-tab--active.art-warning,
+  .art-tab--active.art-success, .art-tab--active.art-danger {
+    color: var(--art-accent); border-bottom-color: var(--art-accent);
+  }
+  .art-tab:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* ===== ArtUpload ===== */
+  .art-upload {
+    position: relative;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px; min-height: 88px; padding: 16px; text-align: center; cursor: pointer;
+    border: 1.5px dashed var(--border); border-radius: 8px;
+    background: var(--surface); transition: border-color 0.15s, background 0.15s;
+  }
+  .art-upload:hover,
+  .art-upload--dragging { border-color: var(--art-accent); background: color-mix(in srgb, var(--art-accent) 5%, var(--surface)); }
+  .art-upload--selected { border-style: solid; border-color: color-mix(in srgb, var(--art-accent) 50%, var(--border)); }
+  .art-upload--disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+  .art-upload--readonly { cursor: default; }
+  .art-upload--readonly:hover { border-color: var(--border); background: var(--surface); }
+
+  .art-upload-icon   { color: var(--text-muted); }
+  .art-upload-label  { font-size: 0.875rem; color: var(--text-muted); }
+  .art-upload-hint   { font-size: 0.75rem; color: var(--text-muted); opacity: 0.7; }
+  .art-upload-filename { font-size: 0.875rem; font-weight: 500; word-break: break-all; max-width: 100%; }
+  .art-upload-size   { font-size: 0.75rem; color: var(--text-muted); }
+  .art-upload-clear  { position: absolute; top: 6px; right: 6px; }
+
+  /* ===== ArtCollapse ===== */
+  /* Animates height 0 → auto via grid-template-rows trick — no JS height measurement needed */
+  .art-collapse-root { display: flex; flex-direction: column; }
+  .art-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.22s ease; }
+  .art-collapse--open { grid-template-rows: 1fr; }
+  /* overflow is toggled via inline style after the transition — see ArtCollapse.tsx:
+     closed/animating = hidden (clips content); fully open = visible (allows dropdowns to escape) */
+  .art-collapse-inner { min-height: 0; }
+
+  /* Trigger button — full-width, space-between layout */
+  .art-collapse-trigger {
+    width: 100%; justify-content: space-between;
+    text-align: left;
+  }
+  .art-collapse-trigger-label { flex: 1; }
+  .art-collapse-chevron { flex-shrink: 0; transition: transform 0.22s ease; }
+  .art-collapse-chevron--open { transform: rotate(180deg); }
+
+  /* ── Outlined variant: the trigger + content form ONE bordered card ──────
+     =============================  ← trigger (top bar of the card)
+     │ content                    │  ← body (separator + padding inside)
+     =============================
+     overflow: hidden clips child backgrounds to the 8px border-radius.
+     Portal-based dropdowns (ArtComboBox) still escape via document.body. */
+  .art-collapse-root--has-trigger.art-collapse-root--outlined {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  /* Remove the trigger button's own border/radius — the card border handles it */
+  .art-collapse-root--outlined .art-collapse-trigger,
+  .art-collapse-root--outlined .art-collapse-trigger:hover {
+    border-color: transparent;
+    border-radius: 0;
+  }
+  /* Top separator between trigger and content — lives inside the collapse
+     animation, so it only appears when content is visible */
+  .art-collapse-root--outlined .art-collapse-body-inner {
+    border-top: 1px solid var(--border);
+    padding: 12px 16px;
+  }
+
+  /* ===== ArtPagination ===== */
+  .art-pagination { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .art-pagination-info { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+  .art-pagination-pages { display: flex; align-items: center; gap: 2px; }
+
+  /* Page field — always-visible input, the single source of truth for current page */
+  .art-pagination-field {
+    width: 2.5rem; height: 2rem; border-radius: 6px; text-align: center;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text); font-size: 0.8rem; font-family: inherit;
+    outline: none; transition: border-color 0.12s, background 0.12s;
+    -webkit-appearance: none; appearance: none;
+  }
+  .art-pagination-field::-webkit-inner-spin-button,
+  .art-pagination-field::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .art-pagination-field { -moz-appearance: textfield; }
+  .art-pagination-field:hover  { border-color: var(--text-muted); }
+  .art-pagination-field:focus  { border-color: var(--art-accent); }
+  .art-pagination-of { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+
+  /* Rows-per-page trigger button — fixed width matches the popover list */
+  .art-pagination-size-btn {
+    display: inline-flex; align-items: center; justify-content: space-between;
+    width: 64px; height: 2rem; padding: 0 8px; border-radius: 6px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text-muted); font-size: 0.8rem; font-family: inherit; cursor: pointer;
+    transition: border-color 0.12s, color 0.12s;
+  }
+  .art-pagination-size-btn:hover { border-color: var(--text-muted); color: var(--text); }
+  .art-pagination-size-btn:active { background: color-mix(in srgb, white 6%, transparent); }
+
+  /* ===== ArtMenu ===== */
+  /* Menu list inside art-popover. Button reset makes <button> items behave like <li>.
+     Reuses art-combobox-option for all interaction states (hover, press, color variants). */
+  .art-menu-list { display: flex; flex-direction: column; padding: 4px; min-width: 10rem; }
+  button.art-combobox-option {
+    width: 100%; text-align: left;
+    border: none; font-family: inherit; background: transparent;
+  }
+
+  /* ===== ArtRadio ===== */
+  /* Each item is a <label> wrapping a visually-hidden <input type="radio">.
+     The browser handles arrow-key navigation and form grouping natively.
+     :active on <label> works without e.preventDefault(), so no data-pressing needed.
+     :has(input:focus-visible) shows a focus ring during keyboard navigation. */
+  .art-radio { display: flex; flex-direction: column; gap: 2px; }
+  .art-radio--horizontal { flex-direction: row; flex-wrap: wrap; gap: 4px; }
+
+  /* Visually hidden but screen-reader accessible */
+  .art-radio-input {
+    position: absolute; width: 1px; height: 1px; margin: -1px;
+    padding: 0; border: 0; overflow: hidden;
+    clip: rect(0,0,0,0); white-space: nowrap;
+  }
+
+  .art-radio-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 6px;
+    font-size: 0.875rem; background: transparent; color: var(--text);
+    cursor: pointer; user-select: none;
+    transition: background 0.12s;
+  }
+  .art-radio:not(.art-radio--horizontal) .art-radio-item { width: 100%; }
+
+  .art-radio-item:not(.art-radio-item--disabled):hover   { background: var(--border); }
+  .art-radio-item:not(.art-radio-item--disabled):active  { background: color-mix(in srgb, white 18%, var(--border)); }
+  .art-radio-item--checked                               { background: color-mix(in srgb, white  8%, var(--border)); }
+  .art-radio-item--checked:not(.art-radio-item--disabled):hover  { background: color-mix(in srgb, white 14%, var(--border)); }
+  .art-radio-item--checked:not(.art-radio-item--disabled):active { background: color-mix(in srgb, white 22%, var(--border)); }
+
+  /* Color variants (checked) */
+  .art-radio-item--checked.art-primary,
+  .art-radio-item--checked.art-warning,
+  .art-radio-item--checked.art-success,
+  .art-radio-item--checked.art-danger  { background: color-mix(in srgb, var(--art-accent) 14%, transparent); }
+  .art-radio-item--checked.art-primary:not(.art-radio-item--disabled):hover,
+  .art-radio-item--checked.art-warning:not(.art-radio-item--disabled):hover,
+  .art-radio-item--checked.art-success:not(.art-radio-item--disabled):hover,
+  .art-radio-item--checked.art-danger:not(.art-radio-item--disabled):hover  { background: color-mix(in srgb, var(--art-accent) 22%, transparent); }
+
+  .art-radio-item--disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Keyboard focus ring — appears only on keyboard navigation */
+  .art-radio-item:has(input:focus-visible) {
+    outline: 2px solid var(--art-accent); outline-offset: 1px;
+  }
+
+  /* Indicator dot — scale(0→1) on check */
+  .art-radio-dot {
+    flex-shrink: 0;
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 1.5px solid var(--text-muted);
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.12s;
+  }
+  .art-radio-dot::after {
+    content: '';
+    width: 6px; height: 6px; border-radius: 50%;
+    background: transparent;
+    transition: background 0.12s, transform 0.12s;
+    transform: scale(0);
+  }
+  .art-radio-item--checked .art-radio-dot        { border-color: var(--art-accent); }
+  .art-radio-item--checked .art-radio-dot::after { background: var(--art-accent); transform: scale(1); }
+
+  .art-radio-item-inner { display: flex; align-items: center; gap: 6px; flex: 1; }
+  .art-radio-item-label { display: flex; flex-direction: column; gap: 1px; }
+  .art-radio-item-desc  { font-size: 0.75rem; color: var(--text-muted); font-weight: normal; }
+
+  /* Popover base — floating panel, portal-rendered */
+  .art-popover {
+    background: var(--surface-alt, var(--surface));
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+  }
+
+  /* Rows-per-page option list — same width as trigger button */
+  .art-pagination-size-list { display: flex; flex-direction: column; padding: 4px; width: 64px; }
+  .art-pagination-size-opt {
+    display: flex; align-items: center; justify-content: center;
+    height: 2rem; border-radius: 5px; border: none; background: transparent;
+    color: var(--text-muted); font-size: 0.8rem; font-family: inherit; cursor: pointer;
+    transition: background 0.1s, color 0.1s;
+  }
+  .art-pagination-size-opt:hover  { background: var(--border); color: var(--text); }
+  .art-pagination-size-opt:active { background: color-mix(in srgb, white 18%, var(--border)); }
+  .art-pagination-size-opt--active { color: var(--text); background: color-mix(in srgb, white 8%, var(--border)); }
+
+  /* ===== ArtDataTable ===== */
+  /* Outer wrapper owns the border + border-radius.
+     overflow:hidden here clips the table to the rounded corners,
+     fixing the "row-divider line cut at corner" visual artifact. */
+  .art-data-table-wrapper {
+    width: 100%; border-radius: 8px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+  /* Inner scroll div: overflow-x allows horizontal scrolling while the outer
+     keeps rounded corners. Separating the two is the key fix for corner clipping. */
+  .art-data-table-scroll { width: 100%; overflow-x: auto; }
+  /* table-layout:auto lets component columns (renderLoading:true) size to their ghost content.
+     Text columns use min-width on <col> so they never go narrower than their declared width.
+     Skeleton stability comes from the ghost component matching the real component's size. */
+  .art-data-table { width: 100%; border-collapse: collapse; }
+
+  /* Sticky header row */
+  .art-data-th {
+    padding: 10px 14px; text-align: left; font-size: 0.78rem;
+    font-weight: 600; white-space: nowrap; color: var(--text-muted); user-select: none;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky; top: 0; z-index: 2;
+  }
+  .art-data-th--sortable { cursor: pointer; }
+  .art-data-th--sortable:hover { color: var(--text); }
+  .art-data-th-inner { display: flex; align-items: center; gap: 4px; }
+  .art-data-sort-icon { opacity: 0.35; transition: opacity 0.15s, transform 0.15s; }
+  .art-data-sort-icon--active { opacity: 1; }
+  /* asc = chevron pointing up */
+  .art-data-sort-icon--asc { transform: rotate(180deg); }
+
+  /* Data cells */
+  .art-data-td {
+    padding: 10px 14px; font-size: 0.875rem; color: var(--text);
+    background: var(--surface); border-bottom: 1px solid var(--border);
+  }
+  /* table-layout:fixed + overflow:hidden on td is sufficient for truncation — no max-width needed */
+  .art-data-td--truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .art-data-tr:last-child .art-data-td { border-bottom: none; }
+
+  /* Clickable rows — 4 interactive states */
+  .art-data-tr--clickable { cursor: pointer; }
+  .art-data-tr--clickable:hover .art-data-td { background: color-mix(in srgb, var(--btn-tint) 4%, var(--surface)); }
+  .art-data-tr--clickable:active .art-data-td { background: color-mix(in srgb, var(--btn-tint) 9%, var(--surface)); }
+
+  /* Sticky columns — pin to left edge.
+     left is set via inline style (computed per column in ArtDataTable) to support
+     multiple sticky columns with correct stacking offsets. */
+  .art-data-sticky {
+    position: sticky; z-index: 1;
+    background: var(--surface);
+    box-shadow: 2px 0 5px -2px rgba(0, 0, 0, 0.35);
+  }
+  /* Sticky header cell needs z-index above both sticky rows and regular header */
+  .art-data-th.art-data-sticky { z-index: 3; }
+
+  /* Right-sticky — mirrors left-sticky but shadow on left side */
+  .art-data-sticky-right {
+    position: sticky; z-index: 1;
+    background: var(--surface);
+    box-shadow: -2px 0 5px -2px rgba(0, 0, 0, 0.35);
+  }
+  .art-data-th.art-data-sticky-right { z-index: 3; }
+
+  /* Filler column — no <col> width so the browser gives it all remaining table width.
+     Extends border-bottom lines to the right edge, eliminating the "row divider cut short" artifact. */
+  .art-data-filler-col { padding: 0; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .art-data-tr:last-child .art-data-filler-col { border-bottom: none; }
+  .art-data-th.art-data-filler-col { padding: 0; }
+
+  .art-data-empty {
+    padding: 2.5rem; text-align: center;
+    font-size: 0.875rem; color: var(--text-muted);
+  }
+
+  /* ===== ArtDataFilters ===== */
+  .art-data-filters { display: flex; flex-direction: column; gap: 8px; }
+  .art-data-filters-bar { display: flex; align-items: center; gap: 8px; }
+  /* Chevron rotates when the panel is open */
+  .art-data-filters-toggle svg { transition: transform 0.22s ease; }
+  .art-data-filters-toggle--open svg { transform: rotate(180deg); }
+  /* Active-filter count badge inside the Filters button */
+  .art-data-filters-count {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 1.2rem; height: 1.2rem; padding: 0 4px;
+    background: var(--art-accent); color: #fff; border-radius: 9999px;
+    font-size: 0.68rem; font-weight: 600; line-height: 1;
+  }
+  .art-data-filters-panel { padding: 0; }
+
+  /* ===== ArtData ===== */
+  /* Layout wrapper — enforces consistent spacing between filters / table / pagination */
+  .art-data { display: flex; flex-direction: column; gap: 8px; }
+
+  /* ===== ArtCheckbox ===== */
+  .art-checkbox-root {
+    display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;
+  }
+  .art-checkbox-root--disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+
+  /* Hide native checkbox visually but keep it in DOM for form semantics */
+  .art-checkbox-input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+
+  .art-checkbox-box {
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    width: 1.125rem; height: 1.125rem; border-radius: 4px;
+    border: 1.5px solid var(--border);
+    background: transparent; color: transparent;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  /* Hover: lighten border */
+  .art-checkbox-root:not(.art-checkbox-root--disabled):hover .art-checkbox-box { border-color: var(--text-muted); }
+
+  /* Checked state — uses art-accent (defaults to primary when no color class) */
+  .art-checkbox-input:checked + .art-checkbox-box {
+    background: var(--art-accent); border-color: var(--art-accent); color: #fff;
+  }
+
+  /* Sizes */
+  .art-checkbox--sm .art-checkbox-box { width: 0.875rem; height: 0.875rem; border-radius: 3px; }
+  .art-checkbox--lg .art-checkbox-box { width: 1.25rem; height: 1.25rem; border-radius: 5px; }
+  .art-checkbox--sm .art-checkbox-box svg { width: 9px; height: 9px; }
+  .art-checkbox--lg .art-checkbox-box svg { width: 12px; height: 12px; }
+
+  .art-checkbox-label { font-size: 0.875rem; color: var(--text); }
+
+  /* ===== ArtTitle ===== */
+  .art-title      { @apply flex items-start gap-3 flex-1 min-w-0; }
+  .art-title-icon { flex-shrink: 0; color: var(--art-accent); }
+  .art-title-body { @apply flex flex-col flex-1 min-w-0; gap: 3px; }
+  .art-title-text { font-weight: 600; line-height: 1.4; }
+  .art-title-desc { color: var(--text-muted); line-height: 1.5; }
+  /* sm — snackbar */
+  .art-title--sm .art-title-text { @apply text-sm; font-weight: 500; }
+  .art-title--sm .art-title-desc { @apply text-xs break-words leading-normal; }
+  /* md — dialog */
+  .art-title--md .art-title-text { font-size: 1rem; }
+  .art-title--md .art-title-desc { @apply text-sm; }
+  .art-title--md .art-title-icon { margin-top: 0.5rem; }
+  /* lg — standalone page / section heading */
+  .art-title--lg { padding-top: 1rem; }
+  .art-title--lg               { padding-top: 1rem; }
+  .art-title--lg .art-title-text { font-size: 1.125rem; }
+  .art-title--lg .art-title-desc { @apply text-sm; }
+  .art-title--lg .art-title-icon { margin-top: 0.3rem; }
+
+  /* ===== ArtDialog ===== */
+  .art-dialog-backdrop {
+    position: fixed; inset: 0; z-index: 10000;
+    background: rgba(0,0,0,0.55);
+    @apply flex items-center justify-center p-4;
+  }
+  .art-dialog {
+    @apply w-full flex flex-col;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; max-height: 85vh; overflow: hidden;
+  }
+  .art-dialog-header {
+    @apply flex items-start gap-3;
+    padding: 1.25rem 1.25rem 1rem;
+  }
+  .art-dialog-content { @apply text-sm overflow-y-auto; padding: 0 1.25rem 1rem; color: var(--text-muted); }
+  .art-dialog-footer { @apply flex flex-wrap justify-end gap-2; padding: 0 1.25rem 1.25rem; }
+
+  /* Outlined variant — accent-tinted border + background */
+  .art-dialog--outlined.art-primary, .art-dialog--outlined.art-warning,
+  .art-dialog--outlined.art-success, .art-dialog--outlined.art-danger {
+    border-color: color-mix(in srgb, var(--art-accent) 55%, var(--border));
+    background: color-mix(in srgb, var(--art-accent) 7%, var(--surface));
+  }
+  .art-dialog--outlined.art-primary .art-title-text,
+  .art-dialog--outlined.art-warning .art-title-text,
+  .art-dialog--outlined.art-success .art-title-text,
+  .art-dialog--outlined.art-danger  .art-title-text { color: var(--art-accent); }
+
+  /* ===== ArtEmptyState ===== */
+  .art-empty-state {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 8px; padding: 2rem 1rem; text-align: center;
+  }
+  .art-empty-state--compact { padding: 1rem 0.75rem; gap: 4px; }
+  .art-empty-state-icon  { color: var(--text-muted); }
+  .art-empty-state-title { font-size: 0.875rem; font-weight: 500; color: var(--text); }
+  .art-empty-state-desc  { font-size: 0.75rem; color: var(--text-muted); max-width: 28ch; }
+  .art-empty-state-action { margin-top: 4px; }
+  /* colored — icon picks up accent */
+  .art-empty-state.art-primary .art-empty-state-icon,
+  .art-empty-state.art-warning .art-empty-state-icon,
+  .art-empty-state.art-success .art-empty-state-icon,
+  .art-empty-state.art-danger  .art-empty-state-icon { color: var(--art-accent); }
+
+  /* ===== ArtSnackbar ===== */
+  @keyframes snack-progress { from { width: 100%; } to { width: 0%; } }
+  @keyframes snack-in      { from { transform: translateX(110%);  opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  @keyframes snack-in-left { from { transform: translateX(-110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+  .art-snackbar-stack { @apply fixed flex gap-2 pointer-events-none max-w-[400px]; width: calc(100vw - 2.5rem); z-index: 10100; }
+  .art-snackbar {
+    @apply pointer-events-auto relative flex items-start gap-2.5 p-3 rounded-lg border;
+    border-color: var(--border); background: var(--surface);
+    box-shadow: 0 4px 20px rgba(0,0,0,.5);
+    animation: snack-in 0.35s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+  }
+  .art-snackbar--from-left { animation-name: snack-in-left; }
+  .art-snackbar--out      { transform: translateX(110%);  opacity: 0; animation: none; }
+  .art-snackbar--out-left { transform: translateX(-110%); opacity: 0; animation: none; }
+  .art-snackbar--centered { @apply items-center; }
+  .art-snackbar--centered .art-snackbar-count { margin-top: 0; }
+  .art-snackbar--stacked {
+    box-shadow: 0 4px 20px rgba(0,0,0,.5),
+      5px 6px 0 0   color-mix(in srgb, var(--art-accent) 10%, var(--surface)),
+      5px 6px 0 1px color-mix(in srgb, var(--art-accent) 40%, var(--border));
+  }
+  .art-snackbar--stacked-deep {
+    box-shadow: 0 4px 20px rgba(0,0,0,.5),
+      5px  6px  0 0   color-mix(in srgb, var(--art-accent) 10%, var(--surface)),
+      5px  6px  0 1px color-mix(in srgb, var(--art-accent) 40%, var(--border)),
+      10px 12px 0 0   color-mix(in srgb, var(--art-accent)  7%, var(--surface)),
+      10px 12px 0 1px color-mix(in srgb, var(--art-accent) 28%, var(--border));
+  }
+  .art-snackbar-count {
+    @apply flex-shrink-0 self-start mt-0.5 text-[0.7rem] font-semibold rounded border;
+    padding: 1px 5px;
+    background: color-mix(in srgb, var(--art-accent) 18%, var(--surface));
+    color: var(--art-accent); border-color: color-mix(in srgb, var(--art-accent) 32%, var(--border));
+  }
+  .art-snackbar-progress { @apply absolute bottom-0 left-[3px] right-[3px] h-[2px] overflow-hidden; border-radius: 0 0 6px 6px; }
+  .art-snackbar-progress .art-progress-fill { animation: snack-progress var(--snack-duration, 4000ms) linear forwards; }
+  .art-snackbar:hover .art-snackbar-progress .art-progress-fill { animation-play-state: paused; }
+  .art-snackbar.art-primary, .art-snackbar.art-success,
+  .art-snackbar.art-warning,  .art-snackbar.art-danger {
+    border-color: color-mix(in srgb, var(--art-accent) 45%, var(--border));
+    background:   color-mix(in srgb, var(--art-accent) 10%, var(--surface));
+  }
+
+}
+
+/* focus ring for all Art fields — neutral by default, accented inside a colored field wrapper */
+input:focus, textarea:focus { outline: none; border-color: var(--art-field-focus); }
+
+/* ==== High-contrast theme overrides ==== */
+/* Uses W3C CSS Color Level 4 system color keywords (Canvas, ButtonFace, Highlight, etc.)
+   These map to the OS-level HC palette automatically — no color values hardcoded here.
+   color-mix() calls in the main layer produce near-invisible results on pure black;
+   these rules replace them with solid system colors for every interactive element.
+
+   Color modifier classes (.art-primary, .art-warning, etc.) are intentionally neutralized:
+   HC mode prioritizes clarity over color variety — everything uses the system Highlight color. */
+
+/* HC keeps distinct semantic colors (danger=red, success=green, warning=yellow, primary=cyan).
+   The tokens in .theme-contrast already define HC-safe values.
+   Only the color-mix() component styles need overrides below. */
+
+/* Options */
+.theme-contrast .art-combobox-option:hover,
+.theme-contrast .art-combobox-option.art-combobox-option--active { background: ButtonFace; color: ButtonText; }
+.theme-contrast .art-combobox-option:active,
+.theme-contrast .art-combobox-option[data-pressing]               { background: Highlight;  color: HighlightText; }
+.theme-contrast .art-combobox-option--selected                    { background: Highlight;  color: HighlightText; }
+.theme-contrast .art-combobox-option--selected:hover,
+.theme-contrast .art-combobox-option--selected.art-combobox-option--active { background: Highlight; color: HighlightText; filter: brightness(1.15); }
+
+/* Fields */
+.theme-contrast .art-field { border-color: ButtonBorder; }
+.theme-contrast input:focus, .theme-contrast textarea:focus,
+.theme-contrast .art-select-trigger:focus,
+.theme-contrast .art-combobox-chips-field:focus-within { border-color: Highlight; outline: 1px solid Highlight; }
+
+/* Buttons */
+.theme-contrast .art-btn--default             { background: ButtonFace; color: ButtonText; border-color: ButtonBorder; }
+.theme-contrast .art-btn--default:hover       { background: Highlight;  color: HighlightText; }
+.theme-contrast .art-btn--outlined            { background: Canvas;     color: ButtonText; border-color: ButtonBorder; }
+.theme-contrast .art-btn--outlined:hover      { background: ButtonFace; }
+.theme-contrast .art-btn--ghost:hover         { background: ButtonFace; color: ButtonText; }
+
+/* Badges */
+.theme-contrast .art-badge--default  { background: ButtonFace; color: ButtonText; border-color: ButtonBorder; }
+.theme-contrast .art-badge--outlined { background: Canvas; border-color: ButtonBorder; color: CanvasText; }
+
+/* Snackbar */
+.theme-contrast .art-snackbar { background: Canvas; border-color: ButtonBorder; }
+
+/* Chips +N more */
+.theme-contrast .art-combobox-chips-more:hover { background: ButtonFace; color: ButtonText; }
+
+/* Shimmer skeleton used by loading placeholders */
+@layer utilities {
+  .shimmer {
+    background: linear-gradient(90deg, #1a1a1a 25%, #333 50%, #1a1a1a 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+    border-radius: 6px;
+  }
+
+  /* Wrap mode — ghost preserves the child's layout geometry; overlay covers it with shimmer */
+  .art-skeleton-wrap { position: relative; display: block; }
+  .art-skeleton-ghost { visibility: hidden; pointer-events: none; user-select: none; }
+  .art-skeleton-overlay {
+    position: absolute; inset: 0;
+    border-radius: 6px;
+    height: auto; /* override any inline height */
+  }
+
+  .text-muted { color: var(--text-muted); }
+  .border-muted { border-color: var(--border); }
+  .bg-muted { background: var(--surface); }
+}
+
+@keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
+@keyframes art-spin { to { transform: rotate(360deg); } }
