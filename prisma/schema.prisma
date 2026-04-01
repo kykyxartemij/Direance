@@ -20,16 +20,14 @@ model User {
   image         String?
   password      String?   // null for OAuth-only users
 
-  // Merit.ee integration — stored per user, used client-side
-  meritApiId    String?
-  meritApiKey   String?
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Auth.js relations (needed for OAuth + session adapter)
   accounts Account[]
   sessions Session[]
+
+  mappings FieldMapping[]
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -74,4 +72,24 @@ model VerificationToken {
   expires    DateTime
 
   @@id([identifier, token])
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  FieldMapping — rules for normalising source field names
+//  isGlobal = visible to all users (e.g. built-in Merit.ee mapping)
+//  userId   = null for global mappings
+// ─────────────────────────────────────────────────────────────────
+
+model FieldMapping {
+  id         String  @id @default(uuid())
+  name       String
+  isGlobal   Boolean @default(false)
+  reportType String  @default("pnl")
+  userId     String?
+  user       User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  config Json @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

@@ -11,4 +11,9 @@ export const CACHE_KEYS = {
     all: () => ['report', 'all'],
     byId: (id: string) => ['report', 'byId', id],
   },
+  mapping: {
+    invalidate: () => ['mapping'],
+    all: () => ['mapping', 'all'],
+    byId: (id: string) => ['mapping', 'byId', id],
+  },
 };

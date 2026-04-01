@@ -17,4 +17,11 @@ export const queryKeys = {
     all: () => ['report', 'list', 'all'] as const,
     byId: (id: string) => ['report', 'single', 'byId', id] as const,
   },
+  mapping: {
+    invalidate: {
+      all: () => ['mapping'] as const,
+    },
+    all: () => ['mapping', 'list', 'all'] as const,
+    byId: (id: string) => ['mapping', 'single', 'byId', id] as const,
+  },
 } as const;

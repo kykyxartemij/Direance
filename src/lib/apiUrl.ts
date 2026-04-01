@@ -10,4 +10,8 @@ export const API = {
     byId: (id: string) => `/api/report/${id}`,
     upload: () => '/api/report/upload',
   },
+  mapping: {
+    list: () => '/api/mapping',
+    byId: (id: string) => `/api/mapping/${id}`,
+  },
 } as const;

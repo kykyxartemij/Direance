@@ -11,9 +11,30 @@ export default async function Navbar() {
       className="px-6 py-3"
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between">
-        <Link href="/" style={{ color: 'var(--text)' }} className="text-base font-semibold">
-          Direance
-        </Link>
+        <div className="flex items-center gap-6">
+          <Link href="/" style={{ color: 'var(--text)' }} className="text-base font-semibold">
+            Direance
+          </Link>
+
+          {session?.user && (
+            <div className="flex items-center gap-4">
+              <Link
+                href="/upload"
+                className="text-sm"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Upload
+              </Link>
+              <Link
+                href="/mappings"
+                className="text-sm"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Mappings
+              </Link>
+            </div>
+          )}
+        </div>
 
         {session?.user && (
           <div className="flex items-center gap-4">

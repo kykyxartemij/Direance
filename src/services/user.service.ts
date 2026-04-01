@@ -24,6 +24,7 @@ export async function getMe(): Promise<NextResponse> {
   try {
     const userId = await requireAuth();
 
+    // TODO: Instead of caching empty and check errors, just findUniqueAndThrow. No cache saved, cause of catch, no need to verify !user.
     const user = await cached(
       () => prisma.user.findUnique({ where: { id: userId }, select: USER_SELECT }),
       CACHE_KEYS.user.byId(userId),
@@ -36,6 +37,7 @@ export async function getMe(): Promise<NextResponse> {
   }
 }
 
+// TODO: Redifine. No ability to register user the regular way. You may get access only if admin created account for you. On your side is to change your password as needed. 
 export async function registerUser(req: NextRequest): Promise<NextResponse> {
   try {
     const body = await req.json();
@@ -60,6 +62,7 @@ export async function registerUser(req: NextRequest): Promise<NextResponse> {
   }
 }
 
+// Currently not used
 export async function patchMe(req: NextRequest): Promise<NextResponse> {
   try {
     const userId = await requireAuth();

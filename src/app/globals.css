@@ -856,10 +856,15 @@ a:hover {
   /* asc = chevron pointing up */
   .art-data-sort-icon--asc { transform: rotate(180deg); }
 
-  /* Data cells */
+  /* Data rows — default background; variant classes override it */
+  .art-data-tr { background: var(--surface); }
+  .art-data-tr--base     { background: var(--bg); }
+  .art-data-tr--elevated { background: color-mix(in srgb, var(--border) 25%, var(--surface)); }
+
+  /* Data cells — inherit background from <tr> so rowClassName controls everything */
   .art-data-td {
     padding: 10px 14px; font-size: 0.875rem; color: var(--text);
-    background: var(--surface); border-bottom: 1px solid var(--border);
+    background: inherit; border-bottom: 1px solid var(--border);
   }
   /* table-layout:fixed + overflow:hidden on td is sufficient for truncation — no max-width needed */
   .art-data-td--truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -875,7 +880,7 @@ a:hover {
      multiple sticky columns with correct stacking offsets. */
   .art-data-sticky {
     position: sticky; z-index: 1;
-    background: var(--surface);
+    background: inherit;
     box-shadow: 2px 0 5px -2px rgba(0, 0, 0, 0.35);
   }
   /* Sticky header cell needs z-index above both sticky rows and regular header */
@@ -1136,3 +1141,54 @@ input:focus, textarea:focus { outline: none; border-color: var(--art-field-focus
 
 @keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
 @keyframes art-spin { to { transform: rotate(360deg); } }
+
+/* ==== Excel Grid ==== */
+
+.art-excel-grid table {
+  border-collapse: collapse;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.art-excel-corner {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  min-width: 40px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.art-excel-col-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  min-width: 80px;
+  padding: 4px 8px;
+  text-align: center;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.art-excel-row-number {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 40px;
+  padding: 2px 6px;
+  text-align: right;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.art-excel-cell {
+  padding: 2px 8px;
+  color: var(--text);
+  border: 1px solid var(--border);
+}

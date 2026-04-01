@@ -71,6 +71,8 @@ interface ArtDataTableProps<T> {
   emptyMessage?: string;
   /** Provide a stable key per row to avoid unnecessary re-renders */
   rowKey?: (row: T, index: number) => string | number;
+  /** CSS class name applied to the <tr> element. Use predefined art-data-tr--* variants. */
+  rowClassName?: (row: T, index: number) => string | undefined;
   /**
    * Rows per page. Drives both pagination display and skeleton row count during loading —
    * the same value the BE uses for `take` / `pageSize`. Default: 5.
@@ -88,6 +90,7 @@ interface InternalRowProps {
   index: number;
   onRowClick?: (row: unknown, index: number) => void;
   isClickable: boolean;
+  rowClassName?: string;
 }
 
 const DataRow = React.memo(function DataRow({
@@ -96,10 +99,11 @@ const DataRow = React.memo(function DataRow({
   index,
   onRowClick,
   isClickable,
+  rowClassName,
 }: InternalRowProps) {
   return (
     <tr
-      className={cn('art-data-tr', isClickable && 'art-data-tr--clickable')}
+      className={cn('art-data-tr', isClickable && 'art-data-tr--clickable', rowClassName)}
       onClick={isClickable ? () => onRowClick?.(row, index) : undefined}
     >
       {columns.map((col) => {
@@ -142,6 +146,7 @@ function ArtDataTable<T>({
   onRowClick,
   emptyMessage = 'No data',
   rowKey,
+  rowClassName,
   pageSize = 5,
   className,
 }: ArtDataTableProps<T>) {
@@ -292,6 +297,7 @@ function ArtDataTable<T>({
                   index={index}
                   onRowClick={onRowClick as InternalRowProps['onRowClick']}
                   isClickable={!!onRowClick}
+                  rowClassName={rowClassName?.(row, index)}
                 />
               ))
             )}
