@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import * as XLSXStyle from 'xlsx-js-style';
+import * as ExcelJS from 'exceljs';
+import * as XLSX from 'xlsx';
 import Link from 'next/link';
 import { useReports, type UploadedReport } from '@/providers/ReportProvider';
 import { parseWorkbook } from '@/page/mapping/applyMapping';
@@ -10,6 +11,7 @@ import ArtBadge from '@/components/ui/ArtBadge';
 import ArtDataTable, { type ArtColumn } from '@/components/ui/ArtDataTable';
 import ArtTabs from '@/components/ui/ArtTabs';
 import type { ArtColor } from '@/components/ui/art.types';
+import type { ExportSetting } from '@/models/export-settings.models';
 import ExcelViewer from './ExcelViewer';
 
 // ==== Types ====
@@ -83,68 +85,71 @@ function combineReports(reports: UploadedReport[]): {
   };
 }
 
-// ==== Excel styling constants ====
+// ==== Processed workbook for ExcelViewer ====
+
+function buildProcessedWorkbook(headers: string[], rows: Row[]) {
+  const aoa = [headers, ...rows.map((r) => headers.map((h) => r[h] ?? ''))];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Report');
+  return wb;
+}
+
+// ==== Excel export (ExcelJS) ====
 
 const FONT_COLOR: Record<string, string> = {
-  primary: '646CFF',
-  success: '22C55E',
-  warning: 'EAB308',
-  danger:  'EF4444',
+  primary: 'FF646CFF',
+  success: 'FF22C55E',
+  warning: 'FFEAB308',
+  danger:  'FFEF4444',
 };
 
-const THIN_BORDER = { style: 'thin', color: { rgb: 'D0D0D0' } } as const;
-const CELL_BORDER = { top: THIN_BORDER, bottom: THIN_BORDER, left: THIN_BORDER, right: THIN_BORDER };
-
-const HEADER_STYLE = {
-  font: { bold: true, color: { rgb: 'FFFFFF' } },
-  fill: { fgColor: { rgb: '333333' } },
-  border: CELL_BORDER,
-  alignment: { vertical: 'center' },
+const THIN_BORDER: Partial<ExcelJS.Border> = { style: 'thin', color: { argb: 'FFD0D0D0' } };
+const CELL_BORDER: Partial<ExcelJS.Borders> = {
+  top: THIN_BORDER, bottom: THIN_BORDER, left: THIN_BORDER, right: THIN_BORDER,
 };
 
-const SECTION_STYLE = {
-  font: { bold: true },
-  fill: { fgColor: { rgb: 'E8E8E8' } },
-  border: CELL_BORDER,
-};
+function cellRefToAnchor(ref: string): { col: number; row: number } {
+  const m = ref.match(/^([A-Za-z]+)(\d+)$/);
+  if (!m) return { col: 0, row: 0 };
+  const col = m[1].toUpperCase().split('').reduce((acc, c) => acc * 26 + (c.charCodeAt(0) - 64), 0) - 1;
+  return { col, row: parseInt(m[2], 10) - 1 };
+}
 
-const TOTAL_STYLE = {
-  font: { bold: true },
-  fill: { fgColor: { rgb: 'F0F0F0' } },
-  border: CELL_BORDER,
-};
-
-const DEFAULT_STYLE = {
-  font: {},
-  border: CELL_BORDER,
-};
-
-// ==== Excel export ====
-
-function exportToExcel(
+async function exportToExcel(
   headers: string[],
   rows: Row[],
   rowIndents: number[],
   rowColors: (ArtColor | undefined)[] = [],
   valueColors: (ArtColor | undefined)[] = [],
+  exportSettings?: ExportSetting | null,
 ) {
-  const [descHeader, ...valueHeaders] = headers;
-  const wb = XLSXStyle.utils.book_new();
-  const ws: XLSXStyle.WorkSheet = {};
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Report');
 
-  // Header row
-  headers.forEach((h, c) => {
-    ws[XLSXStyle.utils.encode_cell({ r: 0, c })] = {
-      t: 's',
-      v: h,
-      s: { ...HEADER_STYLE, alignment: { ...HEADER_STYLE.alignment, horizontal: c === 0 ? 'left' : 'right' } },
-    };
+  const [descHeader, ...valueHeaders] = headers;
+
+  // ==== Column widths ====
+  ws.columns = [
+    { width: 38 },
+    ...valueHeaders.map(() => ({ width: 20 })),
+  ];
+
+  // ==== Header row ====
+  const headerRow = ws.addRow(headers);
+  headerRow.eachCell((cell, colNum) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF333333' } };
+    cell.border = CELL_BORDER;
+    cell.alignment = { vertical: 'middle', horizontal: colNum === 1 ? 'left' : 'right' };
   });
 
+  // Track section starts per value column for SUM formulas
   const sectionStart: Record<number, number> = {};
 
+  // ==== Data rows ====
   rows.forEach((row, rowIdx) => {
-    const excelRow = rowIdx + 2;
+    const excelRowNum = rowIdx + 2; // 1-based, +1 for header
     const desc = String(row[descHeader] ?? '');
     const isTotal = /^total/i.test(desc);
     const isEmpty = valueHeaders.every((h) => row[h] === '' || row[h] == null);
@@ -152,65 +157,89 @@ function exportToExcel(
     const isSection = isEmpty && !isTotal;
     const isTopLevel = indent === 0 && (isSection || isTotal);
 
-    // Row-level style base
-    const rowBase = isTopLevel && isSection ? SECTION_STYLE
-      : isTotal ? TOTAL_STYLE
-      : DEFAULT_STYLE;
+    const nameArgb = rowColors[rowIdx] ? FONT_COLOR[rowColors[rowIdx]!] : undefined;
+    const valArgb = valueColors[rowIdx] ? FONT_COLOR[valueColors[rowIdx]!] : undefined;
 
-    // Name font color from mapping
-    const nameRgb = rowColors[rowIdx] ? FONT_COLOR[rowColors[rowIdx]!] : undefined;
-    const valRgb = valueColors[rowIdx] ? FONT_COLOR[valueColors[rowIdx]!] : undefined;
+    const xlRow = ws.addRow([]);
 
-    const nameFont = {
-      ...rowBase.font,
-      ...(nameRgb ? { color: { rgb: nameRgb } } : {}),
+    // ==== Name cell ====
+    const nameCell = xlRow.getCell(1);
+    nameCell.value = desc;
+    nameCell.border = CELL_BORDER;
+    nameCell.font = {
+      bold: isTopLevel,
+      color: nameArgb ? { argb: nameArgb } : undefined,
     };
+    if (isTopLevel && isSection) {
+      nameCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
+    } else if (isTotal) {
+      nameCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
+    }
 
-    ws[XLSXStyle.utils.encode_cell({ r: excelRow - 1, c: 0 })] = {
-      t: 's',
-      v: desc,
-      s: { ...rowBase, font: nameFont },
-    };
-
+    // ==== Value cells ====
     valueHeaders.forEach((h, vIdx) => {
-      const c = vIdx + 1;
-      const colLetter = XLSXStyle.utils.encode_col(c);
-      const addr = XLSXStyle.utils.encode_cell({ r: excelRow - 1, c });
+      const colNum = vIdx + 2;
+      const colLetter = ws.getColumn(colNum).letter;
+      const cell = xlRow.getCell(colNum);
+      cell.border = CELL_BORDER;
+      cell.alignment = { horizontal: 'right' };
+      cell.font = { bold: isTopLevel, color: valArgb ? { argb: valArgb } : undefined };
 
-      const valFont = {
-        ...rowBase.font,
-        ...(valRgb ? { color: { rgb: valRgb } } : {}),
-      };
-      const cellStyle = {
-        ...rowBase,
-        font: valFont,
-        alignment: { horizontal: 'right' as const },
-        numFmt: '#,##0',
-      };
+      if (isTopLevel && isSection) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
+      } else if (isTotal) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
+      }
 
       if (isEmpty) {
-        ws[addr] = { t: 's', v: '', s: { ...rowBase, font: valFont } };
-        delete sectionStart[c];
-      } else if (isTotal && sectionStart[c] != null) {
-        ws[addr] = { t: 'n', f: `SUM(${colLetter}${sectionStart[c]}:${colLetter}${excelRow - 1})`, s: cellStyle };
-        delete sectionStart[c];
+        cell.value = '';
+        delete sectionStart[colNum];
+      } else if (isTotal && sectionStart[colNum] != null) {
+        cell.value = {
+          formula: `SUM(${colLetter}${sectionStart[colNum]}:${colLetter}${excelRowNum - 1})`,
+        };
+        cell.numFmt = '#,##0';
+        delete sectionStart[colNum];
       } else {
         const num = Number(row[h]);
         const isNum = !isNaN(num) && row[h] !== '';
-        ws[addr] = isNum
-          ? { t: 'n', v: num, s: cellStyle }
-          : { t: 's', v: String(row[h] ?? ''), s: { ...rowBase, font: valFont } };
-        if (isNum && sectionStart[c] == null) sectionStart[c] = excelRow;
+        if (isNum) {
+          cell.value = num;
+          cell.numFmt = '#,##0';
+          if (sectionStart[colNum] == null) sectionStart[colNum] = excelRowNum;
+        } else {
+          cell.value = String(row[h] ?? '');
+        }
       }
     });
   });
 
-  // Set ref and column widths
-  ws['!ref'] = XLSXStyle.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length, c: headers.length - 1 } });
-  ws['!cols'] = [{ wch: 35 }, ...valueHeaders.map(() => ({ wch: 18 }))];
+  // ==== Logo embedding ====
+  const logoCell = exportSettings?.headerLayout?.logoCell;
+  const logoData = exportSettings?.logoData;
+  if (logoCell && logoData) {
+    const imageId = wb.addImage({
+      base64: logoData,
+      extension: 'jpeg',
+    });
+    const anchor = cellRefToAnchor(logoCell);
+    ws.addImage(imageId, {
+      tl: { col: anchor.col, row: anchor.row } as ExcelJS.Anchor,
+      ext: { width: 180, height: 64 },
+    });
+  }
 
-  XLSXStyle.utils.book_append_sheet(wb, ws, 'Report');
-  XLSXStyle.writeFile(wb, 'combined-report.xlsx');
+  // ==== Download ====
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'combined-report.xlsx';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ==== Helpers ====
@@ -283,10 +312,7 @@ function getRowClass(row: Row, index: number, valueHeaders: string[], rowIndents
   const isEmpty = valueHeaders.every((h) => row[h] === '' || row[h] == null);
   const isTotal = /^total/i.test(String(Object.values(row)[0] ?? ''));
 
-  if (!isEmpty && !isTotal) return 'art-data-tr--base'; // line items
-
-  // indent 0 = top-level section or top-level total → elevated
-  // indent 1+ = sub-section or sub-total → default surface (no extra class)
+  if (!isEmpty && !isTotal) return 'art-data-tr--base';
   return indent === 0 ? 'art-data-tr--elevated' : undefined;
 }
 
@@ -300,6 +326,7 @@ const VIEW_TABS = [
 export default function Dashboard() {
   const { reports } = useReports();
   const [view, setView] = useState('table');
+  const [exporting, setExporting] = useState(false);
 
   if (reports.length === 0) {
     return (
@@ -319,6 +346,18 @@ export default function Dashboard() {
 
   const { headers, rows, rowIndents, rowColors, valueColors } = combineReports(reports);
   const [, ...valueHeaders] = headers;
+
+  // Use ExportSetting from the first mapped report that has one
+  const activeExportSetting = reports.find((r) => r.exportSetting)?.exportSetting ?? null;
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      await exportToExcel(headers, rows, rowIndents, rowColors, valueColors, activeExportSetting);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -341,7 +380,7 @@ export default function Dashboard() {
           )}
         </div>
         <div className="flex gap-2">
-          <ArtButton onClick={() => exportToExcel(headers, rows, rowIndents, rowColors, valueColors)}>Export Excel</ArtButton>
+          <ArtButton loading={exporting} onClick={handleExport}>Export Excel</ArtButton>
           <Link href="/upload" prefetch>
             <ArtButton color="primary">Add report</ArtButton>
           </Link>
@@ -352,12 +391,12 @@ export default function Dashboard() {
         <ArtDataTable<Row>
           columns={buildColumns(headers, rowIndents, rowColors, valueColors)}
           data={rows}
-          rowKey={(row) => String(row[headers[0]] ?? '')}
+          rowKey={(_, index) => String(index)}
           rowClassName={(row, index) => getRowClass(row, index, valueHeaders, rowIndents)}
           emptyMessage="No rows found"
         />
       ) : (
-        <ExcelViewer workbook={reports[0].workbook} />
+        <ExcelViewer workbook={buildProcessedWorkbook(headers, rows)} fixedSheet="Report" />
       )}
     </div>
   );

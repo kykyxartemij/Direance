@@ -12,7 +12,12 @@ export default async function Navbar() {
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between">
         <div className="flex items-center gap-6">
-          <Link href="/" style={{ color: 'var(--text)' }} className="text-base font-semibold">
+          <Link
+            href="/"
+            prefetch
+            style={{ color: 'var(--text)' }}
+            className="text-base font-semibold"
+          >
             Direance
           </Link>
 
@@ -20,6 +25,7 @@ export default async function Navbar() {
             <div className="flex items-center gap-4">
               <Link
                 href="/upload"
+                prefetch
                 className="text-sm"
                 style={{ color: 'var(--text-muted)' }}
               >
@@ -27,10 +33,19 @@ export default async function Navbar() {
               </Link>
               <Link
                 href="/mappings"
+                prefetch
                 className="text-sm"
                 style={{ color: 'var(--text-muted)' }}
               >
                 Mappings
+              </Link>
+              <Link
+                href="/export-settings"
+                prefetch
+                className="text-sm"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Export Settings
               </Link>
             </div>
           )}

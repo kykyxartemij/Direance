@@ -118,7 +118,7 @@ export default function SignUpPage() {
 
       <p className="mt-5 text-sm" style={{ color: 'var(--text-muted)' }}>
         Already have an account?{' '}
-        <Link href="/auth/sign-in" style={{ color: 'var(--primary)' }}>
+        <Link href="/auth/sign-in" prefetch style={{ color: 'var(--primary)' }}>
           Sign in
         </Link>
       </p>

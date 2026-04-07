@@ -27,7 +27,8 @@ model User {
   accounts Account[]
   sessions Session[]
 
-  mappings FieldMapping[]
+  mappings        FieldMapping[]
+  exportSettings  ExportSetting[]
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -89,6 +90,41 @@ model FieldMapping {
   user       User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   config Json @default("{}")
+
+  exportSettingId String?
+  exportSetting   ExportSetting? @relation(fields: [exportSettingId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  ExportSetting — reusable export template
+//  Stores named value categories, sheet options, and report layout.
+//  FieldMapping optionally links to one ExportSetting to populate
+//  the Display Name ComboBox in Row Mappings with mappedValueNames.
+// ─────────────────────────────────────────────────────────────────
+
+model ExportSetting {
+  id     String @id @default(uuid())
+  name   String
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Header layout: logo position, arbitrary text/placeholder cells, where the DataTable starts
+  headerLayout          Json?
+  applyHeaderToAllSheets Boolean  @default(false)
+
+  // Logo stored as processed bytes (sharp-compressed JPEG, max 200 KB)
+  logoData Bytes?
+  logoMime String? // always "image/jpeg" after sharp processing
+  logoName String? // original filename, shown in UI
+  
+  includeOriginalSheets  Boolean  @default(false)
+  mappedValueNames       String[]
+
+  // Back-reference required by Prisma — never selected in queries; ExportSetting does not expose FieldMappings
+  fieldMappings FieldMapping[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

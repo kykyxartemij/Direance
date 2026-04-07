@@ -36,13 +36,23 @@ export type ColumnHeaderMapping = {
   groupName?: string;
 };
 
+export type SheetMode = 'combine' | 'skip';
+
 export type SheetConfig = {
-  use: boolean;
+  mode: SheetMode;
+};
+
+export type ExportSettings = {
+  templateDescription?: string;
+  includeOriginalSheets?: boolean;
+  useLogoOnAllSheets?: boolean;
+  mappedValueNames?: string[];
 };
 
 export type MappingConfig = {
   currency: string;
   sourceLayout: SourceLayout;
+  sheetLayouts?: Record<string, SourceLayout>;
   sheetsConfig?: Record<string, SheetConfig>;
   rowMappings: RowMapping[];
   columnHeaders: ColumnHeaderMapping[];
@@ -56,6 +66,8 @@ export type MappingModel = {
   isGlobal: boolean;
   reportType: ReportType;
   config: MappingConfig;
+  /** Populated via Prisma relation — id, name, and mappedValueNames only */
+  exportSetting?: { id: string; name: string; mappedValueNames: string[] } | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -101,6 +113,7 @@ const ColumnHeaderMappingValidator = yup.object({
 const MappingConfigValidator = yup.object({
   currency: yup.string().default('EUR'),
   sourceLayout: SourceLayoutValidator.required(),
+  sheetLayouts: yup.mixed<Record<string, SourceLayout>>().optional(),
   sheetsConfig: yup.mixed<Record<string, SheetConfig>>().optional(),
   rowMappings: yup.array().of(RowMappingValidator).default([]),
   columnHeaders: yup.array().of(ColumnHeaderMappingValidator).default([]),
@@ -110,12 +123,14 @@ export const MappingCreateValidator = yup.object({
   name: yup.string().trim().min(1, 'Name is required').required('Name is required'),
   reportType: yup.string().oneOf(REPORT_TYPES).default('pnl'),
   config: MappingConfigValidator.required(),
+  exportSettingId: yup.string().optional(),
 });
 
 export const MappingUpdateValidator = yup.object({
   name: yup.string().trim().min(1).optional(),
   reportType: yup.string().oneOf(REPORT_TYPES).optional(),
   config: MappingConfigValidator.optional(),
+  exportSettingId: yup.string().nullable().optional(),
 });
 
 export type MappingCreateInput = yup.InferType<typeof MappingCreateValidator>;

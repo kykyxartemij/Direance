@@ -23,22 +23,34 @@ const TRANSITION_MS = 220;
  * Animates height 0 ↔ auto via CSS grid-template-rows.
  * Switches overflow to visible after the open animation so absolutely-positioned
  * children (ComboBox/Select dropdowns) are not clipped.
+ * Unmounts children after the close animation completes to avoid rendering
+ * off-screen subtrees (dropdowns, data tables, etc.) while collapsed.
  *
  * Use this when you want full control over the trigger.
  * Use ArtCollapse for the batteries-included version with a built-in trigger header.
  */
 const ArtBaseCollapse = ({ open, children, className }: ArtBaseCollapseProps) => {
-  const [overflowVisible, setOverflowVisible] = useState(false);
+  // keepMounted persists through the close animation so children don't vanish mid-transition.
+  // We never set it to true inside an effect — when open is true, `open || keepMounted`
+  // already renders children regardless of keepMounted's value.
+  const [keepMounted, setKeepMounted] = useState(open);
+  const [overflowVisible, setOverflowVisible] = useState(open);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const overflowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
+    if (overflowTimerRef.current) clearTimeout(overflowTimerRef.current);
     if (open) {
       timerRef.current = setTimeout(() => setOverflowVisible(true), TRANSITION_MS);
     } else {
-      timerRef.current = setTimeout(() => setOverflowVisible(false), 0);
+      overflowTimerRef.current = setTimeout(() => setOverflowVisible(false), 0);
+      timerRef.current = setTimeout(() => setKeepMounted(false), TRANSITION_MS);
     }
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (overflowTimerRef.current) clearTimeout(overflowTimerRef.current);
+    };
   }, [open]);
 
   return (
@@ -50,7 +62,7 @@ const ArtBaseCollapse = ({ open, children, className }: ArtBaseCollapseProps) =>
         className="art-collapse-inner"
         style={{ overflow: overflowVisible ? 'visible' : 'hidden' }}
       >
-        {children}
+        {(open || keepMounted) && children}
       </div>
     </div>
   );

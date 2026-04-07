@@ -1,15 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { useMappings, useDeleteMapping, useUpdateMapping } from '@/hooks/mapping.hooks';
+import { useRouter } from 'next/navigation';
+import { useGetPagedMappings, useDeleteMapping } from '@/hooks/mapping.hooks';
 import type { MappingModel, ReportType } from '@/models/mapping.models';
-import type { ArtSelectOption } from '@/components/ui/ArtSelect';
-import ArtDataTable, { type ArtColumn } from '@/components/ui/ArtDataTable';
+import type { ArtColumn } from '@/components/ui/ArtDataTable';
+import ArtData from '@/components/ui/ArtData';
 import ArtBadge from '@/components/ui/ArtBadge';
 import ArtButton from '@/components/ui/ArtButton';
-import ArtInput from '@/components/ui/ArtInput';
-import ArtSelect from '@/components/ui/ArtSelect';
-import { ArtConfirmDialog, useArtDialog } from '@/components/ui/ArtDialog';
+import { ArtConfirmDialog } from '@/components/ui/ArtDialog';
 
 // ==== Constants ====
 
@@ -18,59 +17,15 @@ const REPORT_TYPE_LABELS: Record<ReportType, string> = {
   financial_position: 'Financial Position',
 };
 
-const REPORT_TYPE_OPTIONS: ArtSelectOption[] = [
-  { label: 'Profit & Loss', value: 'pnl' },
-  { label: 'Financial Position', value: 'financial_position' },
-];
+const PAGE_SIZE = 20;
 
-// ==== Component ====
+// ==== Page ====
 
 export default function MappingsPage() {
-  const { data: mappings = [], isLoading } = useMappings();
+  const router = useRouter();
+  const [page, setPage] = useState(1);
+  const { data: pagedData, isLoading } = useGetPagedMappings(page, PAGE_SIZE);
   const deleteMutation = useDeleteMapping();
-  const updateMutation = useUpdateMapping();
-  const dialog = useArtDialog();
-
-  // ==== Edit dialog ====
-
-  function handleEdit(mapping: MappingModel) {
-    let editName = mapping.name;
-    let editType = mapping.reportType;
-
-    dialog.show({
-      title: 'Edit Mapping',
-      content: (
-        <div className="flex flex-col gap-4">
-          <ArtInput
-            label="Name"
-            defaultValue={mapping.name}
-            onChange={(e) => { editName = e.target.value; }}
-          />
-          <ArtSelect
-            label="Report Type"
-            options={REPORT_TYPE_OPTIONS}
-            selected={REPORT_TYPE_OPTIONS.find((o) => o.value === mapping.reportType) ?? null}
-            onChange={(opt) => { editType = (opt?.value as ReportType) ?? mapping.reportType; }}
-          />
-        </div>
-      ),
-      buttons: [
-        {
-          label: 'Save',
-          color: 'primary',
-          onClick: async () => {
-            await updateMutation.mutateAsync({
-              id: mapping.id,
-              body: { name: editName, reportType: editType },
-            });
-          },
-        },
-      ],
-      cancelButton: true,
-    });
-  }
-
-  // ==== Table columns ====
 
   const columns: ArtColumn<MappingModel>[] = [
     {
@@ -90,19 +45,19 @@ export default function MappingsPage() {
       render: (row) => REPORT_TYPE_LABELS[row.reportType] ?? row.reportType,
     },
     {
-      key: 'createdAt',
-      label: 'Created',
-      width: 140,
-      render: (row) => new Date(row.createdAt).toLocaleDateString(),
+      key: 'exportSetting',
+      label: 'Export Config',
+      width: 180,
+      render: (row) => row.exportSetting?.name ?? '—',
     },
     {
       key: 'actions',
       label: '',
-      width: 160,
+      width: 140,
       render: (row) =>
         row.isGlobal ? null : (
           <div className="flex gap-2">
-            <ArtButton variant="ghost" onClick={() => handleEdit(row)}>
+            <ArtButton variant="ghost" onClick={() => router.push(`/mappings/${row.id}`)}>
               Edit
             </ArtButton>
             <ArtConfirmDialog
@@ -111,9 +66,7 @@ export default function MappingsPage() {
               onConfirm={() => deleteMutation.mutate(row.id)}
               confirmLabel="Delete"
             >
-              <ArtButton variant="ghost" color="danger">
-                Delete
-              </ArtButton>
+              <ArtButton variant="ghost" color="danger">Delete</ArtButton>
             </ArtConfirmDialog>
           </div>
         ),
@@ -121,17 +74,22 @@ export default function MappingsPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-4xl py-8">
-      <h1 className="mb-6 text-2xl font-semibold" style={{ color: 'var(--text)' }}>
-        Mappings
-      </h1>
+    <div className="mx-auto max-w-5xl py-8">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-semibold" style={{ color: 'var(--text)' }}>Mappings</h1>
+      </div>
 
-      <ArtDataTable<MappingModel>
+      <ArtData<MappingModel>
         columns={columns}
-        data={mappings}
-        rowKey={(row) => row.id}
+        data={pagedData?.data ?? []}
         loading={isLoading}
+        rowKey={(row) => row.id}
         emptyMessage="No mappings yet. Upload a report to create one."
+        pageSize={PAGE_SIZE}
+        total={pagedData?.total}
+        page={page}
+        onPageChange={setPage}
+        searchPlaceholder="Search mappings…"
       />
     </div>
   );

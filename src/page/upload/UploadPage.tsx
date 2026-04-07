@@ -13,16 +13,16 @@ export default function UploadPage() {
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
 
-  const handleUpload = async () => {
+  async function handleUpload(skipMapping: boolean) {
     if (!file) return;
     setLoading(true);
     try {
       await addReport(file);
-      router.push('/upload/mapping');
+      router.push(skipMapping ? '/' : '/upload/mapping');
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
     <div className="mx-auto max-w-xl py-8">
@@ -42,12 +42,20 @@ export default function UploadPage() {
         onChange={(e) => setFile(e.target.files?.[0] ?? null)}
       />
 
-      <div className="mt-4 flex justify-end">
+      <div className="mt-4 flex justify-end gap-3">
+        <ArtButton
+          variant="outlined"
+          loading={loading}
+          disabled={!file}
+          onClick={() => handleUpload(true)}
+        >
+          Skip mapping
+        </ArtButton>
         <ArtButton
           color="primary"
           loading={loading}
           disabled={!file}
-          onClick={handleUpload}
+          onClick={() => handleUpload(false)}
         >
           Add to reports
         </ArtButton>

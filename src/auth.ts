@@ -49,3 +49,10 @@ export async function requireAuth(): Promise<string> {
   if (!session?.user?.id) throw new ApiError('Unauthorized', 401);
   return session.user.id;
 }
+
+// TODO:
+export async function requireAdmin(): Promise<string> {
+  const session = await auth();
+  if (!session?.user?.id) throw new ApiError('Unauthorized', 401);
+  return session.user.id;
+}

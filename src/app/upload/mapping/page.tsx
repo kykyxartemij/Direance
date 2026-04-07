@@ -3,6 +3,7 @@ import MappingStep from '@/page/mapping/MappingStep';
 
 export const metadata: Metadata = { title: 'Configure Mapping' };
 
-export default function Page() {
-  return <MappingStep />;
+export default async function Page({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
+  const { id } = await searchParams;
+  return <MappingStep reportId={id} />;
 }

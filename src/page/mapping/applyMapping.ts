@@ -155,9 +155,15 @@ export function applyMappingMultiSheet(
   config: MappingConfig,
 ): AppliedMapping {
   if (sheetNames.length === 0) return { headers: [], rows: [], rowColors: [], valueColors: [] };
-  if (sheetNames.length === 1) return applyMapping(workbook, sheetNames[0], config);
 
-  const primary = applyMapping(workbook, sheetNames[0], config);
+  function configForSheet(name: string): MappingConfig {
+    const override = config.sheetLayouts?.[name];
+    return override ? { ...config, sourceLayout: override } : config;
+  }
+
+  if (sheetNames.length === 1) return applyMapping(workbook, sheetNames[0], configForSheet(sheetNames[0]));
+
+  const primary = applyMapping(workbook, sheetNames[0], configForSheet(sheetNames[0]));
   const result: AppliedMapping = {
     headers: primary.headers,
     rows: [...primary.rows],
@@ -166,11 +172,10 @@ export function applyMappingMultiSheet(
   };
 
   for (const sheetName of sheetNames.slice(1)) {
-    const sheet = applyMapping(workbook, sheetName, config);
+    const sheet = applyMapping(workbook, sheetName, configForSheet(sheetName));
     for (let i = 0; i < sheet.rows.length; i++) {
       const srcRow = sheet.rows[i];
       const outRow: Row = {};
-      // Map positionally: primary header[n] ← this sheet header[n]
       primary.headers.forEach((primaryHeader, hIdx) => {
         const srcHeader = sheet.headers[hIdx];
         outRow[primaryHeader] = srcHeader !== undefined ? srcRow[srcHeader] : '';

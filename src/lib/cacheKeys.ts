@@ -13,7 +13,28 @@ export const CACHE_KEYS = {
   },
   mapping: {
     invalidate: () => ['mapping'],
-    all: () => ['mapping', 'all'],
+    light: (userId: string) => ['mapping', 'light', userId],
+    paged: (userId: string, page: number, pageSize: number) => ['mapping', 'paged', userId, String(page), String(pageSize)],
+    count: (userId: string) => ['mapping', 'count', userId],
     byId: (id: string) => ['mapping', 'byId', id],
+  },
+  exportSetting: {
+    invalidate: () => ['exportSetting'],
+    light: () => ['exportSetting', 'light'],
+    paged: (userId: string, page: number, pageSize: number, freeText?: string) => [
+      'exportSetting',
+      'paged',
+      userId,
+      String(page),
+      String(pageSize),
+      freeText ?? '',
+    ],
+    count: (userId: string, freeText?: string) => [
+      'exportSetting',
+      'count',
+      userId,
+      freeText ?? '',
+    ],
+    byId: (id: string) => ['exportSetting', 'byId', id],
   },
 };

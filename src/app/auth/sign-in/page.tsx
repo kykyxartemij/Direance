@@ -81,7 +81,7 @@ export default function SignInPage() {
 
       <p className="mt-5 text-sm" style={{ color: 'var(--text-muted)' }}>
         No account?{' '}
-        <Link href="/auth/sign-up" style={{ color: 'var(--primary)' }}>
+        <Link href="/auth/sign-up" prefetch style={{ color: 'var(--primary)' }}>
           Create one
         </Link>
       </p>

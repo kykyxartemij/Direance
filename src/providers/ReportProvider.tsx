@@ -3,6 +3,7 @@
 import { createContext, useContext, useState } from 'react';
 import * as XLSX from 'xlsx';
 import type { ArtColor } from '@/components/ui/art.types';
+import type { ExportSetting } from '@/models/export-settings.models';
 
 // ==== Types ====
 
@@ -24,6 +25,8 @@ export type UploadedReport = {
   rowColors?: (ArtColor | undefined)[];
   /** Value color per data row, from mapping. */
   valueColors?: (ArtColor | undefined)[];
+  /** Linked export setting (from mapping). */
+  exportSetting?: ExportSetting | null;
 };
 
 type ReportContextValue = {

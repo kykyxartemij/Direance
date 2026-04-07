@@ -32,7 +32,7 @@ export async function uploadReport(req: NextRequest): Promise<NextResponse> {
     const formData = await req.formData();
     const { file } = await ExcelUploadValidator.validate(
       { file: formData.get('file') },
-      { abortEarly: false },
+      { abortEarly: false }
     );
 
     const report = await parseExcelFile(file!);

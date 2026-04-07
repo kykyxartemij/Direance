@@ -5,19 +5,38 @@ import axiosClient from '@/lib/axiosClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
 import type { MappingModel, MappingCreateInput, MappingUpdateInput } from '@/models/mapping.models';
+import type { PaginatedResponse } from '@/models/paginated-response.model';
 import type { ApiError } from '@/models/api-error';
 
-export function useMappings() {
-  return useQuery<MappingModel[], ApiError>({
-    queryKey: queryKeys.mapping.all(),
+// ==== Queries ====
+
+export function useGetPagedMappings(page: number, pageSize: number) {
+  return useQuery<PaginatedResponse<MappingModel>, ApiError>({
+    queryKey: queryKeys.mapping.paged(page, pageSize),
     queryFn: async () => {
-      const { data } = await axiosClient.get<MappingModel[]>(API.mapping.list());
+      const { data } = await axiosClient.get<PaginatedResponse<MappingModel>>(
+        API.mapping.paged(page, pageSize)
+      );
       return data;
     },
   });
 }
 
-export function useMapping(id: string | undefined) {
+export type MappingLightItem = Pick<MappingModel, 'id' | 'name' | 'isGlobal' | 'reportType'> & {
+  exportSetting: { id: string; name: string } | null;
+};
+
+export function useGetLightMappings() {
+  return useQuery<MappingLightItem[], ApiError>({
+    queryKey: queryKeys.mapping.light(),
+    queryFn: async () => {
+      const { data } = await axiosClient.get(API.mapping.list());
+      return data;
+    },
+  });
+}
+
+export function useGetMappingById(id: string | undefined) {
   return useQuery<MappingModel, ApiError>({
     queryKey: queryKeys.mapping.byId(id!),
     queryFn: async () => {
@@ -27,6 +46,8 @@ export function useMapping(id: string | undefined) {
     enabled: !!id,
   });
 }
+
+// ==== Mutations ====
 
 export function useCreateMapping() {
   const queryClient = useQueryClient();

@@ -26,6 +26,23 @@
  *   }
  */
 
+/**
+ * Returns true when the function body is a single `return someService(args)` or
+ * `return await someService(args)` — a pure delegate that relies on the callee's
+ * own try/catch. No wrapping needed here.
+ */
+function isSingleCallDelegate(fn) {
+  const stmts = fn.body?.body;
+  if (!stmts || stmts.length !== 1) return false;
+  const stmt = stmts[0];
+  if (stmt.type !== 'ReturnStatement') return false;
+  const arg = stmt.argument;
+  return (
+    arg?.type === 'CallExpression' ||
+    (arg?.type === 'AwaitExpression' && arg.argument?.type === 'CallExpression')
+  );
+}
+
 /** Returns the function node if the export is an exported async function, otherwise null. */
 function getExportedAsyncFn(node) {
   if (node.type !== 'ExportNamedDeclaration' || !node.declaration) return null;
@@ -108,6 +125,9 @@ module.exports = {
         const body = fn.body;
         // Skip empty or non-block bodies (e.g., arrow expression bodies)
         if (!body || body.type !== 'BlockStatement' || body.body.length === 0) return;
+
+        // Skip pure delegates: `return serviceCall(args)` — the callee owns the try/catch
+        if (isSingleCallDelegate(fn)) return;
 
         const name = getFunctionName(node);
         const tryStmt = body.body.find((s) => s.type === 'TryStatement');

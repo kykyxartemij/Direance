@@ -30,14 +30,8 @@ function formatCellValue(v: unknown): string {
 
 const REGION_COLOR_VARS = ['--art-primary', '--art-success', '--art-warning', '--art-danger'] as const;
 
-function regionCellBg(regionIdx: number, role: 'desc' | 'value'): string {
-  const v = REGION_COLOR_VARS[regionIdx % REGION_COLOR_VARS.length];
-  const alpha = role === 'desc' ? 14 : 22;
-  return `color-mix(in srgb, var(${v}) ${alpha}%, transparent)`;
-}
-
-function regionHeaderColor(regionIdx: number): string {
-  return `var(${REGION_COLOR_VARS[regionIdx % REGION_COLOR_VARS.length]})`;
+function regionAccentVar(regionIdx: number) {
+  return REGION_COLOR_VARS[regionIdx % REGION_COLOR_VARS.length];
 }
 
 // ==== Props ====
@@ -46,18 +40,21 @@ interface ExcelViewerProps {
   workbook: XLSX.WorkBook;
   /** When provided, colors cells by region assignment. */
   layout?: SourceLayout;
+  /** Pin to a specific sheet — no tab switcher rendered. */
+  fixedSheet?: string;
 }
 
 // ==== Component ====
 
-export default function ExcelViewer({ workbook, layout }: ExcelViewerProps) {
+export default function ExcelViewer({ workbook, layout, fixedSheet }: ExcelViewerProps) {
   const [activeSheet, setActiveSheet] = useState(workbook.SheetNames[0]);
+  const sheet = fixedSheet ?? activeSheet;
 
-  const ws = workbook.Sheets[activeSheet];
+  const ws = workbook.Sheets[sheet];
   const grid = ws ? sheetToGrid(ws) : [];
   const totalCols = grid[0]?.length ?? 0;
 
-  // Build column role map from layout
+  // ==== Column role map ====
   type ColRole = { regionIdx: number; role: 'desc' | 'value' };
   const colRole = new Map<number, ColRole>();
   if (layout) {
@@ -67,32 +64,64 @@ export default function ExcelViewer({ workbook, layout }: ExcelViewerProps) {
     });
   }
 
+  // ==== Header row (the column-label row just above region 0 data) ====
+  let headerRow: number | null = null;
+  if (layout && layout.regions.length > 0) {
+    const r0 = layout.regions[0];
+    const dataStart = r0.startRow ?? (layout.headerRow + 1);
+    headerRow = Math.max(0, dataStart - 1);
+  }
+
+  // ==== Cell background ====
+  function cellBg(r: number, c: number): string | undefined {
+    const isHeader = headerRow !== null && r === headerRow;
+    const role = colRole.get(c);
+    const av = role ? regionAccentVar(role.regionIdx) : null;
+
+    if (isHeader && av) {
+      return `color-mix(in srgb, var(${av}) 28%, var(--surface))`;
+    }
+    if (isHeader) {
+      return 'color-mix(in srgb, var(--text-muted) 12%, var(--surface))';
+    }
+    if (role?.role === 'desc') {
+      return 'color-mix(in srgb, var(--text-muted) 9%, var(--surface))';
+    }
+    if (role?.role === 'value') {
+      return `color-mix(in srgb, var(${av!}) 18%, transparent)`;
+    }
+    return undefined;
+  }
+
   const tabs = workbook.SheetNames.map((name) => ({ value: name, label: name }));
+  const showTabs = !fixedSheet && workbook.SheetNames.length > 1;
 
   return (
     <div className="flex flex-col gap-3">
-      {workbook.SheetNames.length > 1 && (
-        <ArtTabs tabs={tabs} value={activeSheet} onChange={setActiveSheet} />
-      )}
+      {showTabs && <ArtTabs tabs={tabs} value={activeSheet} onChange={setActiveSheet} />}
 
       {/* Region legend */}
       {layout && layout.regions.length > 0 && (
         <div className="flex flex-wrap gap-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-          {layout.regions.map((_, ri) => (
-            <span key={ri} className="flex items-center gap-1">
-              <span
-                style={{
-                  display: 'inline-block',
-                  width: 10,
-                  height: 10,
-                  borderRadius: 2,
-                  background: regionCellBg(ri, 'value'),
-                  border: `1px solid ${regionHeaderColor(ri)}`,
-                }}
-              />
-              Region {ri + 1}
-            </span>
-          ))}
+          {layout.regions.map((r, ri) => {
+            const av = regionAccentVar(ri);
+            return (
+              <span key={ri} className="flex items-center gap-1">
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: 10,
+                    height: 10,
+                    borderRadius: 2,
+                    background: `color-mix(in srgb, var(${av}) 18%, transparent)`,
+                    border: `1px solid var(${av})`,
+                  }}
+                />
+                {colLetter(r.descriptionColumn)}
+                {r.valueColumns.length > 0 && <> → {r.valueColumns.map((vc) => colLetter(vc)).join(', ')}</>}
+              </span>
+            );
+          })}
         </div>
       )}
 
@@ -103,14 +132,12 @@ export default function ExcelViewer({ workbook, layout }: ExcelViewerProps) {
               <th className="art-excel-corner" />
               {Array.from({ length: totalCols }, (_, c) => {
                 const role = colRole.get(c);
+                const av = role ? regionAccentVar(role.regionIdx) : null;
                 return (
                   <th
                     key={c}
                     className="art-excel-col-header"
-                    style={role ? {
-                      color: regionHeaderColor(role.regionIdx),
-                      background: regionCellBg(role.regionIdx, 'value'),
-                    } : undefined}
+                    style={av ? { color: `var(${av})`, background: `color-mix(in srgb, var(${av}) 10%, transparent)` } : undefined}
                   >
                     {colLetter(c)}
                   </th>
@@ -119,23 +146,26 @@ export default function ExcelViewer({ workbook, layout }: ExcelViewerProps) {
             </tr>
           </thead>
           <tbody>
-            {grid.map((row, r) => (
-              <tr key={r}>
-                <td className="art-excel-row-number">{r + 1}</td>
-                {row.map((cell, c) => {
-                  const role = colRole.get(c);
-                  return (
+            {grid.map((row, r) => {
+              const isHeader = headerRow !== null && r === headerRow;
+              return (
+                <tr key={r}>
+                  <td className="art-excel-row-number">{r + 1}</td>
+                  {row.map((cell, c) => (
                     <td
                       key={c}
                       className="art-excel-cell"
-                      style={role ? { background: regionCellBg(role.regionIdx, role.role) } : undefined}
+                      style={{
+                        background: cellBg(r, c),
+                        fontWeight: isHeader ? 600 : undefined,
+                      }}
                     >
                       {formatCellValue(cell)}
                     </td>
-                  );
-                })}
-              </tr>
-            ))}
+                  ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
