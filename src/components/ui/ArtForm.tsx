@@ -1,19 +1,19 @@
 'use client';
 
-import React, { type ReactNode } from 'react';
-import ArtButton, { type ArtButtonProps } from './ArtButton';
+import { type ReactNode } from 'react';
+import { ArtButtonRow, type ArtButtonRowItem } from './ArtButtonRow';
 
 // ==== Types ====
 
-export type ArtFormButtonProps = Omit<ArtButtonProps, 'children' | 'type'> & {
-  label: string;
-  /** Default: 'button'. Use 'submit' for the primary action button. */
-  type?: 'submit' | 'button' | 'reset';
-};
+/** ArtFormButtonProps = ArtButtonRowItem. Re-exported so form consumers keep the same import path. */
+export type ArtFormButtonProps = ArtButtonRowItem;
 
 export interface ArtFormProps {
   onSubmit: React.ComponentProps<'form'>['onSubmit'];
-  /** Action buttons rendered right-aligned in the footer, in the order passed. */
+  /**
+   * All form buttons. Use side: 'left' for contextual actions (Save copy, Update…).
+   * Right-group convention (rightmost = most primary): [..., Cancel, PrimaryAction]
+   */
   buttons: ArtFormButtonProps[];
   children: ReactNode;
   className?: string;
@@ -26,13 +26,7 @@ export function ArtForm({ onSubmit, buttons, children, className }: ArtFormProps
     <form onSubmit={onSubmit} className={className}>
       <div className="flex flex-col gap-4">{children}</div>
       {buttons.length > 0 && (
-        <div className="art-dialog-footer mt-6">
-          {buttons.map(({ label, type = 'button', ...btnProps }, i) => (
-            <ArtButton key={i} type={type} size='lg' {...btnProps}>
-              {label}
-            </ArtButton>
-          ))}
-        </div>
+        <ArtButtonRow buttons={buttons} className="art-dialog-footer mt-6" />
       )}
     </form>
   );

@@ -91,12 +91,18 @@ export function useAnchoredPanel<
       if (panelRef.current?.contains(e.target as Node)) return;
       hide();
     };
+    const onScroll = (e: Event) => {
+      const target = e.target as Node | null;
+      if (target && triggerRef.current?.contains(target)) return;
+      if (target && panelRef.current?.contains(target)) return;
+      hide();
+    };
     document.addEventListener('mousedown', onMouseDown);
-    window.addEventListener('scroll', hide, true);
+    window.addEventListener('scroll', onScroll, true);
     window.addEventListener('resize', hide);
     return () => {
       document.removeEventListener('mousedown', onMouseDown);
-      window.removeEventListener('scroll', hide, true);
+      window.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', hide);
     };
   }, [open, hide]);

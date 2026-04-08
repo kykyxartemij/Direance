@@ -6,6 +6,7 @@ import React, {
 } from 'react';
 import { createPortal } from 'react-dom';
 import ArtButton, { type ArtButtonProps } from './ArtButton';
+import { ArtButtonRow } from './ArtButtonRow';
 import { type ArtIconName } from './ArtIcon';
 import ArtIconButton from './ArtIconButton';
 import ArtTitle from './ArtTitle';
@@ -19,6 +20,8 @@ export type ArtDialogButtonProps = Omit<ArtButtonProps, 'children' | 'onClick'> 
   onClick?: () => void;
   /** Auto-close the dialog after onClick (default: true) */
   closesDialog?: boolean;
+  /** Which side of the footer row. Default: 'right' */
+  side?: 'left' | 'right';
 };
 
 /**
@@ -234,27 +237,24 @@ function DialogUI({
 
         {/* Footer */}
         {hasFooter && (
-          <div className="art-dialog-footer">
-            {cancelCfg !== null && (
-              <ArtButton
-                variant={cancelCfg.variant ?? 'ghost'}
-                color={cancelCfg.color}
-                size={cancelCfg.size}
-                onClick={onClose}
-              >
-                {cancelCfg.label ?? 'Cancel'}
-              </ArtButton>
-            )}
-            {buttons?.map(({ label, onClick, closesDialog = true, ...btnProps }, i) => (
-              <ArtButton
-                key={i}
-                onClick={() => { onClick?.(); if (closesDialog) onClose(); }}
-                {...btnProps}
-              >
-                {label}
-              </ArtButton>
-            ))}
-          </div>
+          <ArtButtonRow
+            className="art-dialog-footer"
+            buttons={[
+              ...(cancelCfg !== null ? [{
+                label: cancelCfg?.label ?? 'Cancel',
+                variant: cancelCfg?.variant ?? 'ghost' as const,
+                color: cancelCfg?.color,
+                size: cancelCfg?.size,
+                onClick: onClose,
+              }] : []),
+              ...(buttons ?? []).map(({ label, onClick, closesDialog = true, side, ...btnProps }) => ({
+                label,
+                side,
+                ...btnProps,
+                onClick: () => { onClick?.(); if (closesDialog) onClose(); },
+              })),
+            ]}
+          />
         )}
       </div>
     </div>

@@ -4,9 +4,11 @@ import { useState } from 'react';
 import * as XLSX from 'xlsx';
 import type { SourceLayout, TableRegion, SheetConfig } from '@/models/mapping.models';
 import type { ArtSelectOption } from '@/components/ui/ArtSelect';
+import type { ArtColor } from '@/components/ui/art.types';
 import ArtCollapse from '@/components/ui/ArtCollapse';
 import ArtTabs, { type ArtTab } from '@/components/ui/ArtTabs';
 import ArtButton from '@/components/ui/ArtButton';
+import ArtCheckbox from '@/components/ui/ArtCheckbox';
 import ArtSelect from '@/components/ui/ArtSelect';
 import ArtInput from '@/components/ui/ArtInput';
 import ExcelViewer from '@/page/dashboard/ExcelViewer';
@@ -32,7 +34,7 @@ function columnLetterOptions(totalCols: number): ArtSelectOption[] {
 
 // ==== Region accent palette (matches ExcelViewer) ====
 
-const REGION_ACCENTS = ['--art-primary', '--art-success', '--art-warning', '--art-danger'] as const;
+const REGION_ART_COLORS: ArtColor[] = ['primary', 'success', 'warning', 'danger'];
 
 // ==== Sheet tab content ====
 
@@ -41,9 +43,12 @@ interface SheetTabProps {
   workbook: XLSX.WorkBook;
   layout: SourceLayout;
   autoDetectedLayout: SourceLayout | null;
-  mode: 'combine' | 'skip';
+  config: SheetConfig;
   onLayoutChange: (layout: SourceLayout) => void;
+  /** Called only when mode changes — triggers row-mapping flush in parent */
   onModeChange: (mode: 'combine' | 'skip') => void;
+  /** Called when createTotalColumn toggles — does NOT flush row mappings */
+  onCreateTotalColumnChange: (value: boolean) => void;
 }
 
 function SheetTab({
@@ -51,10 +56,12 @@ function SheetTab({
   workbook,
   layout,
   autoDetectedLayout,
-  mode,
+  config,
   onLayoutChange,
   onModeChange,
+  onCreateTotalColumnChange,
 }: SheetTabProps) {
+  const mode = config.mode;
   const ws = workbook.Sheets[sheetName];
   const totalCols = ws?.['!ref'] ? XLSX.utils.decode_range(ws['!ref']!).e.c + 1 : 0;
   const colOptions = columnLetterOptions(totalCols);
@@ -92,37 +99,40 @@ function SheetTab({
     onLayoutChange({ ...layout, regions: regions.filter((_, idx) => idx !== i) });
   }
 
-  // ==== Mode toggle buttons ====
-
-  function modeBtn(label: string, value: 'combine' | 'skip') {
-    const isActive = mode === value;
-    const accent = value === 'skip' ? '--art-danger' : '--art-primary';
-    return (
-      <button
-        key={value}
-        type="button"
-        onClick={() => onModeChange(value)}
-        style={{
-          padding: '3px 14px',
-          borderRadius: 4,
-          fontSize: 12,
-          cursor: 'pointer',
-          border: `1px solid ${isActive ? `var(${accent})` : 'var(--border)'}`,
-          background: isActive ? `color-mix(in srgb, var(${accent}) 16%, transparent)` : 'transparent',
-          color: isActive ? `var(${accent})` : 'var(--text-muted)',
-        }}
-      >
-        {label}
-      </button>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-4 pt-3" style={{ opacity: isSkipped ? 0.6 : 1 }}>
-      {/* Mode */}
-      <div className="flex items-center gap-2">
-        {modeBtn('Combine', 'combine')}
-        {modeBtn('Skip', 'skip')}
+      {/* Mode + Create Total Column */}
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <ArtButton
+            type="button"
+            size="sm"
+            variant={mode === 'combine' ? 'default' : 'ghost'}
+            color={mode === 'combine' ? 'primary' : undefined}
+            onClick={() => onModeChange('combine')}
+          >
+            Combine
+          </ArtButton>
+          <ArtButton
+            type="button"
+            size="sm"
+            variant={mode === 'skip' ? 'default' : 'ghost'}
+            color={mode === 'skip' ? 'danger' : undefined}
+            onClick={() => onModeChange('skip')}
+          >
+            Skip
+          </ArtButton>
+        </div>
+        {/* Uncontrolled — reads defaultChecked from config on mount.
+            SheetTab remounts on tab switch (key=activeSheet) so the value is always fresh. */}
+        {!isSkipped && (
+          <ArtCheckbox
+            label="Create Total Column"
+            size="sm"
+            defaultChecked={config.createTotalColumn ?? false}
+            onChange={(e) => onCreateTotalColumnChange(e.target.checked)}
+          />
+        )}
       </div>
 
       {/* Stats */}
@@ -143,9 +153,15 @@ function SheetTab({
                     {i > 0 && ', '}
                     <strong style={{ color: 'var(--text)' }}>{colLetter(r.descriptionColumn)}</strong>
                     {r.valueColumns.length > 0 && (
-                      <> → {r.valueColumns.map((vc, vi) => (
-                        <span key={vc}>{vi > 0 && ', '}<strong style={{ color: 'var(--text)' }}>{colLetter(vc)}</strong></span>
-                      ))}</>
+                      <>
+                        {' '}→{' '}
+                        {r.valueColumns.map((vc, vi) => (
+                          <span key={vc}>
+                            {vi > 0 && ', '}
+                            <strong style={{ color: 'var(--text)' }}>{colLetter(vc)}</strong>
+                          </span>
+                        ))}
+                      </>
                     )}
                   </span>
                 ))}
@@ -172,30 +188,38 @@ function SheetTab({
       {/* Regions */}
       {!isSkipped &&
         regions.map((region, i) => {
-          const accentVar = REGION_ACCENTS[i % REGION_ACCENTS.length];
+          const artColor = REGION_ART_COLORS[i % REGION_ART_COLORS.length];
+          const accentVar = `--art-${artColor}`;
           const dataStart = region.startRow ?? (layout.headerRow + 1);
 
           return (
             <div
               key={i}
-              className="flex flex-col gap-3 rounded p-3"
+              className="flex-col gap-2 rounded p-3"
               style={{
                 background: `color-mix(in srgb, var(${accentVar}) 5%, var(--surface))`,
                 border: `1px solid color-mix(in srgb, var(${accentVar}) 35%, var(--border))`,
               }}
             >
+              {/* Row 1: Region label + Remove */}
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold uppercase" style={{ color: `var(${accentVar})` }}>
                   Region {i + 1}
                 </span>
-                {regions.length > 1 && (
-                  <ArtButton type="button" variant="ghost" color="danger" onClick={() => removeRegion(i)}>
-                    Remove
-                  </ArtButton>
-                )}
+                <ArtButton
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  color="danger"
+                  onClick={() => removeRegion(i)}
+                  style={{ visibility: regions.length > 1 ? 'visible' : 'hidden' }}
+                >
+                  Remove
+                </ArtButton>
               </div>
 
-              <div className="grid gap-4 items-start" style={{ gridTemplateColumns: '140px 1fr 130px' }}>
+              {/* Row 2: 3-column grid, each input full-width */}
+              <div className="grid grid-cols-3 gap-4 items-start">
                 {/* Description column */}
                 <ArtSelect
                   label="Description column"
@@ -203,50 +227,6 @@ function SheetTab({
                   selected={colOptions.find((o) => o.value === String(region.descriptionColumn)) ?? null}
                   onChange={(opt) => updateRegion(i, { descriptionColumn: Number(opt?.value ?? 0) })}
                 />
-
-                {/* Value columns */}
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Value columns</span>
-                  <div className="flex flex-wrap gap-1">
-                    {colOptions
-                      .filter((o) => Number(o.value) !== region.descriptionColumn)
-                      .map((o) => {
-                        const col = Number(o.value);
-                        const isSelected = region.valueColumns.includes(col);
-                        return (
-                          <button
-                            key={col}
-                            type="button"
-                            onClick={() => {
-                              const newCols = isSelected
-                                ? region.valueColumns.filter((c) => c !== col)
-                                : [...region.valueColumns, col].sort((a, b) => a - b);
-                              updateRegion(i, { valueColumns: newCols });
-                            }}
-                            style={{
-                              padding: '2px 10px',
-                              borderRadius: 4,
-                              fontSize: 12,
-                              fontFamily: 'monospace',
-                              cursor: 'pointer',
-                              border: `1px solid ${isSelected ? `var(${accentVar})` : 'var(--border)'}`,
-                              background: isSelected
-                                ? `color-mix(in srgb, var(${accentVar}) 20%, transparent)`
-                                : 'var(--surface)',
-                              color: isSelected ? `var(${accentVar})` : 'var(--text)',
-                            }}
-                          >
-                            {o.label}
-                          </button>
-                        );
-                      })}
-                  </div>
-                  {region.valueColumns.length === 0 && (
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                      None selected — click columns above to include them
-                    </span>
-                  )}
-                </div>
 
                 {/* Data from row */}
                 <div className="flex flex-col gap-1">
@@ -260,8 +240,44 @@ function SheetTab({
                     }}
                   />
                   <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    Column labels are on the row above
+                    Labels on row above
                   </span>
+                </div>
+
+                {/* Value columns */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Value columns</span>
+                  <div className="flex flex-wrap gap-1">
+                    {colOptions
+                      .filter((o) => Number(o.value) !== region.descriptionColumn)
+                      .map((o) => {
+                        const col = Number(o.value);
+                        const isSelected = region.valueColumns.includes(col);
+                        return (
+                          <ArtButton
+                            key={col}
+                            type="button"
+                            size="sm"
+                            variant={isSelected ? 'outlined' : 'ghost'}
+                            color={isSelected ? artColor : undefined}
+                            className="font-mono"
+                            onClick={() => {
+                              const newCols = isSelected
+                                ? region.valueColumns.filter((c) => c !== col)
+                                : [...region.valueColumns, col].sort((a, b) => a - b);
+                              updateRegion(i, { valueColumns: newCols });
+                            }}
+                          >
+                            {o.label}
+                          </ArtButton>
+                        );
+                      })}
+                  </div>
+                  {region.valueColumns.length === 0 && (
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      None — click columns above to include them
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -288,7 +304,10 @@ interface SourceLayoutSectionProps {
   autoDetectedLayouts: Record<string, SourceLayout>;
   sheetsConfig: Record<string, SheetConfig>;
   onSheetLayoutChange: (sheetName: string, layout: SourceLayout) => void;
-  onSheetConfigChange: (sheetName: string, config: SheetConfig) => void;
+  /** Called on mode change — parent should flush row mappings */
+  onSheetModeChange: (sheetName: string, mode: 'combine' | 'skip') => void;
+  /** Called on createTotalColumn toggle — parent should NOT flush row mappings */
+  onSheetCreateTotalColumnChange: (sheetName: string, value: boolean) => void;
   collapseOpen?: boolean;
   onCollapseChange?: (open: boolean) => void;
 }
@@ -299,7 +318,8 @@ export default function SourceLayoutSection({
   autoDetectedLayouts,
   sheetsConfig,
   onSheetLayoutChange,
-  onSheetConfigChange,
+  onSheetModeChange,
+  onSheetCreateTotalColumnChange,
   collapseOpen,
   onCollapseChange,
 }: SourceLayoutSectionProps) {
@@ -325,9 +345,10 @@ export default function SourceLayoutSection({
           workbook={workbook}
           layout={layout}
           autoDetectedLayout={autoDetectedLayouts[activeSheet] ?? null}
-          mode={sheetsConfig[activeSheet]?.mode ?? 'combine'}
+          config={sheetsConfig[activeSheet] ?? { mode: 'combine' }}
           onLayoutChange={(newLayout) => onSheetLayoutChange(activeSheet, newLayout)}
-          onModeChange={(newMode) => onSheetConfigChange(activeSheet, { mode: newMode })}
+          onModeChange={(newMode) => onSheetModeChange(activeSheet, newMode)}
+          onCreateTotalColumnChange={(val) => onSheetCreateTotalColumnChange(activeSheet, val)}
         />
       </div>
     </ArtCollapse>

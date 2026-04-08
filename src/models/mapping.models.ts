@@ -40,6 +40,10 @@ export type SheetMode = 'combine' | 'skip';
 
 export type SheetConfig = {
   mode: SheetMode;
+  /** When true, a total column is appended summarising value columns for this sheet.
+   *  TODO: Support Excel-style per-cell formulas (e.g. B5+B6) and treat the
+   *  generated total as part of the "original sheet" for includeOriginalSheets output. */
+  createTotalColumn?: boolean;
 };
 
 export type ExportSettings = {
@@ -50,6 +54,9 @@ export type ExportSettings = {
 };
 
 export type MappingConfig = {
+  /** Source currency — the currency values appear in the Excel file */
+  fromCurrency?: string;
+  /** Target/display currency */
   currency: string;
   sourceLayout: SourceLayout;
   sheetLayouts?: Record<string, SourceLayout>;
@@ -75,6 +82,7 @@ export type MappingModel = {
 // ==== Default config ====
 
 export const DEFAULT_MAPPING_CONFIG: MappingConfig = {
+  fromCurrency: 'EUR',
   currency: 'EUR',
   sourceLayout: { regions: [{ descriptionColumn: 0, valueColumns: [] }], headerRow: 0 },
   rowMappings: [],
@@ -111,6 +119,7 @@ const ColumnHeaderMappingValidator = yup.object({
 });
 
 const MappingConfigValidator = yup.object({
+  fromCurrency: yup.string().optional(),
   currency: yup.string().default('EUR'),
   sourceLayout: SourceLayoutValidator.required(),
   sheetLayouts: yup.mixed<Record<string, SourceLayout>>().optional(),

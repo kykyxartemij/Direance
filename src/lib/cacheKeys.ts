@@ -20,7 +20,7 @@ export const CACHE_KEYS = {
   },
   exportSetting: {
     invalidate: () => ['exportSetting'],
-    light: () => ['exportSetting', 'light'],
+    light: (userId: string) => ['exportSetting', 'light', userId],
     paged: (userId: string, page: number, pageSize: number, freeText?: string) => [
       'exportSetting',
       'paged',

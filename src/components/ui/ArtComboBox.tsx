@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useLayoutEffect, forwardRef, useCallback, useId } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, forwardRef, useCallback, useId, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useAnchoredPanel } from './art.hooks';
 import ArtInput from './ArtInput';
@@ -28,7 +28,12 @@ interface ArtComboBoxBaseProps {
   debounceMs?: boolean | number;
   /** Fires after debounceMs of inactivity — use for async/server-side option fetching */
   onDebouncedChange?: (inputText: string) => void;
-  noOptionsMessage?: string;
+  /** See ArtListbox.noOptionsMessage — false suppresses the empty-state row and keeps the dropdown closed when options are empty */
+  noOptionsMessage?: ReactNode | boolean;
+  /** Called when the user scrolls near the bottom of the list — wire to fetchNextPage for infinite queries */
+  onEndReached?: () => void;
+  /** When true, renders a loading skeleton at the bottom (use with hasNextPage) */
+  hasMore?: boolean;
   isLoading?: boolean;
   disabled?: boolean;
   readOnly?: boolean;
@@ -89,6 +94,8 @@ const ArtComboBox = forwardRef<HTMLInputElement, ArtComboBoxProps>((props, ref) 
     debounceMs = false,
     onDebouncedChange,
     noOptionsMessage,
+    onEndReached,
+    hasMore,
     isLoading,
     disabled = false,
     readOnly = false,
@@ -358,6 +365,7 @@ const ArtComboBox = forwardRef<HTMLInputElement, ArtComboBoxProps>((props, ref) 
           onClear={handleClear}
           onKeyDown={handleKeyDown}
           onFocus={() => !disabled && !readOnly && show()}
+          onClick={() => !disabled && !readOnly && show()}
           readOnly={readOnly}
           disabled={disabled}
         />
@@ -384,7 +392,7 @@ const ArtComboBox = forwardRef<HTMLInputElement, ArtComboBoxProps>((props, ref) 
 
       {/* ── Dropdown list — rendered into document.body so it escapes any
            overflow:hidden / overflow:auto ancestor (table wrappers, collapse panels, etc.) */}
-      {open && (visibleOptions.length > 0 || (searchable && inputText.trim().length > 0)) && createPortal(
+      {open && (visibleOptions.length > 0 || isLoading || hasMore || (noOptionsMessage !== false && searchable && inputText.trim().length > 0)) && createPortal(
         <div
           ref={portalRef}
           style={{ position: 'fixed', zIndex: 9999, ...dropdownPos }}
@@ -395,8 +403,10 @@ const ArtComboBox = forwardRef<HTMLInputElement, ArtComboBoxProps>((props, ref) 
             options={visibleOptions}
             selectedValues={multiple ? selectedMulti.map((o) => o.value) : undefined}
             onSelect={select}
-            noOptionsMessage={isLoading ? 'Loading…' : noOptionsMessage}
+            noOptionsMessage={isLoading ? 'Loading…' : (noOptionsMessage ?? true)}
             isLoading={isLoading}
+            onEndReached={onEndReached}
+            hasMore={hasMore}
           />
         </div>,
         document.body,

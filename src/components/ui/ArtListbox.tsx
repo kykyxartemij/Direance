@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef, memo, useMemo } from 'react';
+import { forwardRef, memo, useMemo, type ReactNode } from 'react';
 import ArtIcon, { type ArtIconName } from './ArtIcon';
 import ArtSkeleton from './ArtSkeleton';
 import ArtEmptyState from './ArtEmptyState';
@@ -27,7 +27,13 @@ export interface ArtListboxProps {
   /** Values currently selected — renders a neutral tint on the row */
   selectedValues?: string[];
   onSelect: (option: ArtListboxOption) => void;
-  noOptionsMessage?: string;
+  /**
+   * Controls the empty-options state:
+   * - `undefined` / `true`  — show default "No results" message
+   * - `false`               — hide the empty state entirely (dropdown stays closed when empty)
+   * - `ReactNode` / string  — show a custom message
+   */
+  noOptionsMessage?: ReactNode | boolean;
   isLoading?: boolean;
   isError?: boolean;
   className?: string;
@@ -40,6 +46,10 @@ export interface ArtListboxProps {
   actionsPosition?: 'top' | 'bottom';
   /** Current search/input text — passed to action labels and showOnNoExactMatch logic */
   query?: string;
+  /** Called when the user scrolls near the bottom — wire to fetchNextPage for infinite queries */
+  onEndReached?: () => void;
+  /** When true, renders a loading skeleton row at the bottom (use with hasNextPage) */
+  hasMore?: boolean;
 }
 
 const ArtListbox = memo(forwardRef<HTMLUListElement, ArtListboxProps>((props, ref) => {
@@ -54,6 +64,8 @@ const ArtListbox = memo(forwardRef<HTMLUListElement, ArtListboxProps>((props, re
     extraActions = [],
     actionsPosition = 'bottom',
     query = '',
+    onEndReached,
+    hasMore,
   } = props;
 
   const trimmedQuery = query.trim();
@@ -135,7 +147,9 @@ const ArtListbox = memo(forwardRef<HTMLUListElement, ArtListboxProps>((props, re
 
   // ==== State rows ====
 
-  const showStateRow = isLoading || isError || (options.length === 0 && visibleActions.length === 0);
+  // false = caller wants no empty-state row; dropdown stays hidden when options are empty
+  const showEmptyState = noOptionsMessage !== false;
+  const showStateRow = isLoading || isError || (options.length === 0 && visibleActions.length === 0 && showEmptyState);
 
   const stateRow = showStateRow && (
     <li role="presentation">
@@ -151,17 +165,25 @@ const ArtListbox = memo(forwardRef<HTMLUListElement, ArtListboxProps>((props, re
         <ArtEmptyState
           variant="no-results"
           compact
-          title={noOptionsMessage}
+          title={noOptionsMessage === true ? undefined : (noOptionsMessage as string | undefined)}
         />
       )}
     </li>
   );
+
+  const handleScroll = onEndReached
+    ? (e: React.UIEvent<HTMLUListElement>) => {
+        const el = e.currentTarget;
+        if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) onEndReached();
+      }
+    : undefined;
 
   return (
     <ul
       ref={ref}
       role="listbox"
       className={cn('art-scrollable', className)}
+      onScroll={handleScroll}
     >
       {actionsPosition === 'top' && visibleActions.length > 0 ? (
         <>
@@ -177,6 +199,11 @@ const ArtListbox = memo(forwardRef<HTMLUListElement, ArtListboxProps>((props, re
         </>
       )}
       {stateRow}
+      {hasMore && (
+        <li role="presentation" className="p-1">
+          <ArtSkeleton className="h-8 rounded-md" />
+        </li>
+      )}
     </ul>
   );
 }));

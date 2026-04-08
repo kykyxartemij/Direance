@@ -63,23 +63,23 @@ async function processLogo(buffer: Buffer): Promise<Buffer> {
 
 // ==== HTTP handlers ====
 
-export async function getLightExportSettings(req: NextRequest): Promise<NextResponse> {
+export async function getLightExportSettings(): Promise<NextResponse> {
   try {
-    const userId = await requireAuth()
+    const userId = await requireAuth();
 
-    const light = await cached ( () => 
-      prisma.exportSetting.findMany({
-        where: { userId },
-        select: {id: true, name: true},
-        orderBy: { name: 'asc' }
-      }),
-      CACHE_KEYS.exportSetting.light()
-    )
+    const light = await cached(
+      () =>
+        prisma.exportSetting.findMany({
+          where: { userId },
+          select: { id: true, name: true },
+          orderBy: { name: 'asc' },
+        }),
+      CACHE_KEYS.exportSetting.light(userId),
+    );
 
-    return NextResponse.json(light) 
-  }
-  catch (error) {
-    return handleApiError(error, "GET /api/export-settings/light") // TODO: Create new path in api folder
+    return NextResponse.json(light);
+  } catch (error) {
+    return handleApiError(error, 'GET /api/export-settings/light');
   }
 }
 
@@ -151,6 +151,8 @@ export async function createExportSetting(req: NextRequest): Promise<NextRespons
     });
 
     invalidateCache(...CACHE_KEYS.exportSetting.invalidate());
+    await cached(() => Promise.resolve(settings), CACHE_KEYS.exportSetting.byId(settings.id))
+
     return NextResponse.json(settings, { status: 201 });
   } catch (error) {
     return handleApiError(error, 'POST /api/export-settings');

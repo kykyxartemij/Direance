@@ -42,6 +42,7 @@ export async function getLightMappings(): Promise<NextResponse> {
       () =>
         prisma.fieldMapping.findMany({
           where: { OR: [{ userId }, { isGlobal: true }] },
+          // TODO: Name and id. Then call GetExportSettingById to retrieve all needed information.
           select: { id: true, name: true, isGlobal: true, reportType: true, exportSetting: { select: { id: true, name: true } } },
           orderBy: { name: 'asc' },
         }),

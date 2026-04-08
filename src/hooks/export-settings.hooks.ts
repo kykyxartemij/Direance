@@ -14,6 +14,18 @@ import type { ApiError } from '@/models/api-error';
 
 // ==== Queries ====
 
+export type ExportSettingLightItem = { id: string; name: string };
+
+export function useGetLightExportSettings() {
+  return useQuery<ExportSettingLightItem[], ApiError>({
+    queryKey: queryKeys.exportSetting.light(),
+    queryFn: async () => {
+      const { data } = await axiosClient.get<ExportSettingLightItem[]>(API.exportSetting.light());
+      return data;
+    },
+  });
+}
+
 export function useGetPagedExportSettings(page: number, pageSize: number) {
   return useQuery<PaginatedResponse<ExportSetting>, ApiError>({
     queryKey: queryKeys.exportSetting.paged(page, pageSize),

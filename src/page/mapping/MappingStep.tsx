@@ -9,7 +9,8 @@ import * as yup from 'yup';
 import { useRouter } from 'next/navigation';
 import { useReports, type UploadedReport } from '@/providers/ReportProvider';
 import { useGetLightMappings, useCreateMapping, useUpdateMapping } from '@/hooks/mapping.hooks';
-import { useGetExportSettingById } from '@/hooks/export-settings.hooks';
+import { useGetExportSettingById, useGetLightExportSettings } from '@/hooks/export-settings.hooks';
+import { useCurrencyOptions, useCurrencyRate } from '@/hooks/currencies.hooks';
 import type {
   MappingConfig, RowMapping, SourceLayout, ReportType, MappingModel, SheetConfig,
 } from '@/models/mapping.models';
@@ -19,7 +20,6 @@ import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox';
 import { autoDetectLayout, extractRowNames, applyMappingMultiSheet } from './applyMapping';
 import RowMappingsSection, { type RowMappingRow, type RowMappingsSectionRef } from './RowMappingsSection';
 import SourceLayoutSection from './SourceLayoutSection';
-import ArtButton from '@/components/ui/ArtButton';
 import ArtInput from '@/components/ui/ArtInput';
 import ArtSelect from '@/components/ui/ArtSelect';
 import ArtComboBox from '@/components/ui/ArtComboBox';
@@ -48,10 +48,7 @@ function primarySheetOf(sheetNames: string[], sheetsConfig: Record<string, Sheet
   return sheetNames.find((s) => sheetsConfig[s]?.mode !== 'skip') ?? sheetNames[0];
 }
 
-function mergeRowMappings(
-  prev: RowMappingRow[],
-  newNames: string[],
-): RowMappingRow[] {
+function mergeRowMappings(prev: RowMappingRow[], newNames: string[]): RowMappingRow[] {
   const bySource = new Map(prev.map((r) => [r.sourceName, r]));
   return newNames.map((sourceName, i) => {
     const existing = bySource.get(sourceName);
@@ -66,8 +63,10 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
   const dialog = useArtDialog();
   const { reports, updateReport, removeReport } = useReports();
   const { data: mappings = [] } = useGetLightMappings();
+  const { data: exportSettingsList = [] } = useGetLightExportSettings();
   const createMapping = useCreateMapping();
   const updateMappingMut = useUpdateMapping();
+  const { options: currencyOptions, isLoading: currenciesLoading } = useCurrencyOptions();
 
   const report = (reportId
     ? reports.find((r) => r.id === reportId)
@@ -76,8 +75,11 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
   // ==== Form state ====
 
   const [selectedMappingId, setSelectedMappingId] = useState<string | null>(null);
-  const [reportType, setReportType] = useState<ReportType>('pnl');
-  const [currency, setCurrency] = useState('EUR');
+  const [reportType, setReportType] = useState<ReportType | null>(null);
+  const [reportTypeError, setReportTypeError] = useState('');
+  const [fromCurrency, setFromCurrency] = useState('EUR');
+  const [toCurrency, setToCurrency] = useState('EUR');
+  const [exportSettingId, setExportSettingId] = useState<string | null>(null);
   const [rowMappings, setRowMappings] = useState<RowMappingRow[]>([]);
   const [sheetLayouts, setSheetLayouts] = useState<Record<string, SourceLayout>>({});
   const [autoDetectedLayouts, setAutoDetectedLayouts] = useState<Record<string, SourceLayout>>({});
@@ -104,11 +106,12 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
     setRowMappings(names.map((sourceName, i) => ({ sourceName, _index: i })));
   }, [report]);
 
-  // ==== Derived (before early return so hooks below are unconditional) ====
+  // ==== Hooks unconditional ====
 
   const queryClient = useQueryClient();
   const selectedMapping = mappings.find((m) => m.id === selectedMappingId);
-  const { data: linkedExportSettings } = useGetExportSettingById(selectedMapping?.exportSetting?.id);
+  const { data: linkedExportSetting } = useGetExportSettingById(exportSettingId ?? undefined);
+  const { rate: currencyRate, isLoading: rateLoading } = useCurrencyRate(fromCurrency, toCurrency);
 
   // ==== Redirect if no report ====
 
@@ -122,11 +125,22 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
   const isGlobalSelected = selectedMapping?.isGlobal ?? false;
   const isUserOwned = !!selectedMapping && !selectedMapping.isGlobal;
 
-  // ==== Sync handlers ====
+  const exportSettingOptions: ArtComboBoxOption[] = exportSettingsList.map((es) => ({
+    label: es.name,
+    value: es.id,
+  }));
+
+  const mappedValueOptions: ArtComboBoxOption[] =
+    (linkedExportSetting?.mappedValueNames ?? []).map((n) => ({ label: n, value: n }));
+
+  // ==== Mapping apply ====
 
   function applyMappingToForm(mapping: MappingModel) {
     setReportType(mapping.reportType);
-    setCurrency(mapping.config.currency);
+    setReportTypeError('');
+    if (mapping.config.fromCurrency) setFromCurrency(mapping.config.fromCurrency);
+    setToCurrency(mapping.config.currency);
+    setExportSettingId(mapping.exportSetting?.id ?? null);
 
     const newSheetConfigs = mapping.config.sheetsConfig
       ? { ...sheetsConfig, ...mapping.config.sheetsConfig }
@@ -161,7 +175,7 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
     const id = opt?.value ?? null;
     setSelectedMappingId(id);
     if (!id) return;
-    // TODO: Move queary to separate file
+    // TODO: Move query to separate file
     const mapping = await queryClient.ensureQueryData<MappingModel>({
       queryKey: queryKeys.mapping.byId(id),
       queryFn: async () => {
@@ -173,21 +187,24 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
   }
 
   function handleReportTypeChange(opt: ArtSelectOption | null) {
-    const newType = (opt?.value as ReportType) ?? 'pnl';
+    const newType = (opt?.value as ReportType) ?? null;
     setReportType(newType);
+    setReportTypeError('');
     if (selectedMappingId) {
       const mapping = mappings.find((m) => m.id === selectedMappingId);
       if (mapping && mapping.reportType !== newType) setSelectedMappingId(null);
     }
   }
 
-  // Flush uncontrolled RowMappings inputs to state before the section unmounts.
-  // Called whenever a change will force-close Row Mappings so edits aren't lost.
+  // ==== Row mapping flush ====
+
   function flushRowMappings() {
     if (!rowMappingsOpen) return;
     const current = rowMappingsSectionRef.current?.getRowMappings();
     if (current) setRowMappings(current);
   }
+
+  // ==== Sheet handlers ====
 
   function handleSheetLayoutChange(sheetName: string, layout: SourceLayout) {
     flushRowMappings();
@@ -195,10 +212,22 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
     setRowMappingsOpen(false);
   }
 
-  function handleSheetConfigChange(sheetName: string, config: SheetConfig) {
+  // Mode affects which sheets are read → must flush row mappings
+  function handleSheetModeChange(sheetName: string, mode: 'combine' | 'skip') {
     flushRowMappings();
-    setSheetsConfig((prev) => ({ ...prev, [sheetName]: config }));
+    setSheetsConfig((prev) => ({
+      ...prev,
+      [sheetName]: { ...(prev[sheetName] ?? { mode: 'combine' }), mode },
+    }));
     setRowMappingsOpen(false);
+  }
+
+  // createTotalColumn is output-only → no flush, no section close
+  function handleSheetCreateTotalColumnChange(sheetName: string, value: boolean) {
+    setSheetsConfig((prev) => ({
+      ...prev,
+      [sheetName]: { ...(prev[sheetName] ?? { mode: 'combine' }), createTotalColumn: value },
+    }));
   }
 
   function handleLayoutOpen(open: boolean) {
@@ -228,7 +257,8 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
     const primaryLayout = sheetLayouts[primary] ?? autoDetectLayout(report!.workbook, primary);
     const currentRowMappings = rowMappingsSectionRef.current?.getRowMappings() ?? rowMappings;
     return {
-      currency,
+      fromCurrency,
+      currency: toCurrency,
       sourceLayout: primaryLayout,
       sheetLayouts,
       sheetsConfig,
@@ -253,14 +283,14 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
       processedRows: rows,
       rowColors,
       valueColors,
-      exportSetting: linkedExportSettings ?? null,
+      exportSetting: linkedExportSetting ?? null,
     });
     router.push('/');
   }
 
-  // ==== Save mapping config dialog ====
+  // ==== Save mapping dialog ====
 
-  // TODO: Too complicated. Redifine logic, can be empty for now, put to separate file for readability.
+  // TODO: Too complicated. Redefine logic, can be empty for now, put to separate file for readability.
   function openSaveDialog() {
     const defaultName = selectedMapping?.name ?? '';
     const nameRef = { current: defaultName };
@@ -295,22 +325,20 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
             try {
               await SaveNameSchema.validate({ name: nameRef.current }, { abortEarly: false });
             } catch (err) {
-              if (err instanceof yup.ValidationError) {
-                errorSetter?.(err.errors[0]);
-                return;
-              }
+              if (err instanceof yup.ValidationError) { errorSetter?.(err.errors[0]); return; }
             }
             const config = buildConfig();
             if (isUserOwned && selectedMappingId) {
               await updateMappingMut.mutateAsync({
                 id: selectedMappingId,
-                body: { name: nameRef.current, reportType, config },
+                body: { name: nameRef.current, reportType: reportType!, config, exportSettingId: exportSettingId ?? undefined },
               });
             } else {
               const created = await createMapping.mutateAsync({
                 name: nameRef.current,
-                reportType,
+                reportType: reportType ?? 'pnl',
                 config,
+                exportSettingId: exportSettingId ?? undefined,
               });
               setSelectedMappingId(created.id);
             }
@@ -326,25 +354,40 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!reportType) {
+      setReportTypeError('Report Type is required');
+      return;
+    }
     applyAndNavigate();
   }
 
-  // ==== Mapping options filtered by report type ====
+  // ==== Options ====
 
   const mappingOptions: ArtComboBoxOption[] = mappings
-    .filter((m) => m.reportType === reportType)
+    .filter((m) => reportType == null || m.reportType === reportType)
     .map((m) => ({
       label: m.isGlobal ? `${m.name} (Global)` : m.name,
       value: m.id,
     }));
 
   const selectedMappingOption = mappingOptions.find((o) => o.value === selectedMappingId) ?? null;
+  const fromCurrencyOption = currencyOptions.find((o) => o.value === fromCurrency) ?? null;
+  const toCurrencyOption = currencyOptions.find((o) => o.value === toCurrency) ?? null;
 
   // ==== Form buttons ====
 
+  const saveButtonLabel = isGlobalSelected ? 'Save as copy' : isUserOwned ? 'Update mapping' : 'Save mapping config';
+
   const formButtons: ArtFormButtonProps[] = [
-    { label: 'Upload', color: 'primary', type: 'submit' },
-    { label: 'Upload without changes', variant: 'outlined', onClick: applyAndNavigate },
+    { label: saveButtonLabel, variant: 'outlined', type: 'button', onClick: openSaveDialog, side: 'left' },
+    {
+      label: 'Cancel upload',
+      color: 'danger',
+      variant: 'ghost',
+      type: 'button',
+      onClick: () => { removeReport(report.id); router.push('/upload'); },
+    },
+    { label: 'Apply Mapping', color: 'primary', type: 'submit' },
   ];
 
   // ==== Render ====
@@ -363,12 +406,21 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
         <ArtCollapse title="Mapping" defaultOpen>
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-2 gap-4">
-              <ArtSelect
-                label="Report Type"
-                options={REPORT_TYPE_OPTIONS}
-                selected={REPORT_TYPE_OPTIONS.find((o) => o.value === reportType) ?? null}
-                onChange={handleReportTypeChange}
-              />
+              {/* Report Type */}
+              <div className="flex flex-col gap-1">
+                <ArtSelect
+                  label="Report Type"
+                  options={REPORT_TYPE_OPTIONS}
+                  selected={REPORT_TYPE_OPTIONS.find((o) => o.value === reportType) ?? null}
+                  onChange={handleReportTypeChange}
+                  required
+                />
+                {reportTypeError && (
+                  <span className="text-xs" style={{ color: 'var(--art-danger)' }}>{reportTypeError}</span>
+                )}
+              </div>
+
+              {/* Mapping */}
               <ArtComboBox
                 label="Mapping"
                 options={mappingOptions}
@@ -377,18 +429,43 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
                 placeholder="Select or create mapping…"
                 clearable
               />
-              <ArtInput
-                label="Currency"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
+
+              {/* From Currency */}
+              <ArtComboBox
+                label="From Currency"
+                options={currencyOptions}
+                selected={fromCurrencyOption}
+                onChange={(opt) => setFromCurrency(opt?.value ?? 'EUR')}
+                onSubmit={(text) => { if (text) setFromCurrency(text.toUpperCase()); }}
                 placeholder="EUR"
+                isLoading={currenciesLoading}
+                searchable
               />
-              <div className="flex items-end">
-                <ArtButton variant="outlined" onClick={openSaveDialog} type="button">
-                  {isGlobalSelected ? 'Save as copy' : isUserOwned ? 'Update mapping' : 'Save mapping config'}
-                </ArtButton>
+
+              {/* To Currency */}
+              <div className="flex flex-col gap-1">
+                <ArtComboBox
+                  label="To Currency"
+                  options={currencyOptions}
+                  selected={toCurrencyOption}
+                  onChange={(opt) => setToCurrency(opt?.value ?? 'EUR')}
+                  onSubmit={(text) => { if (text) setToCurrency(text.toUpperCase()); }}
+                  placeholder="EUR"
+                  isLoading={currenciesLoading}
+                  searchable
+                />
+                {fromCurrency !== toCurrency && (
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {rateLoading
+                      ? 'Loading rate…'
+                      : currencyRate != null
+                        ? `1 ${fromCurrency} = ${currencyRate.toFixed(4)} ${toCurrency}`
+                        : 'Rate unavailable'}
+                  </span>
+                )}
               </div>
             </div>
+
             {selectedMapping && (
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 {selectedMapping.isGlobal
@@ -407,7 +484,8 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
             autoDetectedLayouts={autoDetectedLayouts}
             sheetsConfig={sheetsConfig}
             onSheetLayoutChange={handleSheetLayoutChange}
-            onSheetConfigChange={handleSheetConfigChange}
+            onSheetModeChange={handleSheetModeChange}
+            onSheetCreateTotalColumnChange={handleSheetCreateTotalColumnChange}
             collapseOpen={layoutOpen}
             onCollapseChange={handleLayoutOpen}
           />
@@ -417,20 +495,14 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
         <RowMappingsSection
           ref={rowMappingsSectionRef}
           rowMappings={rowMappings}
+          exportSettingOptions={exportSettingOptions}
+          exportSettingId={exportSettingId}
+          onExportSettingChange={setExportSettingId}
+          mappedValueOptions={mappedValueOptions}
           collapseOpen={rowMappingsOpen}
           onCollapseChange={handleRowMappingsOpen}
         />
       </ArtForm>
-
-      <div className="mt-4">
-        <ArtButton
-          variant="ghost"
-          color="danger"
-          onClick={() => { removeReport(report.id); router.push('/upload'); }}
-        >
-          Cancel upload
-        </ArtButton>
-      </div>
     </div>
   );
 }

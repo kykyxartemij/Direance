@@ -30,6 +30,7 @@ export const queryKeys = {
     invalidate: {
       all: () => ['exportSetting'] as const,
     },
+    light: () => ['exportSetting', 'list', 'light'] as const,
     paged: (page: number, pageSize: number) =>
       ['exportSetting', 'list', 'paged', page, pageSize] as const,
     byId: (id: string) => ['exportSetting', 'single', 'byId', id] as const,
@@ -37,5 +38,10 @@ export const queryKeys = {
   // Separate namespace — never invalidated by exportSetting mutations (bytes can't be cached)
   exportSettingLogo: {
     byId: (id: string) => ['exportSettingLogo', id] as const,
+  },
+  // Currency data fetched from the open @fawazahmed0/currency-api CDN — never invalidated
+  currency: {
+    list: () => ['currency', 'list'] as const,
+    rate: (from: string, to: string) => ['currency', 'rate', from, to] as const,
   },
 } as const;

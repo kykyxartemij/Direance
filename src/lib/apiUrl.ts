@@ -17,6 +17,7 @@ export const API = {
     byId: (id: string) => `/api/mapping/${id}`,
   },
   exportSetting: {
+    light: () => '/api/export-settings/light',
     list: () => '/api/export-settings',
     paged: (page: number, pageSize: number) =>
       `/api/export-settings/paged?page=${page}&pageSize=${pageSize}`,
