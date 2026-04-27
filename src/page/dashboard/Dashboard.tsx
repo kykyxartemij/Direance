@@ -9,7 +9,7 @@ import ArtCheckbox from '@/components/ui/ArtCheckbox';
 import ArtDataTable, { type ArtColumn } from '@/components/ui/ArtDataTable';
 import ArtTabs from '@/components/ui/ArtTabs';
 import type { ArtColor } from '@/components/ui/art.types';
-import type { ExportSettingResolved } from '@/models/export-settings.models';
+import type { ExportSettingResolvedModel } from '@/models/export-settings.models';
 import { combineReports, buildProcessedWorkbook, type Row } from './combineReports';
 import { exportToExcel } from './exportExcel';
 import ExcelViewer from './ExcelViewer';
@@ -164,7 +164,7 @@ export default function Dashboard() {
   }
 
   async function handleExport(
-    setting: ExportSettingResolved | null,
+    setting: ExportSettingResolvedModel | null,
     placeholders?: Record<string, string>,
     fileName?: string,
   ) {

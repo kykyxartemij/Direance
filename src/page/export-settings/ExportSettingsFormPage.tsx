@@ -13,8 +13,8 @@ import {
 } from '@/hooks/logo.hooks';
 import * as yup from 'yup';
 import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
-import type { HeaderItem, HeaderLayout, ExportSettingCreateInput, ExportSettingUpdateInput } from '@/models/export-settings.models';
-import { ExportSettingCreateValidator, ExportSettingUpdateValidator } from '@/models/export-settings.models';
+import type { HeaderItemModel, HeaderLayoutModel, CreateExportSettingModel, UpdateExportSettingModel } from '@/models/export-settings.models';
+import { CreateExportSettingValidator, UpdateExportSettingValidator } from '@/models/export-settings.models';
 import ArtForm from '@/components/ui/ArtForm';
 import ArtInput from '@/components/ui/ArtInput';
 import ArtCheckbox from '@/components/ui/ArtCheckbox';
@@ -85,10 +85,10 @@ function TagInput({
 // ==== Header item row (uncontrolled text inputs, ref-based read) ====
 
 interface HeaderItemRowRef {
-  getData(): HeaderItem;
+  getData(): HeaderItemModel;
 }
 
-const HeaderItemRow = forwardRef<HeaderItemRowRef, { item: HeaderItem; onRemove: () => void }>(
+const HeaderItemRow = forwardRef<HeaderItemRowRef, { item: HeaderItemModel; onRemove: () => void }>(
   ({ item, onRemove }, ref) => {
     const cellRef = useRef<HTMLInputElement>(null);
     const contentRef = useRef<HTMLInputElement>(null);
@@ -334,7 +334,7 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
 
   // ==== State only for things that affect rendering ====
   // Items array: length determines how many rows render (add/remove)
-  const [items, setItems] = useState<HeaderItem[]>(existing?.headerLayout?.items ?? []);
+  const [items, setItems] = useState<HeaderItemModel[]>(existing?.headerLayout?.items ?? []);
   const itemRefs = useRef<(HeaderItemRowRef | null)[]>([]);
 
   // TagInput renders chips in real time — must be controlled
@@ -357,9 +357,9 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
     const dataStartCell = dataStartCellRef.current?.value || undefined;
     const itemValues = itemRefs.current
       .map((r) => r?.getData())
-      .filter((it): it is HeaderItem => !!it && !!(it.cell || it.content));
+      .filter((it): it is HeaderItemModel => !!it && !!(it.cell || it.content));
 
-    const headerLayout: HeaderLayout = {};
+    const headerLayout: HeaderLayoutModel = {};
     if (logoCell) headerLayout.logoCell = logoCell;
     if (dataStartCell) headerLayout.dataStartCell = dataStartCell;
     if (itemValues.length > 0) headerLayout.items = itemValues;
@@ -376,13 +376,13 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
       setErrors({});
 
       if (isEdit) {
-        const body = await ExportSettingUpdateValidator.validate(raw, { abortEarly: false }) as ExportSettingUpdateInput;
+        const body = await UpdateExportSettingValidator.validate(raw, { abortEarly: false }) as UpdateExportSettingModel;
         updateMutation.mutate({ id: id!, body }, {
           onSuccess: () => { enqueueSuccess('Export setting saved'); onSuccess(); },
           onError: (err) => enqueueError(err as Error, 'Failed to save export setting'),
         });
       } else {
-        const body = await ExportSettingCreateValidator.validate(raw, { abortEarly: false }) as ExportSettingCreateInput;
+        const body = await CreateExportSettingValidator.validate(raw, { abortEarly: false }) as CreateExportSettingModel;
         createMutation.mutate({ body, logo: stagedLogoFile ?? undefined }, {
           onSuccess: () => { enqueueSuccess('Export setting created'); onSuccess(); },
           onError: (err) => enqueueError(err as Error, 'Failed to create export setting'),

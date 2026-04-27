@@ -13,14 +13,14 @@ import ArtInput from '@/components/ui/ArtInput';
 import ArtButton from '@/components/ui/ArtButton';
 import ArtLabel from '@/components/ui/ArtLabel';
 import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox';
-import type { ExportSetting, ExportSettingResolved } from '@/models/export-settings.models';
+import type { ExportSettingModel, ExportSettingResolvedModel } from '@/models/export-settings.models';
 
 // ==== Helpers ====
 
 const PLACEHOLDER_RE = /<([^>]+)>/g;
 
 /** Extract unique placeholder tag names from header items */
-function extractPlaceholders(setting: ExportSetting | undefined): string[] {
+function extractPlaceholders(setting: ExportSettingModel | undefined): string[] {
   if (!setting?.headerLayout?.items?.length) return [];
   const tags = new Set<string>();
   for (const item of setting.headerLayout.items) {
@@ -36,7 +36,7 @@ function extractPlaceholders(setting: ExportSetting | undefined): string[] {
 // ==== Props ====
 
 interface ExportDialogProps {
-  onExport: (setting: ExportSettingResolved | null, placeholders?: Record<string, string>, fileName?: string) => Promise<void>;
+  onExport: (setting: ExportSettingResolvedModel | null, placeholders?: Record<string, string>, fileName?: string) => Promise<void>;
 }
 
 // ==== Component ====
@@ -71,7 +71,7 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
   async function handleExport() {
     setExporting(true);
     try {
-      let resolved: ExportSettingResolved | null = null;
+      let resolved: ExportSettingResolvedModel | null = null;
       let placeholders: Record<string, string> | undefined;
 
       if (settingId && fullSetting) {
@@ -83,7 +83,7 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
           logoName: logo.data?.logoName ?? null,
           includeOriginalSheets: includeOriginalRef.current?.checked ?? fullSetting.includeOriginalSheets,
           applyHeaderToAllSheets: applyHeaderAllRef.current?.checked ?? fullSetting.applyHeaderToAllSheets,
-        } satisfies ExportSettingResolved;
+        } satisfies ExportSettingResolvedModel;
 
         if (placeholderTags.length > 0) {
           placeholders = {};

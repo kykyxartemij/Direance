@@ -3,7 +3,7 @@
 import { createContext, useContext, useState } from 'react';
 import * as XLSX from 'xlsx';
 import type { ArtColor } from '@/components/ui/art.types';
-import type { ExportSetting } from '@/models/export-settings.models';
+import type { ExportSettingModel } from '@/models/export-settings.models';
 import type { TotalColumnInfo } from '@/page/mapping/applyMapping';
 
 // ==== Types ====
@@ -31,7 +31,7 @@ export type UploadedReport = {
   /** Sheet names to exclude when includeOriginalSheets is on — sheets with mode='skip' */
   skippedSheets?: string[];
   /** Linked export setting (from mapping). */
-  exportSetting?: ExportSetting | null;
+  exportSetting?: ExportSettingModel | null;
 };
 
 type ReportContextValue = {

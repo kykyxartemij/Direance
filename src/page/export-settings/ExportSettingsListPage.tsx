@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGetPagedExportSettings, useDeleteExportSetting } from '@/hooks/export-settings.hooks';
-import type { ExportSetting } from '@/models/export-settings.models';
+import type { ExportSettingModel } from '@/models/export-settings.models';
 import type { ArtColumn } from '@/components/ui/ArtDataTable';
 import ArtData from '@/components/ui/ArtData';
 import ArtButton from '@/components/ui/ArtButton';
@@ -21,7 +21,7 @@ export default function ExportSettingsListPage() {
   const { data: pagedData, isLoading } = useGetPagedExportSettings(page, PAGE_SIZE);
   const deleteMutation = useDeleteExportSetting();
 
-  const columns: ArtColumn<ExportSetting>[] = [
+  const columns: ArtColumn<ExportSettingModel>[] = [
     {
       key: 'name',
       label: 'Name',
@@ -72,7 +72,7 @@ export default function ExportSettingsListPage() {
         </ArtButton>
       </div>
 
-      <ArtData<ExportSetting>
+      <ArtData<ExportSettingModel>
         columns={columns}
         data={pagedData?.data ?? []}
         loading={isLoading}

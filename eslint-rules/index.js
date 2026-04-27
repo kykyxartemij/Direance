@@ -18,6 +18,7 @@ const requireParseId           = require('./rules/require-parse-id');
 const requireQueryKeysConstant = require('./rules/require-query-keys-constant');
 const requireNormalizeText     = require('./rules/require-normalize-text');
 const requireAbortEarlyFalse   = require('./rules/require-abort-early-false');
+const useFetchClient           = require('./rules/use-fetch-client');
 
 module.exports = {
   rules: {
@@ -28,6 +29,9 @@ module.exports = {
     'require-parse-id':            requireParseId,
     'require-normalize-text':      requireNormalizeText,
     'require-abort-early-false':   requireAbortEarlyFalse,
+
+    // ==== Shared ====
+    'use-fetch-client':            useFetchClient,
 
     // ==== FE ====
     'require-link-prefetch':       requireLinkPrefetch,

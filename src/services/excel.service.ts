@@ -3,11 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { requireAuth } from '@/auth';
 import { handleApiError } from '@/lib/errorHandler';
-import { ExcelUploadValidator, type ParsedReport } from '@/models/report.models';
+import { ExcelUploadValidator, type ParsedReportModel } from '@/models/report.models';
 
 // ==== Private helpers ====
 
-async function parseExcelFile(file: File): Promise<ParsedReport> {
+async function parseExcelFile(file: File): Promise<ParsedReportModel> {
   const buffer = Buffer.from(await file.arrayBuffer());
   const workbook = XLSX.read(buffer, { type: 'buffer' });
 

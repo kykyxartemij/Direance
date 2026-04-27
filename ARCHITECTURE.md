@@ -246,7 +246,7 @@ React component
     ↓ calls hook
 React Query hook (src/hooks/*.hooks.ts)
     ↓ calls
-axiosClient (src/lib/axiosClient.ts)
+fetchClient (src/lib/fetchClient.ts)
     ↓ HTTP GET/POST to /api/...
 Next.js API Route (src/app/api/**/route.ts)
     ↓ calls
@@ -258,15 +258,15 @@ Prisma → Neon DB
 
 ### Why axios instead of fetch?
 
-The `axiosClient` in `src/lib/axiosClient.ts` adds two things that raw `fetch` doesn't have:
+The `fetchClient` in `src/lib/fetchClient.ts` adds two things that raw `fetch` doesn't have:
 
 1. **FormData handling** — if you POST a file upload, axios would incorrectly set `Content-Type: application/json`. The interceptor deletes the header so the browser sets it correctly with the multipart boundary.
 
 2. **Error normalization** — HTTP errors (4xx, 5xx) become `ApiError` instances with a consistent shape `{ message, status, code, details }`. Without this, every hook would need its own error parsing logic.
 
 ```typescript
-// axiosClient.ts
-axiosClient.interceptors.response.use(
+// fetchClient.ts
+fetchClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (axios.isAxiosError(error)) {

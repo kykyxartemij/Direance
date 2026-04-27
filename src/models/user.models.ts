@@ -1,4 +1,7 @@
 import * as yup from 'yup';
+import { Permission } from '@/lib/permissions';
+
+// ==== Models ====
 
 export type UserModel = {
   id: string;
@@ -7,8 +10,14 @@ export type UserModel = {
   permissions: string[];
 };
 
-export const UserUpdateValidator = yup.object({
+// ==== Validators ====
+
+export const UpdateUserValidator = yup.object({
   name: yup.string().nullable().optional(),
+  email: yup.string().email('Invalid email').required('Email is required'),
+  permissions: yup.array(yup.string().oneOf(Object.values(Permission), 'Invalid permission')).optional(),
 });
 
-export type UserUpdateModel = yup.InferType<typeof UserUpdateValidator>;
+// ==== Input models ====
+
+export type UpdateUserModel = yup.InferType<typeof UpdateUserValidator>;

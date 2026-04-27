@@ -96,7 +96,7 @@ src/
     cacheKeys.ts               #   Server-side cache key factories
     queryKeys.ts               #   Client-side React Query key factories
     apiUrl.ts                  #   API URL builders (one per endpoint)
-    axiosClient.ts             #   Axios instance with ApiError interceptor
+    fetchClient.ts             #   Axios instance with ApiError interceptor
     errorHandler.ts            #   handleApiError() -- maps errors to HTTP responses
     freeText.ts                #   normalizeText() utility
 
@@ -1149,7 +1149,7 @@ class ApiError extends Error {
 }
 ```
 
-The `axiosClient.ts` interceptor automatically converts all Axios errors to `ApiError` instances.
+The `fetchClient.ts` interceptor automatically converts all Axios errors to `ApiError` instances.
 
 ## API Endpoints
 

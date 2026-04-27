@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import axiosClient from '@/lib/axiosClient';
+import fetchClient from '@/lib/fetchClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
 import ArtSkeleton from '@/components/ui/ArtSkeleton';
@@ -73,7 +73,7 @@ export default function AdminPage({ loading: loadingProp }: { loading?: boolean 
   const { data, isLoading: queryLoading, error } = useQuery<DbStats>({
     queryKey: queryKeys.admin.dbStats(),
     queryFn: async () => {
-      const { data } = await axiosClient.get<DbStats>(API.admin.dbStats());
+      const { data } = await fetchClient.get<DbStats>(API.admin.dbStats());
       return data;
     },
     staleTime: 15 * 60 * 1000,

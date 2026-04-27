@@ -10,8 +10,8 @@ import { checkUserRequestLimit } from '@/lib/rateLimiter';
 import { checkUserDbLimits } from '@/lib/userLimits';
 import { parseIdFromRoute } from '@/models';
 import {
-  ExportSettingCreateValidator,
-  ExportSettingUpdateValidator,
+  CreateExportSettingValidator,
+  UpdateExportSettingValidator,
 } from '@/models/export-settings.models';
 import { parsePaginationFromUrl, createPaginatedResponse } from '@/models/paginated-response.model';
 
@@ -126,7 +126,7 @@ export async function createExportSetting(req: NextRequest): Promise<NextRespons
     await checkUserDbLimits(userId, permissions);
 
     const body = await req.json();
-    const { headerLayout, logoId, ...rest } = await ExportSettingCreateValidator.validate(body, { abortEarly: false });
+    const { headerLayout, logoId, ...rest } = await CreateExportSettingValidator.validate(body, { abortEarly: false });
 
     const settings = await prisma.exportSetting.create({
       data: {
@@ -159,7 +159,7 @@ export async function updateExportSetting(
     const id = parseIdFromRoute(await params);
 
     const body = await req.json();
-    const { headerLayout, logoId, ...rest } = await ExportSettingUpdateValidator.validate(body, { abortEarly: false });
+    const { headerLayout, logoId, ...rest } = await UpdateExportSettingValidator.validate(body, { abortEarly: false });
 
     const settings = await prisma.exportSetting.updateManyAndReturn({
       where: { id, userId },

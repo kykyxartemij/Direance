@@ -55,6 +55,7 @@ export function useCurrencyRate(
   const { data, isLoading } = useQuery<number | null>({
     queryKey: queryKeys.currency.rate(fromKey, toKey),
     queryFn: async () => {
+      // eslint-disable-next-line local/use-fetch-client
       const res = await fetch(CURRENCY_RATE_URL(fromKey));
       const json: Record<string, Record<string, number>> = await res.json();
       return json[fromKey]?.[toKey] ?? null;

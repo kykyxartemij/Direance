@@ -32,6 +32,7 @@ export function createPaginatedResponse<T>(
   return { data, page, pageSize, total: total ?? undefined };
 }
 
+/* Used for Infinite Tanstack Query */
 export function getNextPage(lastPage: PaginatedResponse<unknown>): number | undefined {
   const nextPage = lastPage.page + 1;
   if (lastPage.total != null) {

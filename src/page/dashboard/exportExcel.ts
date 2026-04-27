@@ -1,7 +1,7 @@
 import * as ExcelJS from 'exceljs';
 import * as XLSX from 'xlsx';
 import type { ArtColor } from '@/components/ui/art.types';
-import type { ExportSettingResolved } from '@/models/export-settings.models';
+import type { ExportSettingResolvedModel } from '@/models/export-settings.models';
 import type { TotalColumnInfo } from '@/page/mapping/applyMapping';
 import type { Row } from './combineReports';
 
@@ -119,7 +119,7 @@ async function applyLogo(
 async function applyHeaderLayout(
   wb: ExcelJS.Workbook,
   ws: ExcelJS.Worksheet,
-  exportSettings: ExportSettingResolved,
+  exportSettings: ExportSettingResolvedModel,
   placeholders?: Record<string, string>,
 ) {
   const layout = exportSettings.headerLayout;
@@ -260,7 +260,7 @@ export async function exportToExcel(
   rowIndents: number[],
   rowColors: (ArtColor | undefined)[] = [],
   valueColors: (ArtColor | undefined)[] = [],
-  exportSettings?: ExportSettingResolved | null,
+  exportSettings?: ExportSettingResolvedModel | null,
   originalWorkbooks?: { name: string; workbook: XLSX.WorkBook; skippedSheets?: string[] }[],
   placeholders?: Record<string, string>,
   fileName?: string,

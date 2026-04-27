@@ -2,28 +2,32 @@ import * as yup from 'yup';
 
 // ==== Header layout types ====
 
-export type HeaderItem = {
+export type HeaderItemModel = {
   /** Excel cell address, e.g. "A1", "B2" */
   cell: string;
   /** Display text or <Placeholder> to fill at export time */
   content: string;
 };
 
-export type HeaderLayout = {
+export type HeaderLayoutModel = {
   /** Cell where the logo image is placed, e.g. "A1" */
   logoCell?: string;
   /** Cell where the DataTable begins, e.g. "B4" */
   dataStartCell?: string;
-  /** Additional positioned text/placeholder cells */
-  items?: HeaderItem[];
+  items?: HeaderItemModel[];
 };
 
-// ==== Main type ====
+// ==== Models ====
 
-export type ExportSetting = {
+export type ExportSettingLightModel = {
   id: string;
   name: string;
-  headerLayout?: HeaderLayout | null;
+};
+
+export type ExportSettingModel = {
+  id: string;
+  name: string;
+  headerLayout?: HeaderLayoutModel | null;
   applyHeaderToAllSheets: boolean;
   includeOriginalSheets: boolean;
   /** Named value categories — shown as Display Name options in Row Mappings */
@@ -32,11 +36,18 @@ export type ExportSetting = {
   logo?: { id: string; mime: string; name: string } | null;
 };
 
+/** Runtime-only — logo bytes merged in for export */
+export type ExportSettingResolvedModel = ExportSettingModel & {
+  logoData?: string | null;
+  logoMime?: string | null;
+  logoName?: string | null;
+};
+
 // ==== Validators ====
 
 const HeaderItemValidator = yup.object({
-  cell: yup.string().trim().required(),
-  content: yup.string().required(),
+  cell: yup.string().trim().required('Cell is required'),
+  content: yup.string().required('Content is required'),
 });
 
 const HeaderLayoutValidator = yup.object({
@@ -45,7 +56,7 @@ const HeaderLayoutValidator = yup.object({
   items: yup.array().of(HeaderItemValidator).optional(),
 });
 
-export const ExportSettingCreateValidator = yup.object({
+export const CreateExportSettingValidator = yup.object({
   name: yup.string().trim().min(1, 'Name is required').required('Name is required'),
   headerLayout: HeaderLayoutValidator.nullable().optional(),
   applyHeaderToAllSheets: yup.boolean().default(false),
@@ -54,7 +65,7 @@ export const ExportSettingCreateValidator = yup.object({
   logoId: yup.string().optional(),
 });
 
-export const ExportSettingUpdateValidator = yup.object({
+export const UpdateExportSettingValidator = yup.object({
   name: yup.string().trim().min(1).optional(),
   headerLayout: HeaderLayoutValidator.nullable().optional(),
   applyHeaderToAllSheets: yup.boolean().optional(),
@@ -63,17 +74,7 @@ export const ExportSettingUpdateValidator = yup.object({
   logoId: yup.string().optional(),
 });
 
-export type ExportSettingCreateInput = yup.InferType<typeof ExportSettingCreateValidator>;
-export type ExportSettingUpdateInput = yup.InferType<typeof ExportSettingUpdateValidator>;
+// ==== Input models ====
 
-// ==== Resolved (runtime only — logo bytes merged in for export) ====
-
-export type ExportSettingResolved = ExportSetting & {
-  logoData?: string | null;
-  logoMime?: string | null;
-  logoName?: string | null;
-};
-
-// ==== Light response (list endpoints) ====
-
-export type ExportSettingLightItem = Pick<ExportSetting, 'id' | 'name'>;
+export type CreateExportSettingModel = yup.InferType<typeof CreateExportSettingValidator>;
+export type UpdateExportSettingModel = Partial<CreateExportSettingModel> & { id: string };

@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import axios from 'axios';
 import { Prisma } from '../../generated/prisma/client';
 import { ApiError } from '@/models/api-error';
 
@@ -11,18 +10,6 @@ export function handleApiError(error: any, context: string) {
     if (error.code) payload.code = error.code;
     if (error.details) payload.details = error.details;
     return NextResponse.json(payload, { status: error.status });
-  }
-
-  if (axios.isAxiosError(error)) {
-    const data = error.response?.data as any | undefined;
-    const status = error.response?.status ?? 502;
-    const message = data?.error ?? error.message ?? 'Bad Gateway';
-    const code = data?.code;
-    const details = data?.details ?? data;
-    const payload: any = { error: message };
-    if (code) payload.code = code;
-    if (details) payload.details = details;
-    return NextResponse.json(payload, { status });
   }
 
   if (error && typeof error === 'object' && (error as any).name === 'ValidationError') {

@@ -1,9 +1,13 @@
 import * as yup from 'yup';
 
+// ==== Constants ====
+
 const EXCEL_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
   'application/vnd.ms-excel', // .xls
 ];
+
+// ==== Validators ====
 
 export const ExcelUploadValidator = yup.object({
   file: yup
@@ -16,7 +20,9 @@ export const ExcelUploadValidator = yup.object({
     ),
 });
 
-export type ParsedReport = {
+// ==== Models ====
+
+export type ParsedReportModel = {
   sheetName: string;
   sheetNames: string[];
   headers: string[];

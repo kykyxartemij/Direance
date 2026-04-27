@@ -5,23 +5,20 @@ import * as yup from 'yup';
 export const LOGO_ACCEPTED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const;
 export type LogoMime = (typeof LOGO_ACCEPTED_MIME_TYPES)[number];
 
-// ==== Types ====
+// ==== Models ====
 
-export type LogoLight = {
+export type LogoModel = {
   id: string;
-  mime: string;
   name: string;
-  createdAt: string;
+  mime: string;
 };
 
-export type LogoBytes = {
+/** Full logo — metadata + decoded bytes merged for runtime use (export dialog, preview) */
+export type LogoBytesModel = {
   logoData: string | null;
   logoMime: string | null;
   logoName: string | null;
 };
-
-// Full logo — metadata + decoded bytes merged for runtime use
-export type Logo = LogoLight & LogoBytes;
 
 // ==== Validators ====
 

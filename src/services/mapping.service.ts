@@ -8,7 +8,7 @@ import { requireAuth } from '@/auth';
 import { ApiError } from '@/models/api-error';
 import { checkUserDbLimits } from '@/lib/userLimits';
 import { parseIdFromRoute } from '@/models';
-import { MappingCreateValidator, MappingUpdateValidator } from '@/models/mapping.models';
+import { CreateMappingValidator, UpdateMappingValidator } from '@/models/mapping.models';
 import { parsePaginationFromUrl, createPaginatedResponse } from '@/models/paginated-response.model';
 import { checkUserRequestLimit } from '@/lib/rateLimiter';
 
@@ -130,7 +130,7 @@ export async function createMapping(req: NextRequest): Promise<NextResponse> {
     
     const body = await req.json();
     // TODO: Allow isGlobal when admin functionality is implemented
-    const data = await MappingCreateValidator.validate(body, { abortEarly: false });
+    const data = await CreateMappingValidator.validate(body, { abortEarly: false });
 
     const mapping = await prisma.fieldMapping.create({
       data: { ...data, userId, isGlobal: false },
@@ -159,7 +159,7 @@ export async function updateMapping(
 
     const body = await req.json();
     // TODO: Allow isGlobal updates when admin functionality is implemented
-    const data = await MappingUpdateValidator.validate(body, { abortEarly: false });
+    const data = await UpdateMappingValidator.validate(body, { abortEarly: false });
 
     const results = await prisma.fieldMapping.updateManyAndReturn({
       where: { id, userId },

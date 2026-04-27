@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { signIn } from 'next-auth/react';
-import axiosClient from '@/lib/axiosClient';
+import fetchClient from '@/lib/fetchClient';
 import ArtInput from '@/components/ui/ArtInput';
 import ArtButton from '@/components/ui/ArtButton';
 
@@ -36,11 +36,11 @@ export default function AcceptInvitePage() {
   useEffect(() => {
     if (!token) { setInvite({ status: 'invalid', message: 'Missing invite token.' }); return; }
 
-    axiosClient
-      .get(`/api/invites/lookup?token=${encodeURIComponent(token)}`)
+    fetchClient
+      .get<{ email: string }>(`/api/invites/lookup?token=${encodeURIComponent(token)}`)
       .then((res) => setInvite({ status: 'valid', email: res.data.email }))
       .catch((err) => {
-        const message = err?.response?.data?.error ?? 'Invalid or expired invite link.';
+        const message = err?.message ?? 'Invalid or expired invite link.';
         setInvite({ status: 'invalid', message });
       });
   }, [token]);
@@ -55,7 +55,7 @@ export default function AcceptInvitePage() {
   const onSubmit = async (data: FormValues) => {
     if (invite.status !== 'valid') return;
     try {
-      await axiosClient.post('/api/invites/accept', {
+      await fetchClient.post('/api/invites/accept', {
         token,
         name: data.name || undefined,
         password: data.password,

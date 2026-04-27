@@ -70,6 +70,16 @@ const eslintConfig = [
     },
   },
 
+  // Shared — applies to all source files
+  {
+    files: ['src/**/*.{ts,tsx,js}'],
+    plugins: { local: localPlugin },
+    rules: {
+      // Warn when importing fetchClient — use fetchClient from @/lib/fetchClient instead.
+      'local/use-fetch-client': 'warn',
+    },
+  },
+
   // FE — client-side and UI conventions
   {
     files: FE_FILES,

@@ -5,7 +5,7 @@ import { cached, invalidateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { handleApiError } from '@/lib/errorHandler';
 import { requireAuth } from '@/auth';
-import { UserUpdateValidator } from '@/models/user.models';
+import { UpdateUserValidator } from '@/models/user.models';
 import { checkUserRequestLimit } from '@/lib/rateLimiter';
 import { checkUserDbLimits, computeUserDbConsumption } from '@/lib/userLimits';
 
@@ -43,7 +43,7 @@ export async function patchMe(req: NextRequest): Promise<NextResponse> {
     await checkUserDbLimits(userId, permissions);
 
     const body = await req.json();
-    const data = await UserUpdateValidator.validate(body, { abortEarly: false });
+    const data = await UpdateUserValidator.validate(body, { abortEarly: false });
 
     const user = await prisma.user.update({
       where: { id: userId },

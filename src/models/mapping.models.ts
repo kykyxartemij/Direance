@@ -70,7 +70,12 @@ export type MappingConfig = {
   columnHeaders: ColumnHeaderMapping[];
 };
 
-// ==== API response ====
+// ==== Models ====
+
+export type MappingLightModel = {
+  id: string;
+  name: string;
+};
 
 export type MappingModel = {
   id: string;
@@ -99,24 +104,24 @@ export const DEFAULT_MAPPING_CONFIG: MappingConfig = {
 const ART_COLORS: ArtColor[] = ['primary', 'warning', 'success', 'danger', 'neutral'];
 
 const TableRegionValidator = yup.object({
-  descriptionColumn: yup.number().integer().min(0).required(),
-  valueColumns: yup.array().of(yup.number().integer().min(0).required()).required(),
+  descriptionColumn: yup.number().integer().min(0).required('This field is required'),
+  valueColumns: yup.array().of(yup.number().integer().min(0).required('This field is required')).required('This field is required'),
   startRow: yup.number().integer().min(0).optional(),
 });
 
 const TotalColumnDefValidator = yup.object({
-  label: yup.string().required(),
-  sourceValueIndices: yup.array().of(yup.number().integer().min(0).required()).required(),
+  label: yup.string().required('This field is required'),
+  sourceValueIndices: yup.array().of(yup.number().integer().min(0).required('This field is required')).required('This field is required'),
 });
 
 const SourceLayoutValidator = yup.object({
-  regions: yup.array().of(TableRegionValidator).min(1).required(),
+  regions: yup.array().of(TableRegionValidator).min(1, 'At least one region is required').required('This field is required'),
   totalColumns: yup.array().of(TotalColumnDefValidator).optional(),
-  headerRow: yup.number().integer().min(0).required(),
+  headerRow: yup.number().integer().min(0).required('This field is required'),
 });
 
 const RowMappingValidator = yup.object({
-  sourceName: yup.string().required(),
+  sourceName: yup.string().required('This field is required'),
   displayName: yup.string().optional(),
   nameColor: yup.string().oneOf(ART_COLORS).optional(),
   valueColor: yup.string().oneOf(ART_COLORS).optional(),
@@ -124,7 +129,7 @@ const RowMappingValidator = yup.object({
 });
 
 const ColumnHeaderMappingValidator = yup.object({
-  sourceIndex: yup.number().integer().min(0).required(),
+  sourceIndex: yup.number().integer().min(0).required('This field is required'),
   displayName: yup.string().optional(),
   groupName: yup.string().optional(),
 });
@@ -132,30 +137,26 @@ const ColumnHeaderMappingValidator = yup.object({
 const MappingConfigValidator = yup.object({
   fromCurrency: yup.string().optional(),
   currency: yup.string().default('EUR'),
-  sourceLayout: SourceLayoutValidator.required(),
+  sourceLayout: SourceLayoutValidator.required('This field is required'),
   sheetLayouts: yup.mixed<Record<string, SourceLayout>>().optional(),
   sheetsConfig: yup.mixed<Record<string, SheetConfig>>().optional(),
   rowMappings: yup.array().of(RowMappingValidator).default([]),
   columnHeaders: yup.array().of(ColumnHeaderMappingValidator).default([]),
 });
 
-export const MappingCreateValidator = yup.object({
+export const CreateMappingValidator = yup.object({
   name: yup.string().trim().min(1, 'Name is required').required('Name is required'),
   reportType: yup.string().oneOf(REPORT_TYPES).default('pnl'),
-  config: MappingConfigValidator.required(),
+  config: MappingConfigValidator.required('This field is required'),
   exportSettingId: yup.string().optional(),
 });
 
-export const MappingUpdateValidator = yup.object({
+export const UpdateMappingValidator = yup.object({
   name: yup.string().trim().min(1).optional(),
   reportType: yup.string().oneOf(REPORT_TYPES).optional(),
   config: MappingConfigValidator.optional(),
   exportSettingId: yup.string().nullable().optional(),
 });
 
-export type MappingCreateInput = yup.InferType<typeof MappingCreateValidator>;
-export type MappingUpdateInput = yup.InferType<typeof MappingUpdateValidator>;
-
-// ==== Light response (list endpoints) ====
-
-export type MappingLightItem = Pick<MappingModel, 'id' | 'name'>;
+export type CreateMappingModel = yup.InferType<typeof CreateMappingValidator>;
+export type UpdateMappingModel = Partial<CreateMappingModel> & { id: string };
