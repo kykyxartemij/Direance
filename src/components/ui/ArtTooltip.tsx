@@ -2,7 +2,7 @@
 
 import { useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { cn } from './art.utils';
+import { cn, computeAnchoredPos } from './art.utils';
 
 interface ArtTooltipProps {
   label: string;
@@ -18,9 +18,10 @@ const ArtTooltip = ({ label, children, className }: ArtTooltipProps) => {
     const tooltip = tooltipRef.current;
     const wrapper = wrapperRef.current;
     if (!tooltip || !wrapper) return;
-    const rect = wrapper.getBoundingClientRect();
-    tooltip.style.top = `${rect.top}px`;
-    tooltip.style.left = `${rect.left + rect.width / 2}px`;
+    const pos = computeAnchoredPos(wrapper, 'top');
+    tooltip.style.top = `${pos.top}px`;
+    tooltip.style.left = `${pos.left}px`;
+    tooltip.style.transform = pos.transform;
     tooltip.style.visibility = 'visible';
     tooltip.style.opacity = '1';
   };
@@ -49,7 +50,6 @@ const ArtTooltip = ({ label, children, className }: ArtTooltipProps) => {
             position: 'fixed',
             visibility: 'hidden',
             opacity: '0',
-            transform: 'translate(-50%, calc(-100% - 6px))',
           }}
         >
           {label}

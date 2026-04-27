@@ -149,6 +149,16 @@ const ArtComboBox = forwardRef<HTMLInputElement, ArtComboBoxProps>((props, ref) 
     hide,
     toggle,
   } = useAnchoredPanel<HTMLDivElement, HTMLDivElement>({ trackWidth: true });
+
+  const FADE_MS = 150;
+  const handleHide = useCallback(() => {
+    if (portalRef.current) {
+      portalRef.current.style.opacity = '0';
+      setTimeout(hide, FADE_MS);
+    } else {
+      hide();
+    }
+  }, [hide, portalRef]);
   const listRef = useRef<HTMLUListElement>(null);
   const chipsInputRef = useRef<HTMLInputElement>(null);
   const activeIdxRef = useRef(-1);
@@ -216,10 +226,10 @@ const ArtComboBox = forwardRef<HTMLInputElement, ArtComboBoxProps>((props, ref) 
     } else {
       setInputText(opt.label);
       applySelection(opt);
-      hide();
+      handleHide();
       onSubmit?.(opt.label);
     }
-  }, [multiple, applyMultiSelection, applySelection, onSubmit, hide]);
+  }, [multiple, applyMultiSelection, applySelection, onSubmit, handleHide]);
 
   const removeMultiItem = useCallback((opt: ArtComboBoxOption) => {
     applyMultiSelection(selectedMultiRef.current.filter((o) => o.value !== opt.value));
@@ -242,7 +252,7 @@ const ArtComboBox = forwardRef<HTMLInputElement, ArtComboBoxProps>((props, ref) 
         e.preventDefault();
         if (!searchable) { show(); return; }
         if (selectFirstOnEnter && opts.length > 0) { select(opts[0]); return; }
-        if (!multiple) { hide(); onSubmit?.(inputTextRef.current); }
+        if (!multiple) { handleHide(); onSubmit?.(inputTextRef.current); }
       }
       return;
     }
@@ -264,14 +274,14 @@ const ArtComboBox = forwardRef<HTMLInputElement, ArtComboBoxProps>((props, ref) 
         const idx = activeIdxRef.current;
         if (idx >= 0) select(opts[idx]);
         else if (selectFirstOnEnter && opts.length > 0) select(opts[0]);
-        else if (!multiple) { hide(); onSubmit?.(inputTextRef.current); }
+        else if (!multiple) { handleHide(); onSubmit?.(inputTextRef.current); }
         break;
       }
       case 'Escape':
-        hide();
+        handleHide();
         break;
     }
-  }, [multiple, searchable, selectFirstOnEnter, select, onSubmit, moveActive, applyMultiSelection, show, hide]);
+  }, [multiple, searchable, selectFirstOnEnter, select, onSubmit, moveActive, applyMultiSelection, show, handleHide]);
 
   const handleTriggerKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === ' ' && !openRef.current) { e.preventDefault(); show(); return; }
@@ -396,6 +406,7 @@ const ArtComboBox = forwardRef<HTMLInputElement, ArtComboBoxProps>((props, ref) 
       {open && (visibleOptions.length > 0 || isLoading || hasMore || (noOptionsMessage !== false && searchable && inputText.trim().length > 0)) && createPortal(
         <div
           ref={portalRef}
+          className="art-combobox-portal"
           style={{ position: 'fixed', zIndex: 'var(--z-anchor)' as unknown as number }}
         >
           <ArtListbox

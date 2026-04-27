@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import '@/components/ui/art.style.css';
 import Navbar from './Navbar';
 import ReportSidebar from './ReportSidebar';
 import QueryProvider from '@/providers/QueryProvider';
