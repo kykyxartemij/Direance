@@ -22,7 +22,7 @@ interface ArtPopoverProps {
 // ==== Component ====
 
 function ArtPopover({ trigger, children, placement = 'bottom', trackWidth = false, className }: ArtPopoverProps) {
-  const { triggerRef, panelRef, pos, open, hide, toggle } =
+  const { triggerRef, panelRef, open, hide, toggle } =
     useAnchoredPanel<HTMLSpanElement, HTMLDivElement>({ placement, trackWidth });
 
   useEffect(() => {
@@ -42,7 +42,7 @@ function ArtPopover({ trigger, children, placement = 'bottom', trackWidth = fals
         <div
           ref={panelRef}
           className={cn('art-popover', className)}
-          style={{ position: 'fixed', zIndex: 9999, ...pos }}
+          style={{ zIndex: 'var(--z-anchor)' as unknown as number }}
         >
           {children}
         </div>,

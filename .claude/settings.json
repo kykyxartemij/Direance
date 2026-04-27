@@ -5,7 +5,9 @@
       "Bash(npx tsc:*)",
       "Bash(npx tsx:*)",
       "Bash(npm install:*)",
-      "Bash(npx next:*)"
+      "Bash(npx next:*)",
+      "WebFetch(domain:api-docs.neon.tech)",
+      "WebFetch(domain:neon.com)"
     ]
   }
 }

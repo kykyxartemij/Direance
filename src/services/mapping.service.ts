@@ -6,14 +6,22 @@ import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { handleApiError } from '@/lib/errorHandler';
 import { requireAuth } from '@/auth';
 import { ApiError } from '@/models/api-error';
+import { checkUserDbLimits } from '@/lib/userLimits';
 import { parseIdFromRoute } from '@/models';
 import { MappingCreateValidator, MappingUpdateValidator } from '@/models/mapping.models';
 import { parsePaginationFromUrl, createPaginatedResponse } from '@/models/paginated-response.model';
+import { checkUserRequestLimit } from '@/lib/rateLimiter';
 
 // ==== Select ====
 
-// Light — list view, no config (heavy field)
+// Light — id + name only, dropdowns and lightweight lists
 const MAPPING_SELECT_LIGHT = {
+  id: true,
+  name: true,
+} as const;
+
+// Paged — list view, no config (heavy field)
+const MAPPING_SELECT_PAGED = {
   id: true,
   name: true,
   isGlobal: true,
@@ -33,17 +41,16 @@ const MAPPING_SELECT = {
 
 // ==== HTTP handlers ====
 
-// TODO: Create /api/mapping/light route
-export async function getLightMappings(): Promise<NextResponse> {
+export async function getLightMappings(req: NextRequest): Promise<NextResponse> {
   try {
-    const userId = await requireAuth();
+    const { userId, permissions } = await requireAuth();
+    await checkUserRequestLimit(req, userId, permissions);
 
     const mappings = await cached(
       () =>
         prisma.fieldMapping.findMany({
           where: { OR: [{ userId }, { isGlobal: true }] },
-          // TODO: Name and id. Then call GetExportSettingById to retrieve all needed information.
-          select: { id: true, name: true, isGlobal: true, reportType: true, exportSetting: { select: { id: true, name: true } } },
+          select: MAPPING_SELECT_LIGHT,
           orderBy: { name: 'asc' },
         }),
       CACHE_KEYS.mapping.light(userId),
@@ -57,7 +64,9 @@ export async function getLightMappings(): Promise<NextResponse> {
 
 export async function getPagedMappings(req: NextRequest): Promise<NextResponse> {
   try {
-    const userId = await requireAuth();
+    const { userId, permissions } = await requireAuth();
+    await checkUserRequestLimit(req, userId, permissions);
+
     const { page, pageSize } = await parsePaginationFromUrl(new URL(req.url).searchParams);
 
     // TODO: FreeText implementation
@@ -67,7 +76,7 @@ export async function getPagedMappings(req: NextRequest): Promise<NextResponse> 
         () =>
           prisma.fieldMapping.findMany({
             where,
-            select: MAPPING_SELECT_LIGHT,
+            select: MAPPING_SELECT_PAGED,
             orderBy: { name: 'asc' },
             skip: page * pageSize,
             take: pageSize,
@@ -80,18 +89,20 @@ export async function getPagedMappings(req: NextRequest): Promise<NextResponse> 
       ),
     ]);
 
-    return NextResponse.json(createPaginatedResponse(data, page + 1, pageSize, total));
+    return NextResponse.json(createPaginatedResponse(data, page, pageSize, total));
   } catch (error) {
     return handleApiError(error, 'GET /api/mapping/paged');
   }
 }
 
 export async function getMappingById(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   try {
-    const userId = await requireAuth();
+    const { userId, permissions } = await requireAuth();
+    await checkUserRequestLimit(req, userId, permissions);
+
     const id = parseIdFromRoute(await params);
 
     const mapping = await cached(
@@ -113,8 +124,10 @@ export async function getMappingById(
 
 export async function createMapping(req: NextRequest): Promise<NextResponse> {
   try {
-    const userId = await requireAuth();
-
+    const { userId, permissions } = await requireAuth();
+    await checkUserRequestLimit(req, userId, permissions);
+    await checkUserDbLimits(userId, permissions);
+    
     const body = await req.json();
     // TODO: Allow isGlobal when admin functionality is implemented
     const data = await MappingCreateValidator.validate(body, { abortEarly: false });
@@ -138,7 +151,10 @@ export async function updateMapping(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   try {
-    const userId = await requireAuth();
+    const { userId, permissions } = await requireAuth();
+    await checkUserRequestLimit(req, userId, permissions);
+    await checkUserDbLimits(userId, permissions);
+
     const id = parseIdFromRoute(await params);
 
     const body = await req.json();
@@ -163,11 +179,13 @@ export async function updateMapping(
 }
 
 export async function deleteMapping(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   try {
-    const userId = await requireAuth();
+    const { userId, permissions } = await requireAuth();
+    await checkUserRequestLimit(req, userId, permissions);
+
     const id = parseIdFromRoute(await params);
 
     // TODO: Allow isGlobal deletion when admin functionality is implemented

@@ -4,14 +4,17 @@ import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   useGetExportSettingById,
-  useGetExportSettingLogoById,
   useCreateExportSetting,
   useUpdateExportSetting,
-  useUpdateExportSettingLogo,
-  useDeleteExportSettingLogo,
 } from '@/hooks/export-settings.hooks';
+import {
+  useGetLogoByExportSettingId,
+  useDeleteLogo,
+} from '@/hooks/logo.hooks';
+import * as yup from 'yup';
 import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
-import type { HeaderItem, HeaderLayout } from '@/models/export-settings.models';
+import type { HeaderItem, HeaderLayout, ExportSettingCreateInput, ExportSettingUpdateInput } from '@/models/export-settings.models';
+import { ExportSettingCreateValidator, ExportSettingUpdateValidator } from '@/models/export-settings.models';
 import ArtForm from '@/components/ui/ArtForm';
 import ArtInput from '@/components/ui/ArtInput';
 import ArtCheckbox from '@/components/ui/ArtCheckbox';
@@ -137,8 +140,6 @@ function LogoUI({
 }: LogoUIProps) {
   return (
     <div className="flex flex-col gap-3">
-      <ArtLabel>Logo</ArtLabel>
-
       {previewSrc ? (
         <div className="flex items-center gap-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -204,12 +205,12 @@ function LogoUI({
 
 function LogoSectionEdit({ id }: { id: string }) {
   const { data: settings, refetch: refetchMeta } = useGetExportSettingById(id);
-  const logoQuery = useGetExportSettingLogoById(id);
+  const logoQuery = useGetLogoByExportSettingId(id);
   const { enqueueSuccess, enqueueError } = useArtSnackbar();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const uploadMutation = useUpdateExportSettingLogo();
-  const deleteMutation = useDeleteExportSettingLogo();
+  const uploadMutation = useUpdateExportSetting();
+  const deleteMutation = useDeleteLogo();
 
   const previewSrc = logoQuery.data?.logoData
     ? `data:${logoQuery.data.logoMime ?? 'image/jpeg'};base64,${logoQuery.data.logoData}`
@@ -219,7 +220,7 @@ function LogoSectionEdit({ id }: { id: string }) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (fileInputRef.current) fileInputRef.current.value = '';
-    uploadMutation.mutate({ id, file }, {
+    uploadMutation.mutate({ id, body: {}, logo: file }, {
       onSuccess: () => { refetchMeta(); enqueueSuccess('Logo uploaded'); },
       onError: (err) => enqueueError(err as Error, 'Failed to upload logo'),
     });
@@ -228,14 +229,14 @@ function LogoSectionEdit({ id }: { id: string }) {
   return (
     <LogoUI
       previewSrc={previewSrc}
-      fileName={logoQuery.data?.logoName ?? settings?.logoName ?? null}
-      hasStoredLogo={!!settings?.logoName && !previewSrc}
+      fileName={logoQuery.data?.logoName ?? settings?.logo?.name ?? null}
+      hasStoredLogo={!!settings?.logo?.name && !previewSrc}
       uploading={uploadMutation.isPending}
       deleting={deleteMutation.isPending}
       loadingPreview={logoQuery.isFetching}
       fileInputRef={fileInputRef}
       onFileChange={handleFileChange}
-      onDelete={() => deleteMutation.mutate(id, {
+      onDelete={() => deleteMutation.mutate({ logoId: settings?.logo?.id ?? '', exportSettingId: id }, {
         onSuccess: () => { refetchMeta(); enqueueSuccess('Logo removed'); },
         onError: (err) => enqueueError(err as Error, 'Failed to remove logo'),
       })}
@@ -275,7 +276,7 @@ function LogoSectionCreate({ stagedFile, stagedPreview, onFileStaged, onFileClea
 
   return (
     <LogoUI
-      previewSrc={stagedPreview ? `data:image/jpeg;base64,${stagedPreview}` : null}
+      previewSrc={stagedPreview && stagedFile ? `data:${stagedFile.type};base64,${stagedPreview}` : null}
       fileName={stagedFile?.name ?? null}
       hasStoredLogo={false}
       uploading={false}
@@ -343,16 +344,15 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
   const [stagedLogoFile, setStagedLogoFile] = useState<File | null>(null);
   const [stagedLogoPreview, setStagedLogoPreview] = useState<string | null>(null);
 
-  const uploadLogoMutation = useUpdateExportSettingLogo();
+  // Validation errors (field path → message)
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
   const createMutation = useCreateExportSetting();
   const updateMutation = useUpdateExportSetting();
 
   // ==== Submit ====
 
-  function handleSubmit() {
-    const name = nameRef.current?.value.trim() ?? '';
-    if (!name) return;
-
+  async function handleSubmit() {
     const logoCell = logoCellRef.current?.value || undefined;
     const dataStartCell = dataStartCellRef.current?.value || undefined;
     const itemValues = itemRefs.current
@@ -364,38 +364,42 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
     if (dataStartCell) headerLayout.dataStartCell = dataStartCell;
     if (itemValues.length > 0) headerLayout.items = itemValues;
 
-    const body = {
-      name,
+    const raw = {
+      name: nameRef.current?.value ?? '',
       applyHeaderToAllSheets: applyHeaderRef.current?.checked ?? false,
       includeOriginalSheets: includeOriginalRef.current?.checked ?? false,
       mappedValueNames,
       headerLayout: Object.keys(headerLayout).length > 0 ? headerLayout : undefined,
     };
 
-    if (isEdit) {
-      updateMutation.mutate({ id: id!, body }, {
-        onSuccess: () => { enqueueSuccess('Export setting saved'); onSuccess(); },
-        onError: (err) => enqueueError(err as Error, 'Failed to save export setting'),
-      });
-    } else {
-      createMutation.mutate(body, {
-        onSuccess: (created) => {
-          if (stagedLogoFile) {
-            uploadLogoMutation.mutate({ id: created.id, file: stagedLogoFile }, {
-              onSuccess: () => { enqueueSuccess('Export setting created'); onSuccess(); },
-              onError: (err) => enqueueError(err as Error, 'Failed to upload logo'),
-            });
-          } else {
-            enqueueSuccess('Export setting created');
-            onSuccess();
-          }
-        },
-        onError: (err) => enqueueError(err as Error, 'Failed to create export setting'),
-      });
+    try {
+      setErrors({});
+
+      if (isEdit) {
+        const body = await ExportSettingUpdateValidator.validate(raw, { abortEarly: false }) as ExportSettingUpdateInput;
+        updateMutation.mutate({ id: id!, body }, {
+          onSuccess: () => { enqueueSuccess('Export setting saved'); onSuccess(); },
+          onError: (err) => enqueueError(err as Error, 'Failed to save export setting'),
+        });
+      } else {
+        const body = await ExportSettingCreateValidator.validate(raw, { abortEarly: false }) as ExportSettingCreateInput;
+        createMutation.mutate({ body, logo: stagedLogoFile ?? undefined }, {
+          onSuccess: () => { enqueueSuccess('Export setting created'); onSuccess(); },
+          onError: (err) => enqueueError(err as Error, 'Failed to create export setting'),
+        });
+      }
+    } catch (err) {
+      if (err instanceof yup.ValidationError) {
+        const fieldErrors: Record<string, string> = {};
+        for (const e of err.inner) {
+          if (e.path) fieldErrors[e.path] = e.message;
+        }
+        setErrors(fieldErrors);
+      }
     }
   }
 
-  const isPending = createMutation.isPending || updateMutation.isPending || uploadLogoMutation.isPending;
+  const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
     <div className="mx-auto max-w-2xl py-8">
@@ -415,43 +419,41 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
           ref={nameRef}
           label="Name"
           defaultValue={existing?.name ?? ''}
+          helperText={errors.name}
           required
         />
 
         {/* ==== Logo ==== */}
-        {isEdit ? (
-          <LogoSectionEdit id={id!} />
-        ) : (
-          <LogoSectionCreate
-            stagedFile={stagedLogoFile}
-            stagedPreview={stagedLogoPreview}
-            onFileStaged={(file, preview) => { setStagedLogoFile(file); setStagedLogoPreview(preview); }}
-            onFileCleared={() => { setStagedLogoFile(null); setStagedLogoPreview(null); }}
+        <div className="flex flex-col gap-3">
+          <ArtLabel>Logo</ArtLabel>
+          <ArtInput
+            ref={logoCellRef}
+            label="Logo cell"
+            placeholder="A1"
+            defaultValue={existing?.headerLayout?.logoCell ?? ''}
           />
-        )}
+          {isEdit ? (
+            <LogoSectionEdit id={id!} />
+          ) : (
+            <LogoSectionCreate
+              stagedFile={stagedLogoFile}
+              stagedPreview={stagedLogoPreview}
+              onFileStaged={(file, preview) => { setStagedLogoFile(file); setStagedLogoPreview(preview); }}
+              onFileCleared={() => { setStagedLogoFile(null); setStagedLogoPreview(null); }}
+            />
+          )}
+          
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Scaled to max 64×180 px. Consider leaving ~4 empty rows below logo.
+          </p>
+        </div>
 
         {/* ==== Header layout ==== */}
         <div className="flex flex-col gap-3">
           <ArtLabel>Header layout</ArtLabel>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            Define cell positions for the report header. Use{' '}
-            <span style={{ fontFamily: 'monospace' }}>&lt;Tag&gt;</span> in content for values filled at export time.
+            Use <span style={{ fontFamily: 'monospace' }}>&lt;Tag&gt;</span> in content for values filled at export time.
           </p>
-
-          <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            <ArtInput
-              ref={logoCellRef}
-              label="Logo cell"
-              placeholder="A1"
-              defaultValue={existing?.headerLayout?.logoCell ?? ''}
-            />
-            <ArtInput
-              ref={dataStartCellRef}
-              label="DataTable start cell"
-              placeholder="A4"
-              defaultValue={existing?.headerLayout?.dataStartCell ?? ''}
-            />
-          </div>
 
           {items.length > 0 && (
             <div className="flex flex-col gap-2">
@@ -485,17 +487,30 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
           </ArtButton>
         </div>
 
+        {/* ==== Data start ==== */}
+        <div className="flex flex-col gap-2">
+          <ArtInput
+            ref={dataStartCellRef}
+            label="Data start cell"
+            placeholder="A4"
+            defaultValue={existing?.headerLayout?.dataStartCell ?? ''}
+          />
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Cell where data table begins. Account for logo and header rows above.
+          </p>
+        </div>
+
         {/* ==== Value categories ==== */}
         <div className="flex flex-col gap-2">
           <ArtLabel>Value categories</ArtLabel>
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            Named groups shown as Display Name suggestions in Row Mappings.
-          </p>
           <TagInput
             values={mappedValueNames}
             placeholder="e.g. Revenue, Expenses, Assets…"
             onChange={setMappedValueNames}
           />
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Shown as Display Name options in Row Mappings.
+          </p>
         </div>
 
         {/* ==== Toggles ==== */}

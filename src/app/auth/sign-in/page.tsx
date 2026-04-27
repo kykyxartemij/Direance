@@ -4,8 +4,7 @@ import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import ArtInput from '@/components/ui/ArtInput';
 import ArtButton from '@/components/ui/ArtButton';
 
@@ -18,6 +17,9 @@ type FormValues = yup.InferType<typeof schema>;
 
 export default function SignInPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const verified = searchParams.get('verified') === 'true';
+
   const {
     register,
     handleSubmit,
@@ -46,6 +48,12 @@ export default function SignInPage() {
       <h1 className="mb-6 text-xl font-semibold" style={{ color: 'var(--text)' }}>
         Sign in to Direance
       </h1>
+
+      {verified && (
+        <p className="mb-4 text-sm" style={{ color: 'var(--art-success)' }}>
+          Account created — you can sign in now.
+        </p>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         <ArtInput
@@ -79,12 +87,31 @@ export default function SignInPage() {
         </ArtButton>
       </form>
 
-      <p className="mt-5 text-sm" style={{ color: 'var(--text-muted)' }}>
-        No account?{' '}
-        <Link href="/auth/sign-up" prefetch style={{ color: 'var(--primary)' }}>
-          Create one
-        </Link>
-      </p>
+      <div className="mt-4 flex flex-col gap-2">
+        <div className="flex items-center gap-3">
+          <hr style={{ flex: 1, borderColor: 'var(--border)' }} />
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>or</span>
+          <hr style={{ flex: 1, borderColor: 'var(--border)' }} />
+        </div>
+
+        <ArtButton
+          type="button"
+          variant="outlined"
+          size="md"
+          onClick={() => signIn('google', { callbackUrl: '/' })}
+        >
+          Continue with Google
+        </ArtButton>
+
+        <ArtButton
+          type="button"
+          variant="outlined"
+          size="md"
+          onClick={() => signIn('github', { callbackUrl: '/' })}
+        >
+          Continue with GitHub
+        </ArtButton>
+      </div>
     </>
   );
 }

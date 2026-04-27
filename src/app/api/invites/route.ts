@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
-import { registerUser } from '@/services/user.service';
+import { sendInvite } from '@/services/invite.service';
 
 export async function POST(req: NextRequest) {
-  return registerUser(req);
+  return sendInvite(req);
 }

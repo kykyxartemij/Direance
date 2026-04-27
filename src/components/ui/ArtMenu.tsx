@@ -35,7 +35,7 @@ interface ArtMenuProps {
 // for position calculations without interfering with the child's layout.
 
 function ArtMenu({ children, items, onSelect, placement = 'bottom', className }: ArtMenuProps) {
-  const { triggerRef, panelRef, pos, open, hide, toggle } =
+  const { triggerRef, panelRef, open, hide, toggle } =
     useAnchoredPanel<HTMLElement, HTMLDivElement>({ placement });
 
   useEffect(() => {
@@ -62,7 +62,7 @@ function ArtMenu({ children, items, onSelect, placement = 'bottom', className }:
         <div
           ref={panelRef}
           className={cn('art-popover', className)}
-          style={{ position: 'fixed', zIndex: 9999, ...pos }}
+          style={{ zIndex: 'var(--z-anchor)' as unknown as number }}
         >
           <ul role="menu" className="art-menu-list art-scrollable">
             {items.map((item) => (

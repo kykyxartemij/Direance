@@ -138,6 +138,27 @@ Single-person graduation project. No Jira. This file is the backlog.
 
 ---
 
+## Documentation
+
+- [x] **Limit requests per user + limit DB rows per user** — `src/lib/rateLimiter.ts` (request rate), `src/lib/rowLimits.ts` (row limits + logo storage). Documented in `BackendGuide.md`.
+
+- [?] **Logo reuse — separate `Logo` table**
+  > Currently each ExportSetting stores its own logo bytes. If a user wants the same logo on multiple
+  > export settings, they upload it N times. Refactor: `Logo { id, userId, data Bytes, mime, name, createdAt }`.
+  > `ExportSetting.logoId → Logo`. One upload, reuse across settings. Same `checkLogoSizeLimit` logic,
+  > but the count query runs against the `Logo` table instead.
+  > Schema migration required — defer until ExportSettings usage patterns are clearer.
+
+- [?] **Read-endpoint rate limiting tied to cache**
+  > Idea: add rate limiting to GET endpoints, but bypass the limit when the response is served from cache
+  > (no DB hit). This protects DB from hammered GET endpoints while not penalizing normal cache-warm usage.
+  > Implementation unclear — `unstable_cache` doesn't expose a cache-hit signal to route handlers.
+  > Needs design work before implementation.
+- [ ] **Write TanStack Query documentation** — cover: queryKey conventions (`src/lib/queryKeys.ts`), `useQuery` vs `useSuspenseQuery`, `useMutation` + `onSuccess` cache invalidation, infinite queries via `useInfiniteQuery`, `HydrationBoundary` for server prefetch. Separate doc once patterns are tested and stable.
+- [ ] **Final site documentation** — when site is feature-complete, produce comprehensive guide covering every architectural decision, pattern, and rule so the full stack can be recreated from scratch. Goal: new developer reads docs, builds equivalent system without needing to reverse-engineer code.
+
+---
+
 ## Notes & Decisions
 
 **2026-03-31** — Decided to use Auth.js v5 with JWT sessions + Prisma adapter over Neon Auth

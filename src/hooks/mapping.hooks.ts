@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axiosClient from '@/lib/axiosClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
-import type { MappingModel, MappingCreateInput, MappingUpdateInput } from '@/models/mapping.models';
+import type { QueryClient } from '@tanstack/react-query';
+import type { MappingModel, MappingLightItem, MappingCreateInput, MappingUpdateInput } from '@/models/mapping.models';
 import type { PaginatedResponse } from '@/models/paginated-response.model';
 import type { ApiError } from '@/models/api-error';
 
@@ -22,15 +23,11 @@ export function useGetPagedMappings(page: number, pageSize: number) {
   });
 }
 
-export type MappingLightItem = Pick<MappingModel, 'id' | 'name' | 'isGlobal' | 'reportType'> & {
-  exportSetting: { id: string; name: string } | null;
-};
-
 export function useGetLightMappings() {
   return useQuery<MappingLightItem[], ApiError>({
     queryKey: queryKeys.mapping.light(),
     queryFn: async () => {
-      const { data } = await axiosClient.get(API.mapping.list());
+      const { data } = await axiosClient.get(API.mapping.light());
       return data;
     },
   });
@@ -44,6 +41,17 @@ export function useGetMappingById(id: string | undefined) {
       return data;
     },
     enabled: !!id,
+  });
+}
+
+/** Ensure a full MappingModel is in cache, fetching if needed. Use in event handlers (not hooks). */
+export function fetchMappingById(queryClient: QueryClient, id: string) {
+  return queryClient.ensureQueryData<MappingModel>({
+    queryKey: queryKeys.mapping.byId(id),
+    queryFn: async () => {
+      const { data } = await axiosClient.get<MappingModel>(API.mapping.byId(id));
+      return data;
+    },
   });
 }
 

@@ -2,13 +2,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import axiosClient from '@/lib/axiosClient';
-import { queryKeys } from '@/lib/queryKeys';
-import { API } from '@/lib/apiUrl';
 import * as yup from 'yup';
 import { useRouter } from 'next/navigation';
 import { useReports, type UploadedReport } from '@/providers/ReportProvider';
-import { useGetLightMappings, useCreateMapping, useUpdateMapping } from '@/hooks/mapping.hooks';
+import { useGetLightMappings, useCreateMapping, useUpdateMapping, fetchMappingById } from '@/hooks/mapping.hooks';
 import { useGetExportSettingById, useGetLightExportSettings } from '@/hooks/export-settings.hooks';
 import { useCurrencyOptions, useCurrencyRate } from '@/hooks/currencies.hooks';
 import type {
@@ -109,7 +106,7 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
   // ==== Hooks unconditional ====
 
   const queryClient = useQueryClient();
-  const selectedMapping = mappings.find((m) => m.id === selectedMappingId);
+  const [selectedMapping, setSelectedMapping] = useState<MappingModel | null>(null);
   const { data: linkedExportSetting } = useGetExportSettingById(exportSettingId ?? undefined);
   const { rate: currencyRate, isLoading: rateLoading } = useCurrencyRate(fromCurrency, toCurrency);
 
@@ -122,7 +119,7 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
 
   // ==== Derived ====
 
-  const isGlobalSelected = selectedMapping?.isGlobal ?? false;
+  const isGlobalSelected = selectedMapping?.isGlobal === true;
   const isUserOwned = !!selectedMapping && !selectedMapping.isGlobal;
 
   const exportSettingOptions: ArtComboBoxOption[] = exportSettingsList.map((es) => ({
@@ -174,15 +171,9 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
   async function handleMappingChange(opt: ArtComboBoxOption | null) {
     const id = opt?.value ?? null;
     setSelectedMappingId(id);
-    if (!id) return;
-    // TODO: Move query to separate file
-    const mapping = await queryClient.ensureQueryData<MappingModel>({
-      queryKey: queryKeys.mapping.byId(id),
-      queryFn: async () => {
-        const { data } = await axiosClient.get<MappingModel>(API.mapping.byId(id));
-        return data;
-      },
-    });
+    if (!id) { setSelectedMapping(null); return; }
+    const mapping = await fetchMappingById(queryClient, id);
+    setSelectedMapping(mapping);
     applyMappingToForm(mapping);
   }
 
@@ -190,9 +181,9 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
     const newType = (opt?.value as ReportType) ?? null;
     setReportType(newType);
     setReportTypeError('');
-    if (selectedMappingId) {
-      const mapping = mappings.find((m) => m.id === selectedMappingId);
-      if (mapping && mapping.reportType !== newType) setSelectedMappingId(null);
+    if (selectedMapping && selectedMapping.reportType !== newType) {
+      setSelectedMappingId(null);
+      setSelectedMapping(null);
     }
   }
 
@@ -222,11 +213,11 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
     setRowMappingsOpen(false);
   }
 
-  // createTotalColumn is output-only → no flush, no section close
-  function handleSheetCreateTotalColumnChange(sheetName: string, value: boolean) {
+  // totalColumnMode is output-only → no flush, no section close
+  function handleSheetTotalColumnModeChange(sheetName: string, mode: import('@/models/mapping.models').TotalColumnMode) {
     setSheetsConfig((prev) => ({
       ...prev,
-      [sheetName]: { ...(prev[sheetName] ?? { mode: 'combine' }), createTotalColumn: value },
+      [sheetName]: { ...(prev[sheetName] ?? { mode: 'combine' }), totalColumnMode: mode },
     }));
   }
 
@@ -271,8 +262,9 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
 
   function applyAndNavigate() {
     const config = buildConfig();
+    const skippedSheets = report!.workbook.SheetNames.filter((s) => sheetsConfig[s]?.mode === 'skip');
     const usedSheets = report!.workbook.SheetNames.filter((s) => sheetsConfig[s]?.mode !== 'skip');
-    const { headers, rows, rowColors, valueColors } = applyMappingMultiSheet(
+    const { headers, rows, rowColors, valueColors, totalColumns } = applyMappingMultiSheet(
       report!.workbook,
       usedSheets.length > 0 ? usedSheets : [report!.workbook.SheetNames[0]],
       config,
@@ -283,6 +275,8 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
       processedRows: rows,
       rowColors,
       valueColors,
+      totalColumns,
+      skippedSheets,
       exportSetting: linkedExportSetting ?? null,
     });
     router.push('/');
@@ -363,12 +357,10 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
 
   // ==== Options ====
 
-  const mappingOptions: ArtComboBoxOption[] = mappings
-    .filter((m) => reportType == null || m.reportType === reportType)
-    .map((m) => ({
-      label: m.isGlobal ? `${m.name} (Global)` : m.name,
-      value: m.id,
-    }));
+  const mappingOptions: ArtComboBoxOption[] = mappings.map((m) => ({
+    label: m.name,
+    value: m.id,
+  }));
 
   const selectedMappingOption = mappingOptions.find((o) => o.value === selectedMappingId) ?? null;
   const fromCurrencyOption = currencyOptions.find((o) => o.value === fromCurrency) ?? null;
@@ -407,18 +399,14 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-2 gap-4">
               {/* Report Type */}
-              <div className="flex flex-col gap-1">
-                <ArtSelect
-                  label="Report Type"
-                  options={REPORT_TYPE_OPTIONS}
-                  selected={REPORT_TYPE_OPTIONS.find((o) => o.value === reportType) ?? null}
-                  onChange={handleReportTypeChange}
-                  required
-                />
-                {reportTypeError && (
-                  <span className="text-xs" style={{ color: 'var(--art-danger)' }}>{reportTypeError}</span>
-                )}
-              </div>
+              <ArtSelect
+                label="Report Type"
+                options={REPORT_TYPE_OPTIONS}
+                selected={REPORT_TYPE_OPTIONS.find((o) => o.value === reportType) ?? null}
+                onChange={handleReportTypeChange}
+                helperText={reportTypeError || undefined}
+                required
+              />
 
               {/* Mapping */}
               <ArtComboBox
@@ -485,7 +473,7 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
             sheetsConfig={sheetsConfig}
             onSheetLayoutChange={handleSheetLayoutChange}
             onSheetModeChange={handleSheetModeChange}
-            onSheetCreateTotalColumnChange={handleSheetCreateTotalColumnChange}
+            onSheetTotalColumnModeChange={handleSheetTotalColumnModeChange}
             collapseOpen={layoutOpen}
             onCollapseChange={handleLayoutOpen}
           />

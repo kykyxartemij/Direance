@@ -8,6 +8,7 @@ export const queryKeys = {
     },
     me: () => ['user', 'single', 'me'] as const,
     byId: (id: string) => ['user', 'single', 'byId', id] as const,
+    dbConsumption: () => ['user', 'single', 'dbConsumption'] as const,
   },
   report: {
     invalidate: {
@@ -36,8 +37,16 @@ export const queryKeys = {
     byId: (id: string) => ['exportSetting', 'single', 'byId', id] as const,
   },
   // Separate namespace — never invalidated by exportSetting mutations (bytes can't be cached)
-  exportSettingLogo: {
-    byId: (id: string) => ['exportSettingLogo', id] as const,
+  logo: {
+    invalidate: {
+      all: () => ['logo'] as const,
+    },
+    light: () => ['logo', 'list', 'light'] as const,
+    byId: (id: string) => ['logo', 'single', 'byId', id] as const,
+    byExportSettingId: (id: string) => ['logo', 'single', 'byExportSettingId', id] as const,
+  },
+  admin: {
+    dbStats: () => ['admin', 'dbStats'] as const,
   },
   // Currency data fetched from the open @fawazahmed0/currency-api CDN — never invalidated
   currency: {

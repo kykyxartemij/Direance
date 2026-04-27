@@ -79,6 +79,15 @@ interface ArtDataTableProps<T> {
    */
   pageSize?: number;
   className?: string;
+  /**
+   * Custom row renderer. When provided, ArtDataTable owns the wrapper, scroll, colgroup,
+   * and thead — the caller renders each <tr> with full control (refs, imperative handles, etc).
+   * Loading and empty states are still managed by ArtDataTable.
+   *
+   * Use this for interactive form-table rows (e.g. RowMappingsSection) where per-row
+   * imperative refs are needed — not possible with the default render-column approach.
+   */
+  renderRow?: (row: T, index: number) => ReactNode;
 }
 
 // ==== Internal memoised row ====
@@ -149,6 +158,7 @@ function ArtDataTable<T>({
   rowClassName,
   pageSize = 5,
   className,
+  renderRow,
 }: ArtDataTableProps<T>) {
   // ==== Pre-compute sticky offsets + insert filler ====
   // Left-sticky: forward pass — sum widths of preceding left-sticky columns.
@@ -288,6 +298,12 @@ function ArtDataTable<T>({
                   {emptyMessage}
                 </td>
               </tr>
+            ) : renderRow ? (
+              data.map((row, index) => (
+                <React.Fragment key={rowKey ? rowKey(row, index) : index}>
+                  {renderRow(row, index)}
+                </React.Fragment>
+              ))
             ) : (
               data.map((row, index) => (
                 <DataRow
@@ -306,6 +322,25 @@ function ArtDataTable<T>({
       </div>
     </div>
   );
+}
+
+// ==== Row primitives ====
+// Use these inside renderRow so callers never depend on internal CSS class names.
+
+export function ArtDataTr({
+  children,
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLTableRowElement>) {
+  return <tr className={cn('art-data-tr', className)} {...props}>{children}</tr>;
+}
+
+export function ArtDataTd({
+  children,
+  className,
+  ...props
+}: React.TdHTMLAttributes<HTMLTableCellElement>) {
+  return <td className={cn('art-data-td', className)} {...props}>{children}</td>;
 }
 
 ArtDataTable.displayName = 'ArtDataTable';

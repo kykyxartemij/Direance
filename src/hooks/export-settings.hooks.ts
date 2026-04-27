@@ -6,15 +6,26 @@ import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
 import type {
   ExportSetting,
+  ExportSettingLightItem,
   ExportSettingCreateInput,
   ExportSettingUpdateInput,
 } from '@/models/export-settings.models';
 import type { PaginatedResponse } from '@/models/paginated-response.model';
 import type { ApiError } from '@/models/api-error';
+import type { LogoLight, LogoBytes } from '@/hooks/logo.hooks';
+
+// ==== Helpers ====
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve((reader.result as string).split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 // ==== Queries ====
-
-export type ExportSettingLightItem = { id: string; name: string };
 
 export function useGetLightExportSettings() {
   return useQuery<ExportSettingLightItem[], ApiError>({
@@ -49,81 +60,76 @@ export function useGetExportSettingById(id: string | undefined) {
   });
 }
 
-// Logo is never cached — bytes can't survive JSON serialization.
-// Uses an isolated key prefix so normal exportSetting invalidation doesn't touch it.
-// staleTime: Infinity prevents auto-refetch; enabled: false means fetch only on .refetch().
-export function useGetExportSettingLogoById(id: string | undefined) {
-  return useQuery<
-    { logoData: string | null; logoMime: string | null; logoName: string | null },
-    ApiError
-  >({
-    queryKey: queryKeys.exportSettingLogo.byId(id!),
-    queryFn: async () => {
-      const { data } = await axiosClient.get(API.exportSetting.logo(id!));
-      return data;
-    },
-    enabled: false,
-    staleTime: Infinity,
-    gcTime: 0,
-  });
-}
-
 // ==== Mutations ====
 
+// logo?: File  → creates logo first, links logoId to the new ExportSetting
+// logo?: string → treats the value as logoId directly (existing logo)
 export function useCreateExportSetting() {
   const queryClient = useQueryClient();
-  return useMutation<ExportSetting, ApiError, ExportSettingCreateInput>({
-    mutationFn: async (body) => {
-      const { data } = await axiosClient.post<ExportSetting>(API.exportSetting.list(), body);
+  return useMutation<ExportSetting, ApiError, { body: ExportSettingCreateInput; logo?: File | string }>({
+    mutationFn: async ({ body, logo }) => {
+      let logoId = body.logoId;
+
+      if (logo instanceof File) {
+        const formData = new FormData();
+        formData.append('logo', logo);
+        const { data: created } = await axiosClient.post<LogoLight>(API.logo.list(), formData);
+        logoId = created.id;
+      } else if (typeof logo === 'string') {
+        logoId = logo;
+      }
+
+      const { data } = await axiosClient.post<ExportSetting>(API.exportSetting.list(), { ...body, logoId });
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (setting, { logo }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.exportSetting.invalidate.all() });
+      if (logo instanceof File) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.logo.invalidate.all() });
+        void fileToBase64(logo).then(logoData => {
+          queryClient.setQueryData<LogoBytes>(queryKeys.logo.byExportSettingId(setting.id), {
+            logoData,
+            logoMime: logo.type,
+            logoName: logo.name,
+          });
+        });
+      }
     },
   });
 }
 
+// logo?: File  → creates logo first, links logoId via PATCH
+// logo?: string → treats the value as logoId directly
 export function useUpdateExportSetting() {
   const queryClient = useQueryClient();
-  return useMutation<ExportSetting, ApiError, { id: string; body: ExportSettingUpdateInput }>({
-    mutationFn: async ({ id, body }) => {
-      const { data } = await axiosClient.patch<ExportSetting>(API.exportSetting.byId(id), body);
+  return useMutation<ExportSetting, ApiError, { id: string; body: ExportSettingUpdateInput; logo?: File | string }>({
+    mutationFn: async ({ id, body, logo }) => {
+      let logoId = body.logoId;
+
+      if (logo instanceof File) {
+        const formData = new FormData();
+        formData.append('logo', logo);
+        const { data: created } = await axiosClient.post<LogoLight>(API.logo.list(), formData);
+        logoId = created.id;
+      } else if (typeof logo === 'string') {
+        logoId = logo;
+      }
+
+      const { data } = await axiosClient.patch<ExportSetting>(API.exportSetting.byId(id), { ...body, logoId });
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (setting, { logo }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.exportSetting.invalidate.all() });
-    },
-  });
-}
-
-// Only invalidates metadata (name, logoName) — not the logo bytes query (separate key prefix)
-export function useUpdateExportSettingLogo() {
-  const queryClient = useQueryClient();
-  return useMutation<
-    { logoData: string; logoMime: string; logoName: string },
-    ApiError,
-    { id: string; file: File }
-  >({
-    mutationFn: async ({ id, file }) => {
-      const formData = new FormData();
-      formData.append('logo', file);
-      const { data } = await axiosClient.post(API.exportSetting.logo(id), formData);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.exportSetting.invalidate.all() });
-    },
-  });
-}
-
-export function useDeleteExportSettingLogo() {
-  const queryClient = useQueryClient();
-  return useMutation<void, ApiError, string>({
-    mutationFn: async (id) => {
-      await axiosClient.delete(API.exportSetting.logo(id));
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.exportSetting.invalidate.all() });
+      if (logo instanceof File) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.logo.invalidate.all() });
+        void fileToBase64(logo).then(logoData => {
+          queryClient.setQueryData<LogoBytes>(queryKeys.logo.byExportSettingId(setting.id), {
+            logoData,
+            logoMime: logo.type,
+            logoName: logo.name,
+          });
+        });
+      }
     },
   });
 }

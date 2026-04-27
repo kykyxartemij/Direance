@@ -1,13 +1,13 @@
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { cached, invalidateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { handleApiError } from '@/lib/errorHandler';
 import { requireAuth } from '@/auth';
-import { ApiError } from '@/models/api-error';
-import { RegisterValidator, UserUpdateValidator } from '@/models/user.models';
+import { UserUpdateValidator } from '@/models/user.models';
+import { checkUserRequestLimit } from '@/lib/rateLimiter';
+import { checkUserDbLimits, computeUserDbConsumption } from '@/lib/userLimits';
 
 // ==== Select ====
 
@@ -15,18 +15,19 @@ const USER_SELECT = {
   id: true,
   email: true,
   name: true,
-  image: true,
+  permissions: true,
 } as const;
 
 // ==== HTTP handlers ====
 
-export async function getMe(): Promise<NextResponse> {
+export async function getMe(req: NextRequest): Promise<NextResponse> {
   try {
-    const userId = await requireAuth();
+    const { userId, permissions } = await requireAuth();
+    await checkUserRequestLimit(req, userId, permissions);
 
     const user = await cached(
       () => prisma.user.findUniqueOrThrow({ where: { id: userId }, select: USER_SELECT }),
-      CACHE_KEYS.user.byId(userId)
+      CACHE_KEYS.user.byId(userId),
     );
 
     return NextResponse.json(user);
@@ -35,35 +36,11 @@ export async function getMe(): Promise<NextResponse> {
   }
 }
 
-// TODO: Redifine. No ability to register user the regular way. You may get access only if admin created account for you. On your side is to change your password as needed.
-export async function registerUser(req: NextRequest): Promise<NextResponse> {
-  try {
-    const body = await req.json();
-    const data = await RegisterValidator.validate(body, { abortEarly: false });
-
-    // eslint-disable-next-line local/no-uncached-prisma
-    const existing = await prisma.user.findUnique({ where: { email: data.email } });
-    if (existing) throw new ApiError('Email already in use', 409);
-
-    const hashed = await bcrypt.hash(data.password, 12);
-    const user = await prisma.user.create({
-      data: { email: data.email, password: hashed, name: data.name || null },
-      select: USER_SELECT,
-    });
-
-    invalidateCache(...CACHE_KEYS.user.invalidate());
-    await cached(() => Promise.resolve(user), CACHE_KEYS.user.byId(user.id));
-
-    return NextResponse.json(user, { status: 201 });
-  } catch (error) {
-    return handleApiError(error, 'POST /api/auth/register');
-  }
-}
-
-// Currently not used
 export async function patchMe(req: NextRequest): Promise<NextResponse> {
   try {
-    const userId = await requireAuth();
+    const { userId, permissions } = await requireAuth();
+    await checkUserRequestLimit(req, userId, permissions);
+    await checkUserDbLimits(userId, permissions);
 
     const body = await req.json();
     const data = await UserUpdateValidator.validate(body, { abortEarly: false });
@@ -79,19 +56,36 @@ export async function patchMe(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json(user);
   } catch (error) {
-    return handleApiError(error, 'PATCH /api/user');
+    return handleApiError(error, 'PATCH /api/user/me');
   }
 }
 
-export async function deleteMe(): Promise<NextResponse> {
+export async function getDbConsumption(req: NextRequest): Promise<NextResponse> {
   try {
-    const userId = await requireAuth();
+    const { userId, permissions } = await requireAuth();
+    await checkUserRequestLimit(req, userId, permissions);
+
+    const data = await cached(
+      () => computeUserDbConsumption(userId),
+      CACHE_KEYS.user.dbConsumption(userId),
+    );
+
+    return NextResponse.json(data);
+  } catch (error) {
+    return handleApiError(error, 'GET /api/user/me/consumption');
+  }
+}
+
+export async function deleteMe(req: NextRequest): Promise<NextResponse> {
+  try {
+    const { userId, permissions } = await requireAuth();
+    await checkUserRequestLimit(req, userId, permissions);
 
     await prisma.user.delete({ where: { id: userId } });
     invalidateCache(...CACHE_KEYS.user.invalidate());
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    return handleApiError(error, 'DELETE /api/user');
+    return handleApiError(error, 'DELETE /api/user/me');
   }
 }

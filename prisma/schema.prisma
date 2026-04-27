@@ -17,8 +17,10 @@ model User {
   name          String?
   email         String    @unique
   emailVerified DateTime?
-  image         String?
   password      String?   // null for OAuth-only users
+
+  // IS_ADMIN overrides all permission checks
+  permissions String[] @default([])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -29,6 +31,24 @@ model User {
 
   mappings        FieldMapping[]
   exportSettings  ExportSetting[]
+  sentInvites     Invite[]
+  logos           Logo[]
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Invite — email-specific, single-use, 72h invite token
+// ─────────────────────────────────────────────────────────────────
+
+model Invite {
+  id          String    @id @default(cuid())
+  email       String    @unique   // one active invite per email
+  token       String    @unique
+  invitedBy   String
+  inviter     User      @relation(fields: [invitedBy], references: [id], onDelete: Cascade)
+  permissions String[]  @default([])
+  expiresAt   DateTime
+
+  createdAt DateTime @default(now())
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -99,6 +119,28 @@ model FieldMapping {
 }
 
 // ─────────────────────────────────────────────────────────────────
+//  Logo — user-owned image asset, linked 1:1 to an ExportSetting
+//  Stored as sharp-processed bytes (JPEG or PNG, max 200 KB).
+// ─────────────────────────────────────────────────────────────────
+
+model Logo {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  data Bytes
+  mime String
+  name String
+
+  exportSetting ExportSetting?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────────────────────────
 //  ExportSetting — reusable export template
 //  Stores named value categories, sheet options, and report layout.
 //  FieldMapping optionally links to one ExportSetting to populate
@@ -112,20 +154,32 @@ model ExportSetting {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Header layout: logo position, arbitrary text/placeholder cells, where the DataTable starts
-  headerLayout          Json?
-  applyHeaderToAllSheets Boolean  @default(false)
+  headerLayout           Json?
+  applyHeaderToAllSheets Boolean @default(false)
 
-  // Logo stored as processed bytes (sharp-compressed JPEG, max 200 KB)
-  logoData Bytes?
-  logoMime String? // always "image/jpeg" after sharp processing
-  logoName String? // original filename, shown in UI
-  
-  includeOriginalSheets  Boolean  @default(false)
-  mappedValueNames       String[]
+  // Logo linked by reference — bytes live in the Logo model
+  logoId String? @unique
+  logo   Logo?   @relation(fields: [logoId], references: [id], onDelete: SetNull)
+
+  includeOriginalSheets Boolean  @default(false)
+  mappedValueNames      String[]
 
   // Back-reference required by Prisma — never selected in queries; ExportSetting does not expose FieldMappings
   fieldMappings FieldMapping[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  RateLimit — sliding-window counters for checkUserRequestLimit / checkLoginRate
+//  Managed by check_rate_limit() Postgres function (see prisma/functions.sql)
+// ─────────────────────────────────────────────────────────────────
+
+model RateLimit {
+  key         String   @id
+  count       Int      @default(0)
+  windowStart DateTime @default(now()) @map("window_start")
+
+  @@map("RateLimit")
 }

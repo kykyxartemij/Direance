@@ -1,12 +1,13 @@
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
-import sharp from 'sharp';
 import { prisma } from '@/lib/prisma';
 import { cached, invalidateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { handleApiError } from '@/lib/errorHandler';
 import { requireAuth } from '@/auth';
 import { ApiError } from '@/models/api-error';
+import { checkUserRequestLimit } from '@/lib/rateLimiter';
+import { checkUserDbLimits } from '@/lib/userLimits';
 import { parseIdFromRoute } from '@/models';
 import {
   ExportSettingCreateValidator,
@@ -16,8 +17,14 @@ import { parsePaginationFromUrl, createPaginatedResponse } from '@/models/pagina
 
 // ==== Select ====
 
-// Light — paged list view, no logo fields (logo changes never invalidate this cache group)
+// Light — id + name only, dropdowns and lightweight lists
 const EXPORT_SETTING_SELECT_LIGHT = {
+  id: true,
+  name: true,
+} as const;
+
+// Paged — list view, no logo fields (logo changes never invalidate this cache group)
+const EXPORT_SETTING_SELECT_PAGED = {
   id: true,
   name: true,
   applyHeaderToAllSheets: true,
@@ -25,53 +32,25 @@ const EXPORT_SETTING_SELECT_LIGHT = {
   mappedValueNames: true,
 } as const;
 
-// Full — detail view, adds logo metadata (no bytes — bytes can't survive JSON caching)
+// Full — detail view, adds headerLayout and logo metadata (no bytes — bytes can't survive JSON caching)
 const EXPORT_SETTING_SELECT = {
-  ...EXPORT_SETTING_SELECT_LIGHT,
+  ...EXPORT_SETTING_SELECT_PAGED,
   headerLayout: true,
-  logoMime: true,
-  logoName: true,
+  logo: { select: { id: true, mime: true, name: true } },
 } as const;
-
-// ==== Logo helpers ====
-
-const LOGO_MAX_BYTES = 200 * 1024; // 200 KB
-const LOGO_MAX_WIDTH = 800;
-
-async function processLogo(buffer: Buffer): Promise<Buffer> {
-  let result = await sharp(buffer)
-    .resize(LOGO_MAX_WIDTH, undefined, { fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 85 })
-    .toBuffer();
-
-  if (result.length > LOGO_MAX_BYTES) {
-    result = await sharp(buffer)
-      .resize(LOGO_MAX_WIDTH, undefined, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 65 })
-      .toBuffer();
-  }
-
-  if (result.length > LOGO_MAX_BYTES) {
-    result = await sharp(buffer)
-      .resize(600, undefined, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 60 })
-      .toBuffer();
-  }
-
-  return result;
-}
 
 // ==== HTTP handlers ====
 
-export async function getLightExportSettings(): Promise<NextResponse> {
+export async function getLightExportSettings(req: NextRequest): Promise<NextResponse> {
   try {
-    const userId = await requireAuth();
+    const { userId, permissions } = await requireAuth();
+    await checkUserRequestLimit(req, userId, permissions);
 
     const light = await cached(
       () =>
         prisma.exportSetting.findMany({
           where: { userId },
-          select: { id: true, name: true },
+          select: EXPORT_SETTING_SELECT_LIGHT,
           orderBy: { name: 'asc' },
         }),
       CACHE_KEYS.exportSetting.light(userId),
@@ -85,7 +64,9 @@ export async function getLightExportSettings(): Promise<NextResponse> {
 
 export async function getPagedExportSettings(req: NextRequest): Promise<NextResponse> {
   try {
-    const userId = await requireAuth();
+    const { userId, permissions } = await requireAuth();
+    await checkUserRequestLimit(req, userId, permissions);
+
     const { page, pageSize } = await parsePaginationFromUrl(new URL(req.url).searchParams);
 
     // TODO: FreeText implementation
@@ -95,7 +76,7 @@ export async function getPagedExportSettings(req: NextRequest): Promise<NextResp
         () =>
           prisma.exportSetting.findMany({
             where,
-            select: EXPORT_SETTING_SELECT_LIGHT,
+            select: EXPORT_SETTING_SELECT_PAGED,
             orderBy: { name: 'asc' },
             skip: page * pageSize,
             take: pageSize,
@@ -105,18 +86,20 @@ export async function getPagedExportSettings(req: NextRequest): Promise<NextResp
       cached(() => prisma.exportSetting.count({ where }), CACHE_KEYS.exportSetting.count(userId)),
     ]);
 
-    return NextResponse.json(createPaginatedResponse(data, page + 1, pageSize, total));
+    return NextResponse.json(createPaginatedResponse(data, page, pageSize, total));
   } catch (error) {
     return handleApiError(error, 'GET /api/export-settings/paged');
   }
 }
 
 export async function getExportSettingById(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   try {
-    const userId = await requireAuth();
+    const { userId, permissions } = await requireAuth();
+    await checkUserRequestLimit(req, userId, permissions);
+
     const id = parseIdFromRoute(await params);
 
     const settings = await cached(
@@ -138,20 +121,25 @@ export async function getExportSettingById(
 
 export async function createExportSetting(req: NextRequest): Promise<NextResponse> {
   try {
-    const userId = await requireAuth();
+    const { userId, permissions } = await requireAuth();
+    await checkUserRequestLimit(req, userId, permissions);
+    await checkUserDbLimits(userId, permissions);
 
     const body = await req.json();
-    const { headerLayout, ...rest } = await ExportSettingCreateValidator.validate(body, {
-      abortEarly: false,
-    });
+    const { headerLayout, logoId, ...rest } = await ExportSettingCreateValidator.validate(body, { abortEarly: false });
 
     const settings = await prisma.exportSetting.create({
-      data: { ...rest, userId, ...(headerLayout != null ? { headerLayout } : {}) },
+      data: {
+        ...rest,
+        userId,
+        ...(headerLayout != null ? { headerLayout } : {}),
+        ...(logoId ? { logoId } : {}),
+      },
       select: EXPORT_SETTING_SELECT,
     });
 
     invalidateCache(...CACHE_KEYS.exportSetting.invalidate());
-    await cached(() => Promise.resolve(settings), CACHE_KEYS.exportSetting.byId(settings.id))
+    await cached(() => Promise.resolve(settings), CACHE_KEYS.exportSetting.byId(settings.id));
 
     return NextResponse.json(settings, { status: 201 });
   } catch (error) {
@@ -164,17 +152,22 @@ export async function updateExportSetting(
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   try {
-    const userId = await requireAuth();
+    const { userId, permissions } = await requireAuth();
+    await checkUserRequestLimit(req, userId, permissions);
+    await checkUserDbLimits(userId, permissions);
+
     const id = parseIdFromRoute(await params);
 
     const body = await req.json();
-    const { headerLayout, ...rest } = await ExportSettingUpdateValidator.validate(body, {
-      abortEarly: false,
-    });
+    const { headerLayout, logoId, ...rest } = await ExportSettingUpdateValidator.validate(body, { abortEarly: false });
 
     const settings = await prisma.exportSetting.updateManyAndReturn({
       where: { id, userId },
-      data: { ...rest, ...(headerLayout != null ? { headerLayout } : {}) },
+      data: {
+        ...rest,
+        ...(headerLayout != null ? { headerLayout } : {}),
+        ...(logoId !== undefined ? { logoId } : {}),
+      },
       select: EXPORT_SETTING_SELECT,
     });
     if (settings.length === 0) throw new ApiError('Export setting not found', 404);
@@ -183,18 +176,21 @@ export async function updateExportSetting(
     invalidateCache(...CACHE_KEYS.exportSetting.invalidate());
     await cached(() => Promise.resolve(meta), CACHE_KEYS.exportSetting.byId(id));
 
-    return NextResponse.json(settings);
+    return NextResponse.json(meta);
   } catch (error) {
     return handleApiError(error, 'PATCH /api/export-settings/:id');
   }
 }
 
 export async function deleteExportSetting(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   try {
-    const userId = await requireAuth();
+    const { userId, permissions } = await requireAuth();
+    await checkUserRequestLimit(req, userId, permissions);
+    await checkUserDbLimits(userId, permissions);
+
     const id = parseIdFromRoute(await params);
 
     // deleteMany with userId in where — single query, 0 count means not found or wrong owner
@@ -205,101 +201,5 @@ export async function deleteExportSetting(
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     return handleApiError(error, 'DELETE /api/export-settings/:id');
-  }
-}
-
-// ==== Logo handlers ====
-
-export async function getExportSettingLogoById(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-): Promise<NextResponse> {
-  try {
-    const userId = await requireAuth();
-    const id = parseIdFromRoute(await params);
-
-    // eslint-disable-next-line local/no-uncached-prisma
-    const row = await prisma.exportSetting.findFirstOrThrow({
-      where: { id, userId },
-      select: { logoData: true, logoMime: true, logoName: true },
-    });
-
-    if (!row.logoData) {
-      return NextResponse.json({ logoData: null, logoMime: null, logoName: null });
-    }
-
-    return NextResponse.json({
-      logoData: Buffer.from(row.logoData).toString('base64'),
-      logoMime: row.logoMime,
-      logoName: row.logoName,
-    });
-  } catch (error) {
-    return handleApiError(error, 'GET /api/export-settings/:id/logo');
-  }
-}
-
-export async function updateExportSettingLogo(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-): Promise<NextResponse> {
-  try {
-    const userId = await requireAuth();
-    const id = parseIdFromRoute(await params);
-
-    const formData = await req.formData();
-    const file = formData.get('logo') as File | null;
-    if (!file) throw new ApiError('No logo file provided', 400);
-
-    const accepted = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
-    if (!accepted.includes(file.type)) {
-      throw new ApiError('Logo must be PNG, JPEG, WebP, or GIF', 400);
-    }
-
-    const raw = Buffer.from(await file.arrayBuffer());
-    const logoData = await processLogo(raw);
-
-    const results = await prisma.exportSetting.updateManyAndReturn({
-      where: { id, userId },
-      data: {
-        logoData: logoData as unknown as Uint8Array<ArrayBuffer>,
-        logoMime: 'image/jpeg',
-        logoName: file.name,
-      },
-      select: EXPORT_SETTING_SELECT,
-    });
-    if (results.length === 0) throw new ApiError('Export setting not found', 404);
-    const meta = results[0];
-
-    invalidateCache(...CACHE_KEYS.exportSetting.byId(id));
-    await cached(() => Promise.resolve(meta), CACHE_KEYS.exportSetting.byId(id));
-
-    return NextResponse.json({
-      logoData: `data:image/jpeg;base64,${logoData.toString('base64')}`,
-      logoMime: meta.logoMime,
-      logoName: meta.logoName,
-    });
-  } catch (error) {
-    return handleApiError(error, 'POST /api/export-settings/:id/logo');
-  }
-}
-
-export async function deleteExportSettingLogo(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-): Promise<NextResponse> {
-  try {
-    const userId = await requireAuth();
-    const id = parseIdFromRoute(await params);
-
-    const { count } = await prisma.exportSetting.updateMany({
-      where: { id, userId },
-      data: { logoData: null, logoMime: null, logoName: null },
-    });
-    if (count === 0) throw new ApiError('Export setting not found', 404);
-
-    invalidateCache(...CACHE_KEYS.exportSetting.byId(id));
-    return new NextResponse(null, { status: 204 });
-  } catch (error) {
-    return handleApiError(error, 'DELETE /api/export-settings/:id/logo');
   }
 }

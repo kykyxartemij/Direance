@@ -33,8 +33,11 @@ export function createPaginatedResponse<T>(
 }
 
 export function getNextPage(lastPage: PaginatedResponse<unknown>): number | undefined {
-  if (lastPage.data.length < lastPage.pageSize) return undefined;
-  return lastPage.page + 1;
+  const nextPage = lastPage.page + 1;
+  if (lastPage.total != null) {
+    return nextPage * lastPage.pageSize < lastPage.total ? nextPage : undefined;
+  }
+  return lastPage.data.length < lastPage.pageSize ? undefined : nextPage;
 }
 
 export async function parsePaginationFromUrl(

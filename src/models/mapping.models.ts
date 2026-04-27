@@ -17,8 +17,15 @@ export type TableRegion = {
   startRow?: number;
 };
 
+export type TotalColumnDef = {
+  label: string;
+  /** Value column indices (0-based, relative to output value headers) to sum. Empty = all */
+  sourceValueIndices: number[];
+};
+
 export type SourceLayout = {
   regions: TableRegion[];
+  totalColumns?: TotalColumnDef[];
   headerRow: number;
 };
 
@@ -37,13 +44,11 @@ export type ColumnHeaderMapping = {
 };
 
 export type SheetMode = 'combine' | 'skip';
+export type TotalColumnMode = 'none' | 'append' | 'only';
 
 export type SheetConfig = {
   mode: SheetMode;
-  /** When true, a total column is appended summarising value columns for this sheet.
-   *  TODO: Support Excel-style per-cell formulas (e.g. B5+B6) and treat the
-   *  generated total as part of the "original sheet" for includeOriginalSheets output. */
-  createTotalColumn?: boolean;
+  totalColumnMode?: TotalColumnMode;
 };
 
 export type ExportSettings = {
@@ -99,8 +104,14 @@ const TableRegionValidator = yup.object({
   startRow: yup.number().integer().min(0).optional(),
 });
 
+const TotalColumnDefValidator = yup.object({
+  label: yup.string().required(),
+  sourceValueIndices: yup.array().of(yup.number().integer().min(0).required()).required(),
+});
+
 const SourceLayoutValidator = yup.object({
   regions: yup.array().of(TableRegionValidator).min(1).required(),
+  totalColumns: yup.array().of(TotalColumnDefValidator).optional(),
   headerRow: yup.number().integer().min(0).required(),
 });
 
@@ -144,3 +155,7 @@ export const MappingUpdateValidator = yup.object({
 
 export type MappingCreateInput = yup.InferType<typeof MappingCreateValidator>;
 export type MappingUpdateInput = yup.InferType<typeof MappingUpdateValidator>;
+
+// ==== Light response (list endpoints) ====
+
+export type MappingLightItem = Pick<MappingModel, 'id' | 'name'>;

@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGetMappingById, useUpdateMapping } from '@/hooks/mapping.hooks';
-import { useGetPagedExportSettings } from '@/hooks/export-settings.hooks';
+import { useGetLightExportSettings } from '@/hooks/export-settings.hooks';
 import type { MappingModel, ReportType } from '@/models/mapping.models';
 import type { ArtSelectOption } from '@/components/ui/ArtSelect';
 import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox';
@@ -23,9 +23,7 @@ const REPORT_TYPE_OPTIONS: ArtSelectOption[] = [
 
 function MappingEditForm({ id, mapping }: { id: string; mapping: MappingModel }) {
   const router = useRouter();
-  // TODO: Replace with a dedicated GetLight endpoint (flat list, no heavy fields) for ComboBox
-  const { data: pagedSettings } = useGetPagedExportSettings(1, 100);
-  const exportSettingsList = pagedSettings?.data ?? [];
+  const { data: exportSettingsList = [] } = useGetLightExportSettings();
   const updateMutation = useUpdateMapping();
 
   const nameRef = useRef<HTMLInputElement>(null);

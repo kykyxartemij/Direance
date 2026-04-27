@@ -19,6 +19,12 @@
   --art-accent:       var(--art-primary);
   --art-field-focus:  var(--text-muted);
 
+  /* Z-index layers — dialog < snackbar < anchored < tooltip */
+  --z-dialog:   10100;
+  --z-snackbar: 10200;
+  --z-anchor:   10300;
+  --z-tooltip:  10400;
+
   /* Button surface tint direction — dark theme mixes with white, light mixes with black */
   --btn-tint:  white;
   --btn-ghost-hover: rgb(255 255 255 / 0.12);
@@ -432,7 +438,7 @@ a:hover {
     color: var(--text);
     border: 1px solid var(--border);
     pointer-events: none;
-    z-index: 10200;
+    z-index: var(--z-tooltip);
   }
 
   /* ---- IconButton — size only, btn-ghost handles the rest ---- */
@@ -978,7 +984,7 @@ a:hover {
 
   /* ===== ArtDialog ===== */
   .art-dialog-backdrop {
-    position: fixed; inset: 0; z-index: 10000;
+    position: fixed; inset: 0; z-index: var(--z-dialog);
     background: rgba(0,0,0,0.55);
     @apply flex items-center justify-center p-4;
   }
@@ -1026,7 +1032,7 @@ a:hover {
   @keyframes snack-in      { from { transform: translateX(110%);  opacity: 0; } to { transform: translateX(0); opacity: 1; } }
   @keyframes snack-in-left { from { transform: translateX(-110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
-  .art-snackbar-stack { @apply fixed flex gap-2 pointer-events-none max-w-[400px]; width: calc(100vw - 2.5rem); z-index: 10100; }
+  .art-snackbar-stack { @apply fixed flex gap-2 pointer-events-none max-w-[400px]; width: calc(100vw - 2.5rem); z-index: var(--z-snackbar); }
   .art-snackbar {
     @apply pointer-events-auto relative flex items-start gap-2.5 p-3 rounded-lg border;
     border-color: var(--border); background: var(--surface);

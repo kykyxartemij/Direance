@@ -7,6 +7,7 @@ import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox';
 import ArtComboBox from '@/components/ui/ArtComboBox';
 import ArtCheckbox from '@/components/ui/ArtCheckbox';
 import ArtCollapse from '@/components/ui/ArtCollapse';
+import ArtDataTable, { ArtDataTr, ArtDataTd, type ArtColumn } from '@/components/ui/ArtDataTable';
 import ColorSelect from './ColorSelect';
 
 // ==== Types ====
@@ -66,11 +67,11 @@ const RowMappingRowItem = forwardRef<RowMappingRowItemRef, RowMappingRowItemProp
       (displayName ? { label: displayName, value: displayName } : null);
 
     return (
-      <tr className="art-data-tr">
-        <td className="art-data-td">
+      <ArtDataTr>
+        <ArtDataTd>
           <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{row.sourceName}</span>
-        </td>
-        <td className="art-data-td">
+        </ArtDataTd>
+        <ArtDataTd>
           <ArtComboBox
             options={mappedValueOptions}
             selected={selectedOption}
@@ -81,22 +82,32 @@ const RowMappingRowItem = forwardRef<RowMappingRowItemRef, RowMappingRowItemProp
             onSubmit={(text) => setDisplayName(text || undefined)}
             selectFirstOnEnter={mappedValueOptions.length > 0}
           />
-        </td>
-        <td className="art-data-td">
+        </ArtDataTd>
+        <ArtDataTd>
           <ColorSelect value={nameColor} onChange={setNameColor} />
-        </td>
-        <td className="art-data-td">
+        </ArtDataTd>
+        <ArtDataTd>
           <ColorSelect value={valueColor} onChange={setValueColor} />
-        </td>
-        <td className="art-data-td">
+        </ArtDataTd>
+        <ArtDataTd>
           <ArtCheckbox ref={hiddenRef} defaultChecked={row.hidden ?? false} size="sm" />
-        </td>
-      </tr>
+        </ArtDataTd>
+      </ArtDataTr>
     );
   },
 );
 
 RowMappingRowItem.displayName = 'RowMappingRowItem';
+
+// ==== Column definitions (static — no row data needed for headers) ====
+
+const ROW_MAPPING_COLUMNS: ArtColumn<RowMappingRow>[] = [
+  { key: 'sourceName',   label: 'Source Name',   width: 200 },
+  { key: 'displayName',  label: 'Display Name',  width: 220 },
+  { key: 'nameColor',    label: 'Name Color',    width: 130 },
+  { key: 'valueColor',   label: 'Value Color',   width: 130 },
+  { key: 'hidden',       label: 'Hide',          width: 60  },
+];
 
 // ==== Section ====
 
@@ -150,53 +161,22 @@ const RowMappingsSection = forwardRef<RowMappingsSectionRef, RowMappingsSectionP
         </div>
 
         {/* Table */}
-        <div className="art-data-table-wrapper">
-          <div className="art-data-table-scroll">
-            <table className="art-data-table">
-              <colgroup>
-                <col style={{ minWidth: 200 }} />
-                <col style={{ minWidth: 220 }} />
-                <col style={{ minWidth: 130 }} />
-                <col style={{ minWidth: 130 }} />
-                <col style={{ minWidth: 60 }} />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th className="art-data-th">Source Name</th>
-                  <th className="art-data-th">Display Name</th>
-                  <th className="art-data-th">Name Color</th>
-                  <th className="art-data-th">Value Color</th>
-                  <th className="art-data-th">Hide</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rowMappings.length === 0 ? (
-                  <tr className="art-data-tr">
-                    <td
-                      className="art-data-td"
-                      colSpan={5}
-                      style={{ textAlign: 'center', color: 'var(--text-muted)' }}
-                    >
-                      No rows found in the uploaded file
-                    </td>
-                  </tr>
-                ) : (
-                  rowMappings.map((row) => (
-                    <RowMappingRowItem
-                      key={row._index}
-                      ref={(el) => {
-                        if (el) rowItemRefs.current.set(row._index, el);
-                        else rowItemRefs.current.delete(row._index);
-                      }}
-                      row={row}
-                      mappedValueOptions={mappedValueOptions}
-                    />
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <ArtDataTable<RowMappingRow>
+          columns={ROW_MAPPING_COLUMNS}
+          data={rowMappings}
+          rowKey={(row) => row._index}
+          emptyMessage="No rows found in the uploaded file"
+          renderRow={(row) => (
+            <RowMappingRowItem
+              ref={(el) => {
+                if (el) rowItemRefs.current.set(row._index, el);
+                else rowItemRefs.current.delete(row._index);
+              }}
+              row={row}
+              mappedValueOptions={mappedValueOptions}
+            />
+          )}
+        />
       </ArtCollapse>
     );
   },

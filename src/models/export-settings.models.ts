@@ -28,12 +28,8 @@ export type ExportSetting = {
   includeOriginalSheets: boolean;
   /** Named value categories — shown as Display Name options in Row Mappings */
   mappedValueNames: string[];
-  /** Logo image stored as base64 JPEG (max 200 KB, processed by sharp on upload) */
-  logoData?: string | null;
-  /** Always "image/jpeg" after sharp processing */
-  logoMime?: string | null;
-  /** Original filename shown in UI */
-  logoName?: string | null;
+  /** Logo metadata — bytes served separately via GET /api/export-settings/:id/logo */
+  logo?: { id: string; mime: string; name: string } | null;
 };
 
 // ==== Validators ====
@@ -55,6 +51,7 @@ export const ExportSettingCreateValidator = yup.object({
   applyHeaderToAllSheets: yup.boolean().default(false),
   includeOriginalSheets: yup.boolean().default(false),
   mappedValueNames: yup.array().of(yup.string().required()).default([]),
+  logoId: yup.string().optional(),
 });
 
 export const ExportSettingUpdateValidator = yup.object({
@@ -63,7 +60,20 @@ export const ExportSettingUpdateValidator = yup.object({
   applyHeaderToAllSheets: yup.boolean().optional(),
   includeOriginalSheets: yup.boolean().optional(),
   mappedValueNames: yup.array().of(yup.string().required()).optional(),
+  logoId: yup.string().optional(),
 });
 
 export type ExportSettingCreateInput = yup.InferType<typeof ExportSettingCreateValidator>;
 export type ExportSettingUpdateInput = yup.InferType<typeof ExportSettingUpdateValidator>;
+
+// ==== Resolved (runtime only — logo bytes merged in for export) ====
+
+export type ExportSettingResolved = ExportSetting & {
+  logoData?: string | null;
+  logoMime?: string | null;
+  logoName?: string | null;
+};
+
+// ==== Light response (list endpoints) ====
+
+export type ExportSettingLightItem = Pick<ExportSetting, 'id' | 'name'>;

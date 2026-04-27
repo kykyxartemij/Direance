@@ -5,13 +5,26 @@ import axiosClient from '@/lib/axiosClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
 import type { UserModel, UserUpdateModel } from '@/models/user.models';
+import type { DbConsumption } from '@/lib/userLimits';
 import type { ApiError } from '@/models/api-error';
+
+export type { DbConsumption };
 
 export function useCurrentUser() {
   return useQuery<UserModel, ApiError>({
     queryKey: queryKeys.user.me(),
     queryFn: async () => {
       const { data } = await axiosClient.get<UserModel>(API.user.me());
+      return data;
+    },
+  });
+}
+
+export function useGetDbConsumption() {
+  return useQuery<DbConsumption, ApiError>({
+    queryKey: queryKeys.user.dbConsumption(),
+    queryFn: async () => {
+      const { data } = await axiosClient.get<DbConsumption>(API.user.dbConsumption());
       return data;
     },
   });

@@ -4,18 +4,28 @@
 
 import * as XLSX from 'xlsx';
 import type { ArtColor } from '@/components/ui/art.types';
-import type { MappingConfig, SourceLayout, TableRegion } from '@/models/mapping.models';
+import type { MappingConfig, SourceLayout, TableRegion, TotalColumnMode } from '@/models/mapping.models';
 
 // ==== Types ====
 
 type Row = Record<string, unknown>;
 type RawCell = string | number | boolean | null | undefined;
 
+/** Metadata about a computed total column in the output */
+export type TotalColumnInfo = {
+  /** Index in the output headers array */
+  headerIndex: number;
+  /** Indices in the output headers array that this total column sums */
+  sourceHeaderIndices: number[];
+};
+
 export type AppliedMapping = {
   headers: string[];
   rows: Row[];
   rowColors: (ArtColor | undefined)[];
   valueColors: (ArtColor | undefined)[];
+  /** Metadata for total columns — enables SUM formulas in Excel export */
+  totalColumns?: TotalColumnInfo[];
 };
 
 // ==== Raw grid helper ====
@@ -128,7 +138,68 @@ export function applyMapping(
     }
   }
 
-  return { headers: outHeaders, rows, rowColors, valueColors };
+  // ==== Total columns ====
+
+  const totalColumnMode: TotalColumnMode = config.sheetsConfig?.[sheetName]?.totalColumnMode ?? 'none';
+  const totalColumnDefs = sourceLayout.totalColumns ?? [];
+  const totalColumnInfos: TotalColumnInfo[] = [];
+
+  if (totalColumnMode !== 'none' && totalColumnDefs.length > 0 && rows.length > 0) {
+    const valueHeaderCount = outHeaders.length - 1; // exclude description
+
+    for (const tc of totalColumnDefs) {
+      // Resolve which output value header indices to sum (1-based in outHeaders)
+      const srcIndices = tc.sourceValueIndices.length > 0
+        ? tc.sourceValueIndices.filter((i) => i < valueHeaderCount).map((i) => i + 1)
+        : Array.from({ length: valueHeaderCount }, (_, i) => i + 1);
+
+      const headerIndex = outHeaders.length;
+      outHeaders.push(tc.label);
+
+      for (const row of rows) {
+        let sum = 0;
+        let hasNum = false;
+        for (const idx of srcIndices) {
+          const v = row[outHeaders[idx]];
+          const n = typeof v === 'number' ? v : Number(v);
+          if (!isNaN(n) && v !== '' && v != null) { sum += n; hasNum = true; }
+        }
+        row[tc.label] = hasNum ? sum : '';
+      }
+
+      totalColumnInfos.push({ headerIndex, sourceHeaderIndices: srcIndices });
+    }
+
+    // 'only' mode: strip original value columns, keep description + total columns
+    if (totalColumnMode === 'only') {
+      const totalLabels = totalColumnDefs.map((tc) => tc.label);
+      const keptHeaders = [outHeaders[0], ...totalLabels];
+      const removedHeaders = outHeaders.filter((h) => !keptHeaders.includes(h));
+
+      for (const row of rows) {
+        for (const h of removedHeaders) delete row[h];
+      }
+
+      // Rebuild outHeaders and fix totalColumnInfos
+      outHeaders.length = 0;
+      outHeaders.push(keptHeaders[0]);
+      for (let i = 0; i < totalLabels.length; i++) {
+        outHeaders.push(totalLabels[i]);
+        totalColumnInfos[i] = {
+          headerIndex: i + 1,
+          sourceHeaderIndices: totalColumnInfos[i].sourceHeaderIndices,
+        };
+      }
+    }
+  }
+
+  return {
+    headers: outHeaders,
+    rows,
+    rowColors,
+    valueColors,
+    totalColumns: totalColumnInfos.length > 0 ? totalColumnInfos : undefined,
+  };
 }
 
 // ==== Infer value columns for a region ====
@@ -169,6 +240,7 @@ export function applyMappingMultiSheet(
     rows: [...primary.rows],
     rowColors: [...primary.rowColors],
     valueColors: [...primary.valueColors],
+    totalColumns: primary.totalColumns,
   };
 
   for (const sheetName of sheetNames.slice(1)) {

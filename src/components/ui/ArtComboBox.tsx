@@ -20,6 +20,7 @@ export type { ArtComboBoxOption };
 interface ArtComboBoxBaseProps {
   options: ArtComboBoxOption[];
   label?: string;
+  helperText?: string;
   required?: boolean;
   placeholder?: string;
   icon?: ArtIconProps;
@@ -86,6 +87,7 @@ const ArtComboBox = forwardRef<HTMLInputElement, ArtComboBoxProps>((props, ref) 
   const {
     options,
     label,
+    helperText,
     required,
     placeholder,
     icon,
@@ -142,7 +144,6 @@ const ArtComboBox = forwardRef<HTMLInputElement, ArtComboBoxProps>((props, ref) 
   const {
     triggerRef: wrapperRef,
     panelRef: portalRef,
-    pos: dropdownPos,
     open,
     show,
     hide,
@@ -395,13 +396,13 @@ const ArtComboBox = forwardRef<HTMLInputElement, ArtComboBoxProps>((props, ref) 
       {open && (visibleOptions.length > 0 || isLoading || hasMore || (noOptionsMessage !== false && searchable && inputText.trim().length > 0)) && createPortal(
         <div
           ref={portalRef}
-          style={{ position: 'fixed', zIndex: 9999, ...dropdownPos }}
+          style={{ position: 'fixed', zIndex: 'var(--z-anchor)' as unknown as number }}
         >
           <ArtListbox
             ref={listRef}
             className="art-combobox-list"
             options={visibleOptions}
-            selectedValues={multiple ? selectedMulti.map((o) => o.value) : undefined}
+            selectedValues={multiple ? selectedMulti.map((o) => o.value) : selectedSingle ? [selectedSingle.value] : []}
             onSelect={select}
             noOptionsMessage={isLoading ? 'Loading…' : (noOptionsMessage ?? true)}
             isLoading={isLoading}
@@ -412,6 +413,7 @@ const ArtComboBox = forwardRef<HTMLInputElement, ArtComboBoxProps>((props, ref) 
         document.body,
       )}
       </div>
+      {helperText && <p className="art-field-helper">{helperText}</p>}
     </div>
   );
 });

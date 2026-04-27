@@ -51,6 +51,7 @@ export function useCurrencyRate(
   const toKey = to?.toLowerCase() ?? '';
   const enabled = !!from && !!to && from !== to;
 
+  // eslint-disable-next-line @tanstack/query/exhaustive-deps
   const { data, isLoading } = useQuery<number | null>({
     queryKey: queryKeys.currency.rate(fromKey, toKey),
     queryFn: async () => {

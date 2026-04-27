@@ -1,5 +1,6 @@
 import nextConfig from 'eslint-config-next';
 import localPlugin from './eslint-rules/index.js';
+import tanstackQuery from '@tanstack/eslint-plugin-query';
 
 // ==== File scopes ====
 
@@ -31,6 +32,9 @@ const FE_FILES = [
 const eslintConfig = [
   // Next.js recommended rules (react, hooks, core-web-vitals, typescript)
   ...nextConfig,
+
+  // TanStack Query — exhaustive queryKey deps, stable QueryClient, no rest destructuring
+  ...tanstackQuery.configs['flat/recommended'],
 
   // BE — server-side conventions
   {
@@ -88,6 +92,22 @@ const eslintConfig = [
       // Warn when queryKey in useQuery / useInfiniteQuery is a raw array.
       // Use queryKeys.* constants from src/lib/queryKeys.ts for traceability.
       'local/require-query-keys-constant': 'warn',
+
+      // No raw console.log in UI code — use console.error / console.warn only (errors/warnings).
+      // ArtErrorBoundary already uses console.error — that's fine.
+      'no-console': ['warn', { allow: ['error', 'warn'] }],
+
+      // React Hook Form — prevent accidentally passing async functions to non-async event handlers.
+      // RHF's handleSubmit wraps the callback, so the returned fn must NOT be async itself.
+      // This is enforced by no-misused-promises once type-checking is wired up.
+      // For now: flag passing async fns directly to onClick / onChange without wrapping.
+      'no-restricted-syntax': [
+        'warn',
+        {
+          selector: 'JSXAttribute[name.name=/^on[A-Z]/] > JSXExpressionContainer > ArrowFunctionExpression[async=true]',
+          message: 'Avoid async arrow functions directly in JSX event handlers — extract or wrap with handleSubmit.',
+        },
+      ],
     },
   },
 ];

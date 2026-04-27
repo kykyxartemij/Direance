@@ -4,6 +4,7 @@ import { createContext, useContext, useState } from 'react';
 import * as XLSX from 'xlsx';
 import type { ArtColor } from '@/components/ui/art.types';
 import type { ExportSetting } from '@/models/export-settings.models';
+import type { TotalColumnInfo } from '@/page/mapping/applyMapping';
 
 // ==== Types ====
 
@@ -25,6 +26,10 @@ export type UploadedReport = {
   rowColors?: (ArtColor | undefined)[];
   /** Value color per data row, from mapping. */
   valueColors?: (ArtColor | undefined)[];
+  /** Total column metadata from applyMapping — enables SUM formulas in Excel export */
+  totalColumns?: TotalColumnInfo[];
+  /** Sheet names to exclude when includeOriginalSheets is on — sheets with mode='skip' */
+  skippedSheets?: string[];
   /** Linked export setting (from mapping). */
   exportSetting?: ExportSetting | null;
 };

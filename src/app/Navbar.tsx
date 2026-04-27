@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { auth } from '@/auth';
 import SignOutButton from './SignOutButton';
+import { hasPermission, Permission } from '@/lib/permissions';
 
 export default async function Navbar() {
   const session = await auth();
@@ -47,6 +48,16 @@ export default async function Navbar() {
               >
                 Export Settings
               </Link>
+              {hasPermission(session.user, Permission.CAN_ACCESS_DB_STATS) && (
+                <Link
+                  href="/admin"
+                  prefetch
+                  className="text-sm"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  Admin
+                </Link>
+              )}
             </div>
           )}
         </div>
