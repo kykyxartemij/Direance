@@ -134,6 +134,24 @@ Always at the bottom, consistent order: secondary actions left, primary action r
 
 ---
 
+## ==== Validation Architecture ====
+
+Validators live in two places with distinct responsibilities:
+
+| Location | Owner | Purpose |
+|---|---|---|
+| `src/models/*.models.ts` | Backend | API request body contracts. Fields follow HTTP semantics: `required` for POST, `optional` for PATCH. Used by services via `.validate(body, { abortEarly: false })`. |
+| Page / component file | Frontend | Form validation only. Always strict — required where a field is shown. Never exported; local to the file. |
+
+**Rules:**
+- Never add a validator to `models/` solely because a form needs it.
+- FE forms define a local `schema` + `type FormValues`. They may mirror a model validator or be stricter.
+- FE-only fields (e.g. `confirmPassword`) exist only in the local schema — never in models.
+- When yup `InferType` causes TS errors (optional vs required key mismatch), define `FormValues` explicitly instead of using `InferType`, and cast the resolver: `yupResolver(schema) as Resolver<FormValues>`.
+- When `FormValues` uses a wider type (e.g. `string`) but the mutation expects a union (e.g. `ReportType`), cast at the call site: `reportType: data.reportType as ReportType`.
+
+---
+
 ## ==== Validation Rule ====
 
 All Yup validation calls must use `{ abortEarly: false }`:

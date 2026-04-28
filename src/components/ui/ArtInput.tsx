@@ -15,6 +15,7 @@ interface ArtInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>
   debounce?: boolean | number;
   onDebouncedChange?: (value: string) => void;
   color?: ArtColor;
+  error?: boolean;
   onClear?: () => void;
   label?: string;
 }
@@ -29,6 +30,7 @@ const ArtInput = forwardRef<HTMLInputElement, ArtInputProps>((props, ref) => {
     onDebouncedChange,
     onChange,
     color,
+    error,
     onClear,
     label,
     id: idProp,
@@ -79,7 +81,7 @@ const ArtInput = forwardRef<HTMLInputElement, ArtInputProps>((props, ref) => {
   const showClear = clearable && !readOnly && (controlledValue !== undefined ? controlledValue.length > 0 : hasValue);
 
   return (
-    <div className={cn('art-field-wrapper', color && ART_COLOR_CLASS[color])}>
+    <div className={cn('art-field-wrapper', color && ART_COLOR_CLASS[color], error && 'art-field-wrapper--error')}>
       {label && <ArtLabel htmlFor={id} required={required}>{label}</ArtLabel>}
       <div className="art-field-inner">
         {icon && (

@@ -146,17 +146,17 @@ const MappingConfigValidator = yup.object({
 
 export const CreateMappingValidator = yup.object({
   name: yup.string().trim().min(1, 'Name is required').required('Name is required'),
-  reportType: yup.string().oneOf(REPORT_TYPES).default('pnl'),
+  reportType: yup.string().oneOf(REPORT_TYPES, 'Invalid report type').default('pnl'),
   config: MappingConfigValidator.required('This field is required'),
-  exportSettingId: yup.string().optional(),
+  exportSettingId: yup.string().nullable().optional(),
 });
 
 export const UpdateMappingValidator = yup.object({
-  name: yup.string().trim().min(1).optional(),
-  reportType: yup.string().oneOf(REPORT_TYPES).optional(),
+  name: yup.string().trim().min(1, 'Name is required').optional(),
+  reportType: yup.string().oneOf(REPORT_TYPES, 'Invalid report type').optional(),
   config: MappingConfigValidator.optional(),
   exportSettingId: yup.string().nullable().optional(),
 });
 
 export type CreateMappingModel = yup.InferType<typeof CreateMappingValidator>;
-export type UpdateMappingModel = Partial<CreateMappingModel> & { id: string };
+export type UpdateMappingModel = yup.InferType<typeof UpdateMappingValidator>;

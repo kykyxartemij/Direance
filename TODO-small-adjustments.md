@@ -4,6 +4,10 @@ Small improvements that don't warrant their own migration doc. Pick up individua
 
 ---
 
+## Use ArtSnackbar for every hook, on catching errors, and etc.
+
+---
+
 ## ArtDataTable — `isFetching` prop
 
 TanStack distinguishes `isPending` (first load, no data) from `isFetching` (background refetch, stale data shown). Table currently only has `loading`. Add `isFetching?: boolean` — when true and data is present, show a subtle top-of-table progress bar or reduce row opacity instead of re-rendering the full skeleton.

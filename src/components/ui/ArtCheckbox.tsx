@@ -9,6 +9,7 @@ import { cn } from './art.utils';
 
 interface ArtCheckboxProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size' | 'type'> {
   label?: string;
+  helperText?: string;
   size?: 'sm' | 'md' | 'lg';
   color?: ArtColor;
 }
@@ -22,7 +23,7 @@ const SIZE_CLASS: Record<NonNullable<ArtCheckboxProps['size']>, string> = {
 // ==== Component ====
 
 const ArtCheckbox = forwardRef<HTMLInputElement, ArtCheckboxProps>((
-  { label, size = 'md', color, id: idProp, className, checked, defaultChecked, onChange, disabled, readOnly, required, ...rest },
+  { label, helperText, size = 'md', color, id: idProp, className, checked, defaultChecked, onChange, disabled, readOnly, required, ...rest },
   ref,
 ) => {
   const generatedId = useId();
@@ -41,6 +42,7 @@ const ArtCheckbox = forwardRef<HTMLInputElement, ArtCheckboxProps>((
 
   // ==== Render ====
   return (
+    <>
     <label
       htmlFor={id}
       className={cn(
@@ -75,6 +77,8 @@ const ArtCheckbox = forwardRef<HTMLInputElement, ArtCheckboxProps>((
         </span>
       )}
     </label>
+    {helperText && <p className="art-field-helper">{helperText}</p>}
+    </>
   );
 });
 

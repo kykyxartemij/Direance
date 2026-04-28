@@ -2,6 +2,9 @@
 
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useForm, type Resolver } from 'react-hook-form';
+import { yupResolver } from '@hookform/resolvers/yup';
+import * as yup from 'yup';
 import {
   useGetExportSettingById,
   useCreateExportSetting,
@@ -11,13 +14,10 @@ import {
   useGetLogoByExportSettingId,
   useDeleteLogo,
 } from '@/hooks/logo.hooks';
-import * as yup from 'yup';
 import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
 import type { HeaderItemModel, HeaderLayoutModel, CreateExportSettingModel, UpdateExportSettingModel } from '@/models/export-settings.models';
-import { CreateExportSettingValidator, UpdateExportSettingValidator } from '@/models/export-settings.models';
-import ArtForm from '@/components/ui/ArtForm';
+import { ArtForm, ArtFormInput, ArtFormCheckbox } from '@/components/form';
 import ArtInput from '@/components/ui/ArtInput';
-import ArtCheckbox from '@/components/ui/ArtCheckbox';
 import ArtButton from '@/components/ui/ArtButton';
 import ArtLabel from '@/components/ui/ArtLabel';
 
@@ -26,6 +26,24 @@ import ArtLabel from '@/components/ui/ArtLabel';
 interface ExportSettingsFormPageProps {
   id?: string;
 }
+
+// ==== Schema ====
+
+const formSchema = yup.object({
+  name: yup.string().trim().min(1, 'Name is required').required('Name is required'),
+  applyHeaderToAllSheets: yup.boolean().default(false),
+  includeOriginalSheets: yup.boolean().default(false),
+  headerLogoCell: yup.string().optional(),
+  headerDataStartCell: yup.string().optional(),
+});
+
+type FormValues = {
+  name: string;
+  applyHeaderToAllSheets: boolean;
+  includeOriginalSheets: boolean;
+  headerLogoCell: string | undefined;
+  headerDataStartCell: string | undefined;
+};
 
 // ==== Tag input (controlled — renders chips in real time) ====
 
@@ -82,7 +100,7 @@ function TagInput({
   );
 }
 
-// ==== Header item row (uncontrolled text inputs, ref-based read) ====
+// ==== Header item row (uncontrolled — many rows, read on submit via ref) ====
 
 interface HeaderItemRowRef {
   getData(): HeaderItemModel;
@@ -325,77 +343,60 @@ interface ExportSettingFormProps {
 }
 
 function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, enqueueError }: ExportSettingFormProps) {
-  // ==== Uncontrolled refs ====
-  const nameRef = useRef<HTMLInputElement>(null);
-  const logoCellRef = useRef<HTMLInputElement>(null);
-  const dataStartCellRef = useRef<HTMLInputElement>(null);
-  const applyHeaderRef = useRef<HTMLInputElement>(null);
-  const includeOriginalRef = useRef<HTMLInputElement>(null);
+  // ==== RHF — simple scalar fields ====
+  const methods = useForm<FormValues>({
+    resolver: yupResolver(formSchema) as Resolver<FormValues>,
+    defaultValues: {
+      name: existing?.name ?? '',
+      applyHeaderToAllSheets: existing?.applyHeaderToAllSheets ?? false,
+      includeOriginalSheets: existing?.includeOriginalSheets ?? false,
+      headerLogoCell: existing?.headerLayout?.logoCell ?? '',
+      headerDataStartCell: existing?.headerLayout?.dataStartCell ?? '',
+    },
+  });
 
-  // ==== State only for things that affect rendering ====
-  // Items array: length determines how many rows render (add/remove)
-  const [items, setItems] = useState<HeaderItemModel[]>(existing?.headerLayout?.items ?? []);
-  const itemRefs = useRef<(HeaderItemRowRef | null)[]>([]);
-
-  // TagInput renders chips in real time — must be controlled
+  // ==== State — things that render chips or need live UI feedback ====
   const [mappedValueNames, setMappedValueNames] = useState<string[]>(existing?.mappedValueNames ?? []);
-
-  // Create mode only: staged logo before the record exists
   const [stagedLogoFile, setStagedLogoFile] = useState<File | null>(null);
   const [stagedLogoPreview, setStagedLogoPreview] = useState<string | null>(null);
 
-  // Validation errors (field path → message)
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  // ==== Refs — header item rows (many rows, read on submit) ====
+  const [items, setItems] = useState<HeaderItemModel[]>(existing?.headerLayout?.items ?? []);
+  const itemRefs = useRef<(HeaderItemRowRef | null)[]>([]);
 
   const createMutation = useCreateExportSetting();
   const updateMutation = useUpdateExportSetting();
 
   // ==== Submit ====
 
-  async function handleSubmit() {
-    const logoCell = logoCellRef.current?.value || undefined;
-    const dataStartCell = dataStartCellRef.current?.value || undefined;
+  async function onSave(data: FormValues) {
     const itemValues = itemRefs.current
       .map((r) => r?.getData())
       .filter((it): it is HeaderItemModel => !!it && !!(it.cell || it.content));
 
     const headerLayout: HeaderLayoutModel = {};
-    if (logoCell) headerLayout.logoCell = logoCell;
-    if (dataStartCell) headerLayout.dataStartCell = dataStartCell;
+    if (data.headerLogoCell) headerLayout.logoCell = data.headerLogoCell;
+    if (data.headerDataStartCell) headerLayout.dataStartCell = data.headerDataStartCell;
     if (itemValues.length > 0) headerLayout.items = itemValues;
 
-    const raw = {
-      name: nameRef.current?.value ?? '',
-      applyHeaderToAllSheets: applyHeaderRef.current?.checked ?? false,
-      includeOriginalSheets: includeOriginalRef.current?.checked ?? false,
+    const body = {
+      name: data.name,
+      applyHeaderToAllSheets: data.applyHeaderToAllSheets ?? false,
+      includeOriginalSheets: data.includeOriginalSheets ?? false,
       mappedValueNames,
       headerLayout: Object.keys(headerLayout).length > 0 ? headerLayout : undefined,
     };
 
-    try {
-      setErrors({});
-
-      if (isEdit) {
-        const body = await UpdateExportSettingValidator.validate(raw, { abortEarly: false }) as UpdateExportSettingModel;
-        updateMutation.mutate({ id: id!, body }, {
-          onSuccess: () => { enqueueSuccess('Export setting saved'); onSuccess(); },
-          onError: (err) => enqueueError(err as Error, 'Failed to save export setting'),
-        });
-      } else {
-        const body = await CreateExportSettingValidator.validate(raw, { abortEarly: false }) as CreateExportSettingModel;
-        createMutation.mutate({ body, logo: stagedLogoFile ?? undefined }, {
-          onSuccess: () => { enqueueSuccess('Export setting created'); onSuccess(); },
-          onError: (err) => enqueueError(err as Error, 'Failed to create export setting'),
-        });
-      }
-    } catch (err) {
-      if (err instanceof yup.ValidationError) {
-        const fieldErrors: Record<string, string> = {};
-        for (const e of err.inner) {
-          if (e.path) fieldErrors[e.path] = e.message;
-        }
-        setErrors(fieldErrors);
-      }
+    if (isEdit) {
+      updateMutation.mutate({ id: id!, body: body as UpdateExportSettingModel }, {
+        onSuccess: () => { enqueueSuccess('Export setting saved'); onSuccess(); },
+        onError: (err) => enqueueError(err as Error, 'Failed to save export setting'),
+      });
+    } else {
+      createMutation.mutate({ body: body as CreateExportSettingModel, logo: stagedLogoFile ?? undefined }, {
+        onSuccess: () => { enqueueSuccess('Export setting created'); onSuccess(); },
+        onError: (err) => enqueueError(err as Error, 'Failed to create export setting'),
+      });
     }
   }
 
@@ -408,30 +409,20 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
       </h1>
 
       <ArtForm
-        onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}
+        methods={methods}
+        onSubmit={onSave}
         buttons={[
           { label: 'Cancel', variant: 'ghost', type: 'button', onClick: onSuccess },
           { label: isEdit ? 'Save' : 'Create', color: 'primary', type: 'submit', loading: isPending },
         ]}
       >
         {/* ==== Name ==== */}
-        <ArtInput
-          ref={nameRef}
-          label="Name"
-          defaultValue={existing?.name ?? ''}
-          helperText={errors.name}
-          required
-        />
+        <ArtFormInput name="name" label="Name" required />
 
         {/* ==== Logo ==== */}
         <div className="flex flex-col gap-3">
           <ArtLabel>Logo</ArtLabel>
-          <ArtInput
-            ref={logoCellRef}
-            label="Logo cell"
-            placeholder="A1"
-            defaultValue={existing?.headerLayout?.logoCell ?? ''}
-          />
+          <ArtFormInput name="headerLogoCell" label="Logo cell" placeholder="A1" />
           {isEdit ? (
             <LogoSectionEdit id={id!} />
           ) : (
@@ -442,7 +433,6 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
               onFileCleared={() => { setStagedLogoFile(null); setStagedLogoPreview(null); }}
             />
           )}
-          
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
             Scaled to max 64×180 px. Consider leaving ~4 empty rows below logo.
           </p>
@@ -489,12 +479,7 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
 
         {/* ==== Data start ==== */}
         <div className="flex flex-col gap-2">
-          <ArtInput
-            ref={dataStartCellRef}
-            label="Data start cell"
-            placeholder="A4"
-            defaultValue={existing?.headerLayout?.dataStartCell ?? ''}
-          />
+          <ArtFormInput name="headerDataStartCell" label="Data start cell" placeholder="A4" />
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
             Cell where data table begins. Account for logo and header rows above.
           </p>
@@ -515,16 +500,8 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
 
         {/* ==== Toggles ==== */}
         <div className="flex flex-col gap-3">
-          <ArtCheckbox
-            ref={applyHeaderRef}
-            label="Apply header to all sheets"
-            defaultChecked={existing?.applyHeaderToAllSheets ?? false}
-          />
-          <ArtCheckbox
-            ref={includeOriginalRef}
-            label="Include original sheets"
-            defaultChecked={existing?.includeOriginalSheets ?? false}
-          />
+          <ArtFormCheckbox name="applyHeaderToAllSheets" label="Apply header to all sheets" />
+          <ArtFormCheckbox name="includeOriginalSheets" label="Include original sheets" />
         </div>
       </ArtForm>
     </div>

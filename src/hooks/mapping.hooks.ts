@@ -72,7 +72,7 @@ export function useCreateMapping() {
 
 export function useUpdateMapping() {
   const queryClient = useQueryClient();
-  return useMutation<MappingModel, ApiError, { id: string; body: Omit<UpdateMappingModel, 'id'> }>({
+  return useMutation<MappingModel, ApiError, { id: string; body: UpdateMappingModel }>({
     mutationFn: async ({ id, body }) => {
       const { data } = await fetchClient.patch<MappingModel>(API.mapping.byId(id), body);
       return data;

@@ -1,12 +1,16 @@
+// TODO: File should be moved to page folder
+
 'use client';
 
-import { useForm } from 'react-hook-form';
+import { useForm, FormProvider } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import ArtInput from '@/components/ui/ArtInput';
+import { ArtFormInput } from '@/components/form';
 import ArtButton from '@/components/ui/ArtButton';
+
+// ==== Schema ====
 
 const schema = yup.object({
   email: yup.string().email('Invalid email').required('Email is required'),
@@ -15,17 +19,15 @@ const schema = yup.object({
 
 type FormValues = yup.InferType<typeof schema>;
 
+// ==== Component ====
+
 export default function SignInPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const verified = searchParams.get('verified') === 'true';
 
-  const {
-    register,
-    handleSubmit,
-    setError,
-    formState: { errors, isSubmitting },
-  } = useForm<FormValues>({ resolver: yupResolver(schema) });
+  const methods = useForm<FormValues>({ resolver: yupResolver(schema) });
+  const { handleSubmit, setError, formState: { errors, isSubmitting } } = methods;
 
   const onSubmit = async (data: FormValues) => {
     const result = await signIn('credentials', {
@@ -55,37 +57,20 @@ export default function SignInPage() {
         </p>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-        <ArtInput
-          {...register('email')}
-          type="email"
-          label="Email"
-          placeholder="you@company.com"
-          helperText={errors.email?.message}
-          color={errors.email ? 'danger' : undefined}
-          autoComplete="email"
-        />
+      <FormProvider {...methods}>
+        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+          <ArtFormInput name="email" type="email" label="Email" placeholder="you@company.com" autoComplete="email" />
+          <ArtFormInput name="password" type="password" label="Password" placeholder="••••••••" autoComplete="current-password" />
 
-        <ArtInput
-          {...register('password')}
-          type="password"
-          label="Password"
-          placeholder="••••••••"
-          helperText={errors.password?.message}
-          color={errors.password ? 'danger' : undefined}
-          autoComplete="current-password"
-        />
+          {errors.root && (
+            <p className="text-sm" style={{ color: 'var(--art-danger)' }}>{errors.root.message}</p>
+          )}
 
-        {errors.root && (
-          <p className="text-sm" style={{ color: 'var(--art-danger)' }}>
-            {errors.root.message}
-          </p>
-        )}
-
-        <ArtButton type="submit" loading={isSubmitting} variant="default" size="md">
-          Sign in
-        </ArtButton>
-      </form>
+          <ArtButton type="submit" loading={isSubmitting} variant="default" size="md">
+            Sign in
+          </ArtButton>
+        </form>
+      </FormProvider>
 
       <div className="mt-4 flex flex-col gap-2">
         <div className="flex items-center gap-3">
@@ -94,21 +79,11 @@ export default function SignInPage() {
           <hr style={{ flex: 1, borderColor: 'var(--border)' }} />
         </div>
 
-        <ArtButton
-          type="button"
-          variant="outlined"
-          size="md"
-          onClick={() => signIn('google', { callbackUrl: '/' })}
-        >
+        <ArtButton type="button" variant="outlined" size="md" onClick={() => signIn('google', { callbackUrl: '/' })}>
           Continue with Google
         </ArtButton>
 
-        <ArtButton
-          type="button"
-          variant="outlined"
-          size="md"
-          onClick={() => signIn('github', { callbackUrl: '/' })}
-        >
+        <ArtButton type="button" variant="outlined" size="md" onClick={() => signIn('github', { callbackUrl: '/' })}>
           Continue with GitHub
         </ArtButton>
       </div>

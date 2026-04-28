@@ -1,6 +1,8 @@
 'use client';
 
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
+import { useGetLightExportSettings } from '@/hooks/export-settings.hooks';
+import { useGetExportSettingById } from '@/hooks/export-settings.hooks';
 import type { RowMapping } from '@/models/mapping.models';
 import type { ArtColor } from '@/components/ui/art.types';
 import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox';
@@ -16,14 +18,14 @@ export type RowMappingRow = RowMapping & { _index: number };
 
 export interface RowMappingsSectionRef {
   getRowMappings(): RowMappingRow[];
+  getExportSettingId(): string | null;
+  setExportSettingId(id: string | null): void;
+  getLinkedExportSetting(): import('@/models/export-settings.models').ExportSettingModel | undefined;
 }
 
 interface RowMappingsSectionProps {
   rowMappings: RowMappingRow[];
-  exportSettingOptions: ArtComboBoxOption[];
-  exportSettingId: string | null;
-  onExportSettingChange: (id: string | null) => void;
-  mappedValueOptions: ArtComboBoxOption[];
+  initialExportSettingId?: string | null;
   collapseOpen?: boolean;
   onCollapseChange?: (open: boolean) => void;
 }
@@ -113,18 +115,21 @@ const ROW_MAPPING_COLUMNS: ArtColumn<RowMappingRow>[] = [
 
 const RowMappingsSection = forwardRef<RowMappingsSectionRef, RowMappingsSectionProps>(
   (
-    {
-      rowMappings,
-      exportSettingOptions,
-      exportSettingId,
-      onExportSettingChange,
-      mappedValueOptions,
-      collapseOpen,
-      onCollapseChange,
-    },
+    { rowMappings, initialExportSettingId = null, collapseOpen, onCollapseChange },
     ref,
   ) => {
     const rowItemRefs = useRef<Map<number, RowMappingRowItemRef>>(new Map());
+    const [exportSettingId, setExportSettingId] = useState<string | null>(initialExportSettingId);
+
+    const { data: exportSettingsList = [] } = useGetLightExportSettings();
+    const { data: linkedExportSetting } = useGetExportSettingById(exportSettingId ?? undefined);
+
+    const exportSettingOptions: ArtComboBoxOption[] = exportSettingsList.map((es) => ({
+      label: es.name,
+      value: es.id,
+    }));
+    const mappedValueOptions: ArtComboBoxOption[] =
+      (linkedExportSetting?.mappedValueNames ?? []).map((n) => ({ label: n, value: n }));
 
     useImperativeHandle(
       ref,
@@ -134,8 +139,11 @@ const RowMappingsSection = forwardRef<RowMappingsSectionRef, RowMappingsSectionP
             const item = rowItemRefs.current.get(row._index);
             return item ? { ...row, ...item.getData() } : row;
           }),
+        getExportSettingId: () => exportSettingId,
+        setExportSettingId,
+        getLinkedExportSetting: () => linkedExportSetting,
       }),
-      [rowMappings],
+      [rowMappings, exportSettingId, linkedExportSetting],
     );
 
     const selectedExportSetting =
@@ -151,7 +159,7 @@ const RowMappingsSection = forwardRef<RowMappingsSectionRef, RowMappingsSectionP
             selected={selectedExportSetting}
             placeholder="Select export setting…"
             clearable
-            onChange={(opt) => onExportSettingChange(opt?.value ?? null)}
+            onChange={(opt) => setExportSettingId(opt?.value ?? null)}
           />
           {mappedValueOptions.length > 0 && (
             <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>

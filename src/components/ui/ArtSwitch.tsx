@@ -6,6 +6,7 @@ import { cn } from './art.utils';
 
 interface ArtSwitchProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size' | 'type'> {
   label?: string;
+  helperText?: string;
   size?: 'sm' | 'md' | 'lg';
   color?: ArtColor;
 }
@@ -17,7 +18,7 @@ const SIZE_CLASS: Record<NonNullable<ArtSwitchProps['size']>, string> = {
 };
 
 const ArtSwitch = forwardRef<HTMLInputElement, ArtSwitchProps>((
-  { label, size = 'md', color, id: idProp, className, checked, defaultChecked, onChange, disabled, readOnly, required, ...rest },
+  { label, helperText, size = 'md', color, id: idProp, className, checked, defaultChecked, onChange, disabled, readOnly, required, ...rest },
   ref,
 ) => {
   const generatedId = useId();
@@ -35,6 +36,7 @@ const ArtSwitch = forwardRef<HTMLInputElement, ArtSwitchProps>((
   };
 
   return (
+    <>
     <label
       htmlFor={id}
       className={cn(
@@ -69,6 +71,8 @@ const ArtSwitch = forwardRef<HTMLInputElement, ArtSwitchProps>((
         </span>
       )}
     </label>
+    {helperText && <p className="art-field-helper">{helperText}</p>}
+    </>
   );
 });
 

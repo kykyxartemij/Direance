@@ -8,6 +8,7 @@ import { cn } from './art.utils';
 interface ArtTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   helperText?: string;
   color?: ArtColor;
+  error?: boolean;
   /** Cap auto-grow at this number of visible rows, then show a scrollbar */
   maxRows?: number;
   label?: string;
@@ -19,7 +20,7 @@ function autoResize(el: HTMLTextAreaElement) {
 }
 
 const ArtTextarea = forwardRef<HTMLTextAreaElement, ArtTextareaProps>((
-  { className, helperText, color, maxRows, style, onChange, rows = 1, label, id: idProp, required, ...rest },
+  { className, helperText, color, error, maxRows, style, onChange, rows = 1, label, id: idProp, required, ...rest },
   ref,
 ) => {
   const generatedId = useId();
@@ -40,7 +41,7 @@ const ArtTextarea = forwardRef<HTMLTextAreaElement, ArtTextareaProps>((
   }, [maxRows]);
 
   return (
-    <div className={cn('art-field-wrapper', color && ART_COLOR_CLASS[color])}>
+    <div className={cn('art-field-wrapper', color && ART_COLOR_CLASS[color], error && 'art-field-wrapper--error')}>
       {label && <ArtLabel htmlFor={id} required={required}>{label}</ArtLabel>}
       <div className="art-field-inner">
         <textarea
