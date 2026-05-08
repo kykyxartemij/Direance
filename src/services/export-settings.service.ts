@@ -14,6 +14,7 @@ import {
   UpdateExportSettingValidator,
 } from '@/models/export-settings.models';
 import { parsePaginationFromUrl, createPaginatedResponse } from '@/models/paginated-response.model';
+import { parseFreeTextFromUrl } from '@/lib/normalizeText';
 
 // ==== Select ====
 
@@ -67,23 +68,29 @@ export async function getPagedExportSettings(req: NextRequest): Promise<NextResp
     const { userId, permissions } = await requireAuth();
     await checkUserRequestLimit(req, userId, permissions);
 
-    const { page, pageSize } = await parsePaginationFromUrl(new URL(req.url).searchParams);
+    const searchParams = new URL(req.url).searchParams;
+    const { page, pageSize } = await parsePaginationFromUrl(searchParams);
+    const freeText = parseFreeTextFromUrl(searchParams);
 
-    // TODO: FreeText implementation
     const where = { userId };
     const [data, total] = await Promise.all([
       cached(
         () =>
-          prisma.exportSetting.findMany({
+          prisma.exportSetting.findManyFts({
+            freeText,
+            userId,
             where,
             select: EXPORT_SETTING_SELECT_PAGED,
             orderBy: { name: 'asc' },
             skip: page * pageSize,
             take: pageSize,
           }),
-        CACHE_KEYS.exportSetting.paged(userId, page, pageSize)
+        CACHE_KEYS.exportSetting.paged(userId, page, pageSize, freeText),
       ),
-      cached(() => prisma.exportSetting.count({ where }), CACHE_KEYS.exportSetting.count(userId)),
+      cached(
+        () => prisma.exportSetting.countFts({ freeText, userId, where }),
+        CACHE_KEYS.exportSetting.count(userId, freeText),
+      ),
     ]);
 
     return NextResponse.json(createPaginatedResponse(data, page, pageSize, total));
@@ -108,7 +115,7 @@ export async function getExportSettingById(
           where: { id, userId },
           select: EXPORT_SETTING_SELECT,
         }),
-      CACHE_KEYS.exportSetting.byId(id)
+      CACHE_KEYS.exportSetting.byId(userId, id)
     );
 
     return NextResponse.json(settings);
@@ -138,8 +145,8 @@ export async function createExportSetting(req: NextRequest): Promise<NextRespons
       select: EXPORT_SETTING_SELECT,
     });
 
-    invalidateCache(...CACHE_KEYS.exportSetting.invalidate());
-    await cached(() => Promise.resolve(settings), CACHE_KEYS.exportSetting.byId(settings.id));
+    invalidateCache(...CACHE_KEYS.exportSetting.invalidate(userId));
+    await cached(() => Promise.resolve(settings), CACHE_KEYS.exportSetting.byId(userId, settings.id));
 
     return NextResponse.json(settings, { status: 201 });
   } catch (error) {
@@ -173,8 +180,8 @@ export async function updateExportSetting(
     if (settings.length === 0) throw new ApiError('Export setting not found', 404);
     const meta = settings[0];
 
-    invalidateCache(...CACHE_KEYS.exportSetting.invalidate());
-    await cached(() => Promise.resolve(meta), CACHE_KEYS.exportSetting.byId(id));
+    invalidateCache(...CACHE_KEYS.exportSetting.invalidate(userId));
+    await cached(() => Promise.resolve(meta), CACHE_KEYS.exportSetting.byId(userId, id));
 
     return NextResponse.json(meta);
   } catch (error) {
@@ -197,7 +204,7 @@ export async function deleteExportSetting(
     const { count } = await prisma.exportSetting.deleteMany({ where: { id, userId } });
     if (count === 0) throw new ApiError('Export setting not found', 404);
 
-    invalidateCache(...CACHE_KEYS.exportSetting.invalidate());
+    invalidateCache(...CACHE_KEYS.exportSetting.invalidate(userId));
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     return handleApiError(error, 'DELETE /api/export-settings/:id');

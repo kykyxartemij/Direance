@@ -23,8 +23,8 @@ export const queryKeys = {
       all: () => ['mapping'] as const,
     },
     light: () => ['mapping', 'list', 'light'] as const,
-    paged: (page: number, pageSize: number) =>
-      ['mapping', 'list', 'paged', page, pageSize] as const,
+    paged: (page: number, pageSize: number, freeText?: string) =>
+      ['mapping', 'list', 'paged', page, pageSize, freeText ?? ''] as const,
     byId: (id: string) => ['mapping', 'single', 'byId', id] as const,
   },
   exportSetting: {
@@ -32,8 +32,8 @@ export const queryKeys = {
       all: () => ['exportSetting'] as const,
     },
     light: () => ['exportSetting', 'list', 'light'] as const,
-    paged: (page: number, pageSize: number) =>
-      ['exportSetting', 'list', 'paged', page, pageSize] as const,
+    paged: (page: number, pageSize: number, freeText?: string) =>
+      ['exportSetting', 'list', 'paged', page, pageSize, freeText ?? ''] as const,
     byId: (id: string) => ['exportSetting', 'single', 'byId', id] as const,
   },
   // Separate namespace — never invalidated by exportSetting mutations (bytes can't be cached)

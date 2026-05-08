@@ -1,3 +1,4 @@
+/* eslint-disable local/use-fetch-client */
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { cached } from '@/lib/serverCache';

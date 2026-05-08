@@ -1,3 +1,4 @@
+/* eslint-disable local/use-fetch-client */
 import { ApiError } from '@/models/api-error';
 
 // ==== Config ====

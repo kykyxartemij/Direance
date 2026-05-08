@@ -10,6 +10,7 @@ import { checkUserDbLimits } from '@/lib/userLimits';
 import { parseIdFromRoute } from '@/models';
 import { CreateMappingValidator, UpdateMappingValidator } from '@/models/mapping.models';
 import { parsePaginationFromUrl, createPaginatedResponse } from '@/models/paginated-response.model';
+import { parseFreeTextFromUrl } from '@/lib/normalizeText';
 import { checkUserRequestLimit } from '@/lib/rateLimiter';
 
 // ==== Select ====
@@ -67,25 +68,28 @@ export async function getPagedMappings(req: NextRequest): Promise<NextResponse> 
     const { userId, permissions } = await requireAuth();
     await checkUserRequestLimit(req, userId, permissions);
 
-    const { page, pageSize } = await parsePaginationFromUrl(new URL(req.url).searchParams);
+    const searchParams = new URL(req.url).searchParams;
+    const { page, pageSize } = await parsePaginationFromUrl(searchParams);
+    const freeText = parseFreeTextFromUrl(searchParams);
 
-    // TODO: FreeText implementation
     const where = { OR: [{ userId }, { isGlobal: true }] };
     const [data, total] = await Promise.all([
       cached(
         () =>
-          prisma.fieldMapping.findMany({
+          prisma.fieldMapping.findManyFts({
+            freeText,
+            userId,
             where,
             select: MAPPING_SELECT_PAGED,
             orderBy: { name: 'asc' },
             skip: page * pageSize,
             take: pageSize,
           }),
-        CACHE_KEYS.mapping.paged(userId, page, pageSize),
+        CACHE_KEYS.mapping.paged(userId, page, pageSize, freeText),
       ),
       cached(
-        () => prisma.fieldMapping.count({ where }),
-        CACHE_KEYS.mapping.count(userId),
+        () => prisma.fieldMapping.countFts({ freeText, userId, where }),
+        CACHE_KEYS.mapping.count(userId, freeText),
       ),
     ]);
 
@@ -111,7 +115,7 @@ export async function getMappingById(
           where: { id, OR: [{ userId }, { isGlobal: true }] },
           select: MAPPING_SELECT,
         }),
-      CACHE_KEYS.mapping.byId(id),
+      CACHE_KEYS.mapping.byId(userId, id),
     );
 
     return NextResponse.json(mapping);
@@ -137,8 +141,8 @@ export async function createMapping(req: NextRequest): Promise<NextResponse> {
       select: MAPPING_SELECT,
     });
 
-    invalidateCache(...CACHE_KEYS.mapping.invalidate());
-    await cached(() => Promise.resolve(mapping), CACHE_KEYS.mapping.byId(mapping.id));
+    invalidateCache(...CACHE_KEYS.mapping.invalidate(userId));
+    await cached(() => Promise.resolve(mapping), CACHE_KEYS.mapping.byId(userId, mapping.id));
 
     return NextResponse.json(mapping, { status: 201 });
   } catch (error) {
@@ -169,8 +173,8 @@ export async function updateMapping(
     if (results.length === 0) throw new ApiError('Mapping not found', 404);
     const mapping = results[0];
 
-    invalidateCache(...CACHE_KEYS.mapping.invalidate());
-    await cached(() => Promise.resolve(mapping), CACHE_KEYS.mapping.byId(id));
+    invalidateCache(...CACHE_KEYS.mapping.invalidate(userId));
+    await cached(() => Promise.resolve(mapping), CACHE_KEYS.mapping.byId(userId, id));
 
     return NextResponse.json(mapping);
   } catch (error) {
@@ -192,7 +196,7 @@ export async function deleteMapping(
     const { count } = await prisma.fieldMapping.deleteMany({ where: { id, userId } });
     if (count === 0) throw new ApiError('Mapping not found', 404);
 
-    invalidateCache(...CACHE_KEYS.mapping.invalidate());
+    invalidateCache(...CACHE_KEYS.mapping.invalidate(userId));
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     return handleApiError(error, 'DELETE /api/mapping/:id');

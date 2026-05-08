@@ -14,7 +14,7 @@ export function useCurrencyOptions(): ArtComboBoxOption[] {
   const { data } = useSuspenseQuery<ArtComboBoxOption[]>({
     queryKey: queryKeys.currency.list(),
     queryFn: async () => {
-      const json = await fetchClient.get<Record<string, string>>(API.currency.list());
+      const { data: json } = await fetchClient.get<Record<string, string>>(API.currency.list());
       return Object.entries(json)
         .map(([code, name]) => ({
           value: code.toUpperCase(),
@@ -48,7 +48,7 @@ export function useCurrencyRate(
   const { data, isLoading } = useQuery<number | null>({
     queryKey: queryKeys.currency.rate(fromKey, toKey),
     queryFn: async () => {
-      const json = await fetchClient.get<Record<string, Record<string, number>>>(
+      const { data: json } = await fetchClient.get<Record<string, Record<string, number>>>(
         API.currency.rate(fromKey),
       );
       return json[fromKey]?.[toKey] ?? null;

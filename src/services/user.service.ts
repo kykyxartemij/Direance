@@ -51,8 +51,8 @@ export async function patchMe(req: NextRequest): Promise<NextResponse> {
       select: USER_SELECT,
     });
 
-    invalidateCache(...CACHE_KEYS.user.invalidate());
-    await cached(() => Promise.resolve(user), CACHE_KEYS.user.byId(user.id));
+    invalidateCache(...CACHE_KEYS.user.invalidate(userId));
+    await cached(() => Promise.resolve(user), CACHE_KEYS.user.byId(userId));
 
     return NextResponse.json(user);
   } catch (error) {
@@ -82,7 +82,7 @@ export async function deleteMe(req: NextRequest): Promise<NextResponse> {
     await checkUserRequestLimit(req, userId, permissions);
 
     await prisma.user.delete({ where: { id: userId } });
-    invalidateCache(...CACHE_KEYS.user.invalidate());
+    invalidateCache(...CACHE_KEYS.user.invalidate(userId));
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {

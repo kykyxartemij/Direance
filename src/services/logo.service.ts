@@ -184,7 +184,7 @@ export async function createLogo(req: NextRequest): Promise<NextResponse> {
       select: LOGO_SELECT_LIGHT,
     });
 
-    invalidateCache(...CACHE_KEYS.logo.invalidate());
+    invalidateCache(...CACHE_KEYS.logo.invalidate(userId));
 
     return NextResponse.json(logo, { status: 201 });
   } catch (error) {
@@ -205,7 +205,7 @@ export async function deleteLogo(
     const { count } = await prisma.logo.deleteMany({ where: { id, userId } });
     if (count === 0) throw new ApiError('Logo not found', 404);
 
-    invalidateCache(...CACHE_KEYS.logo.invalidate());
+    invalidateCache(...CACHE_KEYS.logo.invalidate(userId));
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     return handleApiError(error, 'DELETE /api/logos/:id');

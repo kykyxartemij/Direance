@@ -1,9 +1,17 @@
 import { PrismaClient } from '../../generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { withFts } from './fts';
 
 function makePrisma() {
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
-  return new PrismaClient({ adapter });
+  const base = new PrismaClient({ adapter });
+
+  return base.$extends({
+    model: {
+      exportSetting: withFts(base, base.exportSetting, '"ExportSetting"', 'exportSetting', 'name'),
+      fieldMapping:  withFts(base, base.fieldMapping, '"FieldMapping"', 'mapping', 'name'),
+    },
+  });
 }
 
 type ExtendedPrisma = ReturnType<typeof makePrisma>;

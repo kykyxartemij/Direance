@@ -5,6 +5,5 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ from: string }> },
 ) {
-  const { from } = await params;
-  return getCurrencyRate(from);
+  return getCurrencyRate((await params).from);
 }

@@ -20,8 +20,8 @@ export const API = {
   mapping: {
     list: () => '/api/mapping',
     light: () => '/api/mapping/light',
-    paged: (page: number, pageSize: number) =>
-      `/api/mapping/paged?page=${page}&pageSize=${pageSize}`,
+    paged: (page: number, pageSize: number, freeText?: string) =>
+      `/api/mapping/paged?page=${page}&pageSize=${pageSize}${freeText ? `&freeText=${encodeURIComponent(freeText)}` : ''}`,
     byId: (id: string) => `/api/mapping/${id}`,
   },
   logo: {
@@ -32,8 +32,8 @@ export const API = {
   exportSetting: {
     light: () => '/api/export-settings/light',
     list: () => '/api/export-settings',
-    paged: (page: number, pageSize: number) =>
-      `/api/export-settings/paged?page=${page}&pageSize=${pageSize}`,
+    paged: (page: number, pageSize: number, freeText?: string) =>
+      `/api/export-settings/paged?page=${page}&pageSize=${pageSize}${freeText ? `&freeText=${encodeURIComponent(freeText)}` : ''}`,
     byId: (id: string) => `/api/export-settings/${id}`,
   },
   currency: {

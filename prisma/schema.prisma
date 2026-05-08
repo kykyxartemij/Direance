@@ -114,6 +114,8 @@ model FieldMapping {
   exportSettingId String?
   exportSetting   ExportSetting? @relation(fields: [exportSettingId], references: [id], onDelete: SetNull)
 
+  search_vector Unsupported("tsvector")? // managed by fts.sql trigger
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -166,6 +168,8 @@ model ExportSetting {
 
   // Back-reference required by Prisma — never selected in queries; ExportSetting does not expose FieldMappings
   fieldMappings FieldMapping[]
+
+  search_vector Unsupported("tsvector")? // managed by fts.sql trigger
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

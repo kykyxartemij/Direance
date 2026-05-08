@@ -17,12 +17,14 @@ const CDN_RATE_URL = (from: string) =>
 // ==== Fetchers ====
 
 async function fetchCurrencyList(): Promise<Record<string, string>> {
+  // eslint-disable-next-line local/use-fetch-client
   const res = await fetch(CDN_LIST_URL);
   if (!res.ok) throw new Error(`Currency list fetch failed: ${res.status}`);
   return res.json() as Promise<Record<string, string>>;
 }
 
 async function fetchCurrencyRate(from: string): Promise<Record<string, Record<string, number>>> {
+  // eslint-disable-next-line local/use-fetch-client
   const res = await fetch(CDN_RATE_URL(from));
   if (!res.ok) throw new Error(`Currency rate fetch failed for ${from}: ${res.status}`);
   return res.json() as Promise<Record<string, Record<string, number>>>;

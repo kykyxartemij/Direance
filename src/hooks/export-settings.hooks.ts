@@ -37,12 +37,12 @@ export function useGetLightExportSettings() {
   });
 }
 
-export function useGetPagedExportSettings(page: number, pageSize: number) {
+export function useGetPagedExportSettings(page: number, pageSize: number, freeText?: string) {
   return useSuspenseQuery<PaginatedResponse<ExportSettingModel>, ApiError>({
-    queryKey: queryKeys.exportSetting.paged(page, pageSize),
+    queryKey: queryKeys.exportSetting.paged(page, pageSize, freeText),
     queryFn: async () => {
       const { data } = await fetchClient.get<PaginatedResponse<ExportSettingModel>>(
-        API.exportSetting.paged(page, pageSize)
+        API.exportSetting.paged(page, pageSize, freeText)
       );
       return data;
     },
