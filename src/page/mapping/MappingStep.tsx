@@ -75,7 +75,7 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
 
   const createMapping = useCreateMapping();
   const updateMappingMut = useUpdateMapping();
-  const { options: currencyOptions, isLoading: currenciesLoading } = useCurrencyOptions();
+  const currencyOptions = useCurrencyOptions();
   const saveMappingDialog = useSaveMappingDialog();
 
   const report = (reportId
@@ -334,10 +334,7 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
   // ==== Render ====
 
   return (
-    <div className="mx-auto max-w-5xl py-8">
-      <h1 className="mb-1 text-2xl font-semibold" style={{ color: 'var(--text)' }}>
-        Configure Mapping
-      </h1>
+    <>
       <p className="mb-6 text-sm" style={{ color: 'var(--text-muted)' }}>
         Set how <strong>{report.fileName}</strong> should be read and displayed.
       </p>
@@ -369,8 +366,7 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
                   label="From Currency"
                   options={currencyOptions}
                   placeholder="EUR"
-                  isLoading={currenciesLoading}
-                  searchable
+                                    searchable
                   onSubmit={(text) => { if (text) methods.setValue('fromCurrency', text.toUpperCase()); }}
                 />
 
@@ -380,8 +376,7 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
                     label="To Currency"
                     options={currencyOptions}
                     placeholder="EUR"
-                    isLoading={currenciesLoading}
-                    searchable
+                                        searchable
                     onSubmit={(text) => { if (text) methods.setValue('toCurrency', text.toUpperCase()); }}
                   />
                 </div>
@@ -421,6 +416,6 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
           />
         </ArtForm>
       </FormProvider>
-    </div>
+    </>
   );
 }

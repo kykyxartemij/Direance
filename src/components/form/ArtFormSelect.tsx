@@ -26,7 +26,6 @@ export function ArtFormSelect({ name, helperText, options = [], ...props }: ArtF
           selected={options.find((o) => o.value === (field.value as string | null | undefined)) ?? null}
           onChange={(opt: ArtSelectOption | null) => field.onChange(opt?.value ?? null)}
           helperText={fieldState.error?.message ?? helperText}
-          ref={field.ref}
         />
       )}
     />

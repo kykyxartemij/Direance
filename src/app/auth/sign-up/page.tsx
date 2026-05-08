@@ -1,3 +1,5 @@
+// TODO: File should be moved to page folder
+
 import Link from 'next/link';
 
 export default function SignUpPage() {

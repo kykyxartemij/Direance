@@ -36,6 +36,10 @@ export const API = {
       `/api/export-settings/paged?page=${page}&pageSize=${pageSize}`,
     byId: (id: string) => `/api/export-settings/${id}`,
   },
+  currency: {
+    list: () => '/api/currencies',
+    rate: (from: string) => `/api/currencies/rate/${encodeURIComponent(from)}`,
+  },
   admin: {
     dbStats: () => '/api/admin/db-stats' as const,
   },

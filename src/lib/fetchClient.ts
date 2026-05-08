@@ -4,12 +4,19 @@ import { ApiError } from '@/models/api-error';
 
 const TIMEOUT_MS = 10_000;
 
+function resolveUrl(url: string): string {
+  if (typeof window !== 'undefined' || url.startsWith('http')) return url;
+  const base = process.env.AUTH_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
+  return `${base}${url}`;
+}
+
 // ==== Core ====
 
 type FetchResponse<T> = { data: T };
 
 async function request<T>(method: string, url: string, body?: unknown): Promise<FetchResponse<T>> {
   const isFormData = body instanceof FormData;
+  url = resolveUrl(url);
 
   let res: Response;
   try {

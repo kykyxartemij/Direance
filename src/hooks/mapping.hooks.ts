@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useSuspenseQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import fetchClient from '@/lib/fetchClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
@@ -12,7 +12,7 @@ import type { ApiError } from '@/models/api-error';
 // ==== Queries ====
 
 export function useGetPagedMappings(page: number, pageSize: number) {
-  return useQuery<PaginatedResponse<MappingModel>, ApiError>({
+  return useSuspenseQuery<PaginatedResponse<MappingModel>, ApiError>({
     queryKey: queryKeys.mapping.paged(page, pageSize),
     queryFn: async () => {
       const { data } = await fetchClient.get<PaginatedResponse<MappingModel>>(
@@ -24,7 +24,7 @@ export function useGetPagedMappings(page: number, pageSize: number) {
 }
 
 export function useGetLightMappings() {
-  return useQuery<MappingLightModel[], ApiError>({
+  return useSuspenseQuery<MappingLightModel[], ApiError>({
     queryKey: queryKeys.mapping.light(),
     queryFn: async () => {
       const { data } = await fetchClient.get<MappingLightModel[]>(API.mapping.light());
@@ -33,14 +33,13 @@ export function useGetLightMappings() {
   });
 }
 
-export function useGetMappingById(id: string | undefined) {
-  return useQuery<MappingModel, ApiError>({
-    queryKey: queryKeys.mapping.byId(id!),
+export function useGetMappingById(id: string) {
+  return useSuspenseQuery<MappingModel, ApiError>({
+    queryKey: queryKeys.mapping.byId(id),
     queryFn: async () => {
-      const { data } = await fetchClient.get<MappingModel>(API.mapping.byId(id!));
+      const { data } = await fetchClient.get<MappingModel>(API.mapping.byId(id));
       return data;
     },
-    enabled: !!id,
   });
 }
 

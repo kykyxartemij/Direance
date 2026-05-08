@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useGetPagedExportSettings, useDeleteExportSetting } from '@/hooks/export-settings.hooks';
 import type { ExportSettingModel } from '@/models/export-settings.models';
 import type { ArtColumn } from '@/components/ui/ArtDataTable';
@@ -16,9 +16,8 @@ const PAGE_SIZE = 20;
 // ==== Page ====
 
 export default function ExportSettingsListPage() {
-  const router = useRouter();
   const [page, setPage] = useState(1);
-  const { data: pagedData, isLoading } = useGetPagedExportSettings(page, PAGE_SIZE);
+  const { data: pagedData } = useGetPagedExportSettings(page, PAGE_SIZE);
   const deleteMutation = useDeleteExportSetting();
 
   const columns: ArtColumn<ExportSettingModel>[] = [
@@ -47,9 +46,9 @@ export default function ExportSettingsListPage() {
       width: 140,
       render: (row) => (
         <div className="flex gap-2">
-          <ArtButton variant="ghost" onClick={() => router.push(`/export-settings/${row.id}`)}>
-            Edit
-          </ArtButton>
+          <Link href={`/export-settings/${row.id}`} prefetch>
+            <ArtButton variant="ghost">Edit</ArtButton>
+          </Link>
           <ArtConfirmDialog
             title="Delete export setting"
             description={`Delete "${row.name}"?`}
@@ -64,26 +63,23 @@ export default function ExportSettingsListPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-5xl py-8">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold" style={{ color: 'var(--text)' }}>Export Settings</h1>
-        <ArtButton color="primary" onClick={() => router.push('/export-settings/new')}>
-          New config
-        </ArtButton>
+    <>
+      <div className="flex justify-end mb-6">
+        <Link href="/export-settings/new" prefetch>
+          <ArtButton color="primary">New config</ArtButton>
+        </Link>
       </div>
-
       <ArtData<ExportSettingModel>
         columns={columns}
-        data={pagedData?.data ?? []}
-        loading={isLoading}
+        data={pagedData.data}
         rowKey={(row) => row.id}
         emptyMessage="No export configs yet."
         pageSize={PAGE_SIZE}
-        total={pagedData?.total}
+        total={pagedData.total}
         page={page}
         onPageChange={setPage}
         searchPlaceholder="Search configs…"
       />
-    </div>
+    </>
   );
 }

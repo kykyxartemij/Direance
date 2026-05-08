@@ -25,7 +25,7 @@ import ArtTabs, { type ArtTab } from '@/components/ui/ArtTabs';
 import ArtIconCycle, { type ArtIconCycleOption } from '@/components/ui/ArtIconCycle';
 import ArtPopover from '@/components/ui/ArtPopover';
 import ArtMenu, { type ArtMenuItemDef } from '@/components/ui/ArtMenu';
-import ArtAvatar from '@/components/ui/ArtAvatar';
+// import ArtAvatar from '@/components/ui/ArtAvatar';
 import ArtEmptyState from '@/components/ui/ArtEmptyState';
 import ArtCopyButton from '@/components/ui/ArtCopyButton';
 import ArtCopyText from '@/components/ui/ArtCopyText';
@@ -1592,7 +1592,7 @@ function FoundationGroup() {
         tip="Used in this very page for group navigation. Controlled or uncontrolled, supports icons and disabled tabs.">
         <TabsSection />
       </Section>
-      <AvatarSection />
+      {/* <AvatarSection /> */}
     </>
   );
 }
@@ -1721,33 +1721,33 @@ const items: ArtMenuItemDef[] = [
 
 // ==== AvatarSection ====
 
-function AvatarSection() {
-  return (
-    <Section id="artavatar" title="ArtAvatar"
-      tip="Circular avatar — image with initials fallback. Framework-agnostic (plain <img>); wrap with next/image at the call site if you need delivery optimisation.">
-      <Row label="Image">
-        <ArtAvatar src="https://picsum.photos/seed/mepipe1/64/64" name="Jane Doe" size="sm" />
-        <ArtAvatar src="https://picsum.photos/seed/mepipe1/64/64" name="Jane Doe" />
-        <ArtAvatar src="https://picsum.photos/seed/mepipe1/64/64" name="Jane Doe" size="lg" />
-        <ArtAvatar src="https://picsum.photos/seed/mepipe1/64/64" name="Jane Doe" size="xl" />
-      </Row>
-      <Row label="Initials fallback">
-        <ArtAvatar name="Jane Doe" size="sm" />
-        <ArtAvatar name="Jane Doe" />
-        <ArtAvatar name="Jane Doe" size="lg" />
-        <ArtAvatar name="Jane Doe" size="xl" />
-      </Row>
-      <Row label="Colors">
-        {PALETTE.map((c) => <ArtAvatar key={c} name="JD" color={c} />)}
-      </Row>
-      <Code code={`
-<ArtAvatar src={user.avatarUrl} name={user.name} />   // image + initials fallback
-<ArtAvatar name="Jane Doe" color="primary" />          // initials only
-<ArtAvatar name="Jane Doe" size="xl" />                // xl / lg / md / sm
-      `} />
-    </Section>
-  );
-}
+// function AvatarSection() {
+//   return (
+//     <Section id="artavatar" title="ArtAvatar"
+//       tip="Circular avatar — image with initials fallback. Framework-agnostic (plain <img>); wrap with next/image at the call site if you need delivery optimisation.">
+//       <Row label="Image">
+//         <ArtAvatar src="https://picsum.photos/seed/mepipe1/64/64" name="Jane Doe" size="sm" />
+//         <ArtAvatar src="https://picsum.photos/seed/mepipe1/64/64" name="Jane Doe" />
+//         <ArtAvatar src="https://picsum.photos/seed/mepipe1/64/64" name="Jane Doe" size="lg" />
+//         <ArtAvatar src="https://picsum.photos/seed/mepipe1/64/64" name="Jane Doe" size="xl" />
+//       </Row>
+//       <Row label="Initials fallback">
+//         <ArtAvatar name="Jane Doe" size="sm" />
+//         <ArtAvatar name="Jane Doe" />
+//         <ArtAvatar name="Jane Doe" size="lg" />
+//         <ArtAvatar name="Jane Doe" size="xl" />
+//       </Row>
+//       <Row label="Colors">
+//         {PALETTE.map((c) => <ArtAvatar key={c} name="JD" color={c} />)}
+//       </Row>
+//       <Code code={`
+// <ArtAvatar src={user.avatarUrl} name={user.name} />   // image + initials fallback
+// <ArtAvatar name="Jane Doe" color="primary" />          // initials only
+// <ArtAvatar name="Jane Doe" size="xl" />                // xl / lg / md / sm
+//       `} />
+//     </Section>
+//   );
+// }
 
 // ==== EmptyStateSection ====
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useSuspenseQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import fetchClient from '@/lib/fetchClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
@@ -28,7 +28,7 @@ function fileToBase64(file: File): Promise<string> {
 // ==== Queries ====
 
 export function useGetLightExportSettings() {
-  return useQuery<ExportSettingLightModel[], ApiError>({
+  return useSuspenseQuery<ExportSettingLightModel[], ApiError>({
     queryKey: queryKeys.exportSetting.light(),
     queryFn: async () => {
       const { data } = await fetchClient.get<ExportSettingLightModel[]>(API.exportSetting.light());
@@ -38,7 +38,7 @@ export function useGetLightExportSettings() {
 }
 
 export function useGetPagedExportSettings(page: number, pageSize: number) {
-  return useQuery<PaginatedResponse<ExportSettingModel>, ApiError>({
+  return useSuspenseQuery<PaginatedResponse<ExportSettingModel>, ApiError>({
     queryKey: queryKeys.exportSetting.paged(page, pageSize),
     queryFn: async () => {
       const { data } = await fetchClient.get<PaginatedResponse<ExportSettingModel>>(

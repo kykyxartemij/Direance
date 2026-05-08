@@ -28,6 +28,10 @@ export const CACHE_KEYS = {
     dbSize: () => ['admin', 'db-size'],
     neonConsumption: () => ['admin', 'neon-consumption'],
   },
+  currency: {
+    list: () => ['currency', 'list'],
+    rate: (from: string) => ['currency', 'rate', from],
+  },
   logo: {
     invalidate: () => ['logo'],
     light: (userId: string) => ['logo', 'light', userId],

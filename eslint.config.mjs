@@ -103,6 +103,10 @@ const eslintConfig = [
       // Use queryKeys.* constants from src/lib/queryKeys.ts for traceability.
       'local/require-query-keys-constant': 'warn',
 
+      // Warn when onClick contains only router.push() — use <Link prefetch> instead.
+      // router.push skips prefetch and disables right-click / cmd+click behaviors.
+      'local/no-router-push-navigation': 'warn',
+
       // No raw console.log in UI code — use console.error / console.warn only (errors/warnings).
       // ArtErrorBoundary already uses console.error — that's fine.
       'no-console': ['warn', { allow: ['error', 'warn'] }],

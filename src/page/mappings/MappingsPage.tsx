@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useGetPagedMappings, useDeleteMapping } from '@/hooks/mapping.hooks';
 import type { MappingModel, ReportType } from '@/models/mapping.models';
 import type { ArtColumn } from '@/components/ui/ArtDataTable';
@@ -22,9 +22,8 @@ const PAGE_SIZE = 20;
 // ==== Page ====
 
 export default function MappingsPage() {
-  const router = useRouter();
   const [page, setPage] = useState(1);
-  const { data: pagedData, isLoading } = useGetPagedMappings(page, PAGE_SIZE);
+  const { data: pagedData } = useGetPagedMappings(page, PAGE_SIZE);
   const deleteMutation = useDeleteMapping();
 
   const columns: ArtColumn<MappingModel>[] = [
@@ -57,9 +56,9 @@ export default function MappingsPage() {
       render: (row) =>
         row.isGlobal ? null : (
           <div className="flex gap-2">
-            <ArtButton variant="ghost" onClick={() => router.push(`/mappings/${row.id}`)}>
-              Edit
-            </ArtButton>
+            <Link href={`/mappings/${row.id}`} prefetch>
+              <ArtButton variant="ghost">Edit</ArtButton>
+            </Link>
             <ArtConfirmDialog
               title="Delete mapping"
               description={`Are you sure you want to delete "${row.name}"?`}
@@ -74,23 +73,16 @@ export default function MappingsPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-5xl py-8">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold" style={{ color: 'var(--text)' }}>Mappings</h1>
-      </div>
-
-      <ArtData<MappingModel>
+    <ArtData<MappingModel>
         columns={columns}
-        data={pagedData?.data ?? []}
-        loading={isLoading}
+        data={pagedData.data}
         rowKey={(row) => row.id}
         emptyMessage="No mappings yet. Upload a report to create one."
         pageSize={PAGE_SIZE}
-        total={pagedData?.total}
+        total={pagedData.total}
         page={page}
         onPageChange={setPage}
         searchPlaceholder="Search mappings…"
       />
-    </div>
   );
 }

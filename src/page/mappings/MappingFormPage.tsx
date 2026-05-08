@@ -35,7 +35,7 @@ const defaultValues = (mapping?: MappingModel): FormValues => ({
 
 // ==== Inner form ====
 
-function MappingForm({ id, mapping }: { id?: string; mapping?: MappingModel }) {
+function MappingFormInner({ id, mapping }: { id?: string; mapping?: MappingModel }) {
   const router = useRouter();
   const isCreating = !id;
   const { data: exportSettingsList = [] } = useGetLightExportSettings();
@@ -62,15 +62,11 @@ function MappingForm({ id, mapping }: { id?: string; mapping?: MappingModel }) {
   }
 
   return (
-    <div className="mx-auto max-w-2xl py-8">
-      <h1 className="text-2xl font-semibold mb-8" style={{ color: 'var(--text)' }}>
-        {isCreating ? 'New Mapping' : 'Edit Mapping'}
-      </h1>
-      <ArtForm
+    <ArtForm
         methods={methods}
         onSubmit={onSave}
         buttons={[
-          { label: 'Cancel', variant: 'ghost', type: 'button', onClick: () => router.push('/mappings') },
+          { label: 'Cancel', variant: 'ghost', type: 'button', onClick: () => router.back() },
           { label: isCreating ? 'Create' : 'Save', color: 'primary', type: 'submit', loading: createMutation.isPending || updateMutation.isPending },
         ]}
       >
@@ -84,14 +80,20 @@ function MappingForm({ id, mapping }: { id?: string; mapping?: MappingModel }) {
           clearable
         />
       </ArtForm>
-    </div>
   );
 }
 
-// ==== Component ====
+// ==== Data loaders ====
 
-export default function MappingFormPage({ id }: { id?: string }) {
-  const { data: mapping, isLoading } = useGetMappingById(id);
-  if (id && (isLoading || !mapping)) return null;
-  return <MappingForm id={id} mapping={mapping} />;
+// Edit: ArtAsync shows MappingFormSkeleton while mapping fetch is in-flight
+export function MappingFormEdit({ id }: { id: string }) {
+  const { data: mapping } = useGetMappingById(id);
+  return (
+    <MappingFormInner id={id} mapping={mapping} />
+  );
+}
+
+// Create: no fetch needed — form renders immediately after GlobalPageLoader
+export function MappingFormCreate() {
+  return <MappingFormInner />;
 }

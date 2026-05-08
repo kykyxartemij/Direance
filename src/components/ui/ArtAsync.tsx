@@ -1,71 +1,72 @@
-'use client';
+// 'use client';
 
-import { Component, Suspense, type ReactNode, type ErrorInfo } from 'react';
-import ArtSkeleton from './ArtSkeleton';
+// import { Component, Suspense, type ReactNode, type ErrorInfo, use } from 'react';
+// import ArtSkeleton from './ArtSkeleton';
 
-// ==== Default skeleton ====
+// // ==== ErrorBoundary ====
 
-function DefaultSkeleton() {
-  return (
-    <div className="flex flex-col gap-3 py-2">
-      <ArtSkeleton style={{ height: 20, width: '40%', borderRadius: 4 }} />
-      <ArtSkeleton style={{ height: 16, width: '70%', borderRadius: 4 }} />
-      <ArtSkeleton style={{ height: 16, width: '55%', borderRadius: 4 }} />
-    </div>
-  );
-}
+// interface BoundaryProps {
+//   children: ReactNode;
+//   error?: ReactNode;
+// }
 
-// ==== ErrorBoundary ====
+// interface BoundaryState {
+//   caught: Error | null;
+// }
 
-interface BoundaryProps {
-  children: ReactNode;
-  error?: ReactNode;
-}
+// class ErrorBoundary extends Component<BoundaryProps, BoundaryState> {
+//   state: BoundaryState = { caught: null };
 
-interface BoundaryState {
-  caught: Error | null;
-}
+//   static getDerivedStateFromError(error: Error): BoundaryState {
+//     return { caught: error };
+//   }
 
-class ErrorBoundary extends Component<BoundaryProps, BoundaryState> {
-  state: BoundaryState = { caught: null };
+//   componentDidCatch(error: Error, info: ErrorInfo) {
+//     console.error('[ArtAsync]', error, info.componentStack);
+//   }
 
-  static getDerivedStateFromError(error: Error): BoundaryState {
-    return { caught: error };
-  }
+//   render() {
+//     if (this.state.caught) {
+//       return this.props.error ?? (
+//         <p className="text-sm py-4" style={{ color: 'var(--danger)' }}>
+//           Something went wrong. Try refreshing.
+//         </p>
+//       );
+//     }
+//     return this.props.children;
+//   }
+// }
 
-  componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('[ArtAsync]', error, info.componentStack);
-  }
+// // ==== ArtAsync ====
 
-  render() {
-    if (this.state.caught) {
-      return this.props.error ?? (
-        <p className="text-sm py-4" style={{ color: 'var(--danger)' }}>
-          Something went wrong. Try refreshing.
-        </p>
-      );
-    }
-    return this.props.children;
-  }
-}
+// interface ArtAsyncProps {
+//   children: ReactNode;
+//   /** Custom Suspense fallback. Defaults to generic ArtSkeleton bars. Pass null to disable. */
+//   fallback?: ReactNode;
+//   /** Custom error UI. Defaults to a generic error message. */
+//   error?: ReactNode;
+// }
 
-// ==== ArtAsync ====
+// export default function ArtAsync({ children, fallback, error }: ArtAsyncProps) {
+//   const skeleton = fallback !== undefined ? fallback : 
+//     <ArtSkeleton className='w-2 h-2'/>
+//     //   {children} 
+//     // </ArtSkeleton>;
+//   return (
+//     <ErrorBoundary error={error}>
+//       <Suspense fallback={skeleton}>
+//         {children}
+//       </Suspense>
+//     </ErrorBoundary>
+//   );
+// }
 
-interface ArtAsyncProps {
-  children: ReactNode;
-  /** Custom Suspense fallback. Defaults to generic ArtSkeleton bars. Pass null to disable. */
-  fallback?: ReactNode;
-  /** Custom error UI. Defaults to a generic error message. */
-  error?: ReactNode;
-}
 
-export default function ArtAsync({ children, fallback, error }: ArtAsyncProps) {
-  const skeleton = fallback !== undefined ? fallback : <DefaultSkeleton />;
-  return (
-    <ErrorBoundary error={error}>
-      <Suspense fallback={skeleton}>
-        {children}
-      </Suspense>
-    </ErrorBoundary>
-  );
-}
+// // ==== Helpers ====
+
+// export type Async<T> = Promise<T> | T;
+
+// export function useAsync<T>(value: Async<T> | undefined): T | undefined {
+//   if (value === undefined) return undefined;
+//   return value instanceof Promise ? use(value) : value;
+// }

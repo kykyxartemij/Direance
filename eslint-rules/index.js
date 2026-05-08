@@ -19,6 +19,7 @@ const requireQueryKeysConstant = require('./rules/require-query-keys-constant');
 const requireNormalizeText     = require('./rules/require-normalize-text');
 const requireAbortEarlyFalse   = require('./rules/require-abort-early-false');
 const useFetchClient           = require('./rules/use-fetch-client');
+const noRouterPushNavigation   = require('./rules/no-router-push-navigation');
 
 module.exports = {
   rules: {
@@ -38,5 +39,6 @@ module.exports = {
     'require-loading-page':        requireLoadingPage,
     'no-dialog-trigger-onclick':   noDialogTriggerOnclick,
     'require-query-keys-constant': requireQueryKeysConstant,
+    'no-router-push-navigation':   noRouterPushNavigation,
   },
 };

@@ -1,5 +1,2 @@
-import AdminPage from '@/page/admin/AdminPage';
-
-export default function Loading() {
-  return <AdminPage loading />;
-}
+import GlobalPageLoader from '@/components/GlobalPageLoader';
+export default GlobalPageLoader;

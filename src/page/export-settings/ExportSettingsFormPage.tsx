@@ -403,12 +403,7 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <div className="mx-auto max-w-2xl py-8">
-      <h1 className="text-2xl font-semibold mb-8" style={{ color: 'var(--text)' }}>
-        {isEdit ? 'Edit Export Setting' : 'New Export Setting'}
-      </h1>
-
-      <ArtForm
+    <ArtForm
         methods={methods}
         onSubmit={onSave}
         buttons={[
@@ -504,6 +499,5 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
           <ArtFormCheckbox name="includeOriginalSheets" label="Include original sheets" />
         </div>
       </ArtForm>
-    </div>
   );
 }

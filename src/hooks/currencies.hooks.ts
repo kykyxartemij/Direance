@@ -1,27 +1,20 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox';
 import { queryKeys } from '@/lib/queryKeys';
-
-// Returns { "usd": "US Dollar", "eur": "Euro", ... }
-const CURRENCIES_LIST_URL =
-  'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies.json';
-
-// Returns { "date": "...", "eur": { "usd": 1.08, "gbp": 0.85, ... } }
-const CURRENCY_RATE_URL = (from: string) =>
-  `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${from.toLowerCase()}.json`;
+import fetchClient from "@/lib/fetchClient";
+import { API } from '@/lib/apiUrl';
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 // ==== Currency options ====
 
-export function useCurrencyOptions(): { options: ArtComboBoxOption[]; isLoading: boolean } {
-  const { data, isLoading } = useQuery<ArtComboBoxOption[]>({
+export function useCurrencyOptions(): ArtComboBoxOption[] {
+  const { data } = useSuspenseQuery<ArtComboBoxOption[]>({
     queryKey: queryKeys.currency.list(),
     queryFn: async () => {
-      const res = await fetch(CURRENCIES_LIST_URL);
-      const json: Record<string, string> = await res.json();
+      const json = await fetchClient.get<Record<string, string>>(API.currency.list());
       return Object.entries(json)
         .map(([code, name]) => ({
           value: code.toUpperCase(),
@@ -33,7 +26,7 @@ export function useCurrencyOptions(): { options: ArtComboBoxOption[]; isLoading:
     gcTime: ONE_DAY_MS,
   });
 
-  return { options: data ?? [], isLoading };
+  return data;
 }
 
 // ==== Exchange rate ====
@@ -55,9 +48,9 @@ export function useCurrencyRate(
   const { data, isLoading } = useQuery<number | null>({
     queryKey: queryKeys.currency.rate(fromKey, toKey),
     queryFn: async () => {
-      // eslint-disable-next-line local/use-fetch-client
-      const res = await fetch(CURRENCY_RATE_URL(fromKey));
-      const json: Record<string, Record<string, number>> = await res.json();
+      const json = await fetchClient.get<Record<string, Record<string, number>>>(
+        API.currency.rate(fromKey),
+      );
       return json[fromKey]?.[toKey] ?? null;
     },
     enabled,

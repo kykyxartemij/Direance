@@ -25,10 +25,7 @@ export default function UploadPage() {
   }
 
   return (
-    <div className="mx-auto max-w-xl py-8">
-      <h1 className="mb-1 text-2xl font-semibold" style={{ color: 'var(--text)' }}>
-        Upload report
-      </h1>
+    <>
       <p className="mb-8 text-sm" style={{ color: 'var(--text-muted)' }}>
         Upload an Excel file exported from Merit.ee or any other source. The file is parsed
         locally — it never leaves your browser.
@@ -60,6 +57,6 @@ export default function UploadPage() {
           Add to reports
         </ArtButton>
       </div>
-    </div>
+    </>
   );
 }
