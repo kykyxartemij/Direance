@@ -1,6 +1,6 @@
 'use client';
 
-import { useSuspenseQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSuspenseQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import fetchClient from '@/lib/fetchClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
@@ -12,7 +12,7 @@ import type { ApiError } from '@/models/api-error';
 // ==== Queries ====
 
 export function useGetPagedMappings(page: number, pageSize: number, freeText?: string) {
-  return useSuspenseQuery<PaginatedResponse<MappingModel>, ApiError>({
+  return useQuery<PaginatedResponse<MappingModel>, ApiError>({
     queryKey: queryKeys.mapping.paged(page, pageSize, freeText),
     queryFn: async () => {
       const { data } = await fetchClient.get<PaginatedResponse<MappingModel>>(

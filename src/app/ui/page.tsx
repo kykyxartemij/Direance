@@ -35,6 +35,7 @@ import ArtCollapse from '@/components/ui/ArtCollapse';
 import ArtBaseCollapse from '@/components/ui/ArtBaseCollapse';
 import ArtPagination from '@/components/ui/ArtPagination';
 import ArtDataTable, { type ArtColumn } from '@/components/ui/ArtDataTable';
+import ArtCut from '@/components/ui/ArtCut';
 import ArtData from '@/components/ui/ArtData';
 import ArtDataFilters from '@/components/ui/ArtDataFilters';
 import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
@@ -143,6 +144,7 @@ const GROUP_SECTIONS: Record<GroupId, { id: string; label: string }[]> = {
   data: [
     { id: 'artdata',        label: 'ArtData'        },
     { id: 'artdatatable',   label: 'ArtDataTable'   },
+    { id: 'artcut',         label: 'ArtCut'         },
     { id: 'artdatafilters', label: 'ArtDataFilters' },
     { id: 'artpagination',  label: 'ArtPagination'  },
     { id: 'artemptystate',  label: 'ArtEmptyState'  },
@@ -1121,20 +1123,20 @@ const STATUS_COLOR: Record<DemoUser['status'], ArtColor> = {
 };
 
 const USER_COLUMNS: ArtColumn<DemoUser>[] = [
-  { key: 'name',       label: 'Name',        sticky: true, sortable: true, width: 160 },
-  { key: 'email',      label: 'Email',       sortable: true, truncate: true, width: 220 },
-  { key: 'role',       label: 'Role',        sortable: true, width: 100 },
-  { key: 'videos',     label: 'Videos',      sortable: true, width: 90 },
-  { key: 'id',         label: 'User ID',     width: 80 },
+  { key: 'name',       label: 'Name',        sticky: true, sortable: true, sizing: { width: 160 } },
+  { key: 'email',      label: 'Email',       sortable: true, sizing: { width: 220 } },
+  { key: 'role',       label: 'Role',        sortable: true, sizing: { width: 100 } },
+  { key: 'videos',     label: 'Videos',      sortable: true, sizing: { width: 90 } },
+  { key: 'id',         label: 'User ID',     sizing: { width: 80 } },
   {
-    key: 'status', label: 'Status', width: 110, renderLoading: true,
+    key: 'status', label: 'Status', sizing: { width: 110, renderLoading: true },
     render: (row) => (
       <ArtBadge variant="outlined" color={STATUS_COLOR[row.status]} size="sm">{row.status}</ArtBadge>
     ),
   },
-  { key: 'joined',     label: 'Joined',      width: 120,
+  { key: 'joined',     label: 'Joined',      sizing: { width: 120 },
     render: () => <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>2024-01-15</span> },
-  { key: 'lastActive', label: 'Last active', width: 130,
+  { key: 'lastActive', label: 'Last active', sizing: { width: 130 },
     render: () => <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>3 days ago</span> },
 ];
 
@@ -1152,10 +1154,10 @@ function makeWideColumns(): ArtColumn<Record<string, string>>[] {
     const sticky: ArtColumn<Record<string, string>>['sticky'] =
       n === 1 ? true : n === 2 ? 'left' : undefined;
     const width = n === 1 ? 120 : n === 2 ? 140 : 100;
-    return { key: `c${n}`, label: `Col ${n}`, width, sticky };
+    return { key: `c${n}`, label: `Col ${n}`, sizing: { width }, sticky };
   });
   dataCols.push({
-    key: 'actions', label: 'Actions', width: 80, sticky: 'right',
+    key: 'actions', label: 'Actions', sizing: { width: 80 }, sticky: 'right',
     render: () => (
       <button type="button" className="btn-ghost" style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: 6 }}>
         Edit
@@ -1253,7 +1255,7 @@ function DataTableSection() {
   const columnsWithVis: ArtColumn<DemoUser>[] = [
     ...USER_COLUMNS,
     {
-      key: 'visibility', label: 'Visibility', renderLoading: true,
+      key: 'visibility', label: 'Visibility', sizing: { renderLoading: true },
       render: (row) => (
         <ArtSelect
           options={VISIBILITY_OPTIONS}
@@ -1302,6 +1304,60 @@ function DataTableSection() {
   columns={columns} data={rows} loading={isLoading}
   rowKey={(r) => r.id} onRowClick={(r) => navigate(r.id)}
 />
+      `} />
+    </Section>
+  );
+}
+
+// ==== ArtCutSection ====
+
+const CUT_COLUMNS: ArtColumn<{ name: string; description: string; value: string }>[] = [
+  { key: 'name',        label: 'Name',        sizing: { width: 120 } },
+  { key: 'description', label: 'Description', sizing: { width: 180 } },
+  { key: 'value',       label: 'Value',       sizing: { width: 100 } },
+];
+
+const CUT_ROWS = [
+  { name: 'Alpha Component',           description: 'A very long description that should be hard-cut and never overflow its container boundary', value: 'Very long value text here' },
+  { name: 'Beta System Integration',   description: 'Another extremely verbose description text to demonstrate the clipping behavior in action',  value: '9,999,999.99'             },
+  { name: 'Gamma Pipeline Processing', description: 'Short desc',                                                                                  value: '42'                      },
+];
+
+function ArtCutSection() {
+  const [width, setWidth] = useState(300);
+  return (
+    <Section id="artcut" title="ArtCut"
+      tip="Hard-constrains content to exactly the given width. Sets width/minWidth/maxWidth + overflow:hidden — nothing can push past the boundary.">
+      <Row label="ArtDataTable inside ArtCut — drag slider to resize">
+        <div className="flex flex-col gap-3 w-full">
+          <div className="flex items-center gap-3">
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Width: {width}px</span>
+            <input type="range" min={100} max={700} value={width} onChange={(e) => setWidth(Number(e.target.value))} style={{ width: 200 }} />
+          </div>
+          <ArtCut width={width} style={{ border: '1px dashed var(--border)', borderRadius: 6 }}>
+            <ArtDataTable
+              columns={CUT_COLUMNS}
+              data={CUT_ROWS}
+              rowKey={(_, i) => i}
+            />
+          </ArtCut>
+        </div>
+      </Row>
+      <Row label="Plain text clipping">
+        <ArtCut width={200} text style={{ background: 'var(--surface-raised)', borderRadius: 4, padding: '4px 8px' }}>
+          This is a very long piece of text that will be truncated with an ellipsis at exactly 200px
+        </ArtCut>
+        <ArtCut width={200} style={{ background: 'var(--surface-raised)', borderRadius: 4, padding: '4px 8px' }}>
+          This is a very long piece of text that will be hard-cut without ellipsis at exactly 200px
+        </ArtCut>
+      </Row>
+      <Code code={`
+<ArtCut width={300}>
+  <ArtDataTable columns={columns} data={rows} rowKey={(_, i) => i} />
+</ArtCut>
+
+// text truncation with ellipsis
+<ArtCut width={200} text>Very long text…</ArtCut>
       `} />
     </Section>
   );
@@ -1906,6 +1962,7 @@ function DataGroup() {
         <DataFullSection />
       </Section>
       <DataTableSection />
+      <ArtCutSection />
       <DataFiltersSection />
       <PaginationSection />
       <EmptyStateSection />

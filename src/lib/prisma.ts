@@ -10,6 +10,7 @@ function makePrisma() {
     model: {
       exportSetting: withFts(base, base.exportSetting, '"ExportSetting"', 'exportSetting', 'name'),
       fieldMapping:  withFts(base, base.fieldMapping, '"FieldMapping"', 'mapping', 'name'),
+      user:          withFts(base, base.user, '"User"', 'user', 'name', ['email']),
     },
   });
 }

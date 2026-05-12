@@ -23,13 +23,20 @@ const PAGE_SIZE = 20;
 
 export default function MappingsPage() {
   const [page, setPage] = useState(1);
-  const { data: pagedData } = useGetPagedMappings(page, PAGE_SIZE);
+  const [freeText, setFreeText] = useState('');
+  const { data: pagedData, isLoading } = useGetPagedMappings(page, PAGE_SIZE, freeText);
+
+  function handleSearch(value: string) {
+    setFreeText(value);
+    setPage(1);
+  }
   const deleteMutation = useDeleteMapping();
 
   const columns: ArtColumn<MappingModel>[] = [
     {
       key: 'name',
       label: 'Name',
+      sizing: { width: 180, renderLoading: true },
       render: (row) => (
         <div className="flex items-center gap-2">
           <span>{row.name}</span>
@@ -40,19 +47,19 @@ export default function MappingsPage() {
     {
       key: 'reportType',
       label: 'Report Type',
-      width: 180,
+      sizing: { width: 180, renderLoading: true },
       render: (row) => REPORT_TYPE_LABELS[row.reportType] ?? row.reportType,
     },
     {
       key: 'exportSetting',
       label: 'Export Config',
-      width: 180,
-      render: (row) => row.exportSetting?.name ?? '—',
+      sizing: { width: 300, renderLoading: true },
+      render: (row) => row.exportSetting?.name ?? '',
     },
     {
       key: 'actions',
       label: '',
-      width: 140,
+      sizing: { renderLoading: true },
       render: (row) =>
         row.isGlobal ? null : (
           <div className="flex gap-2">
@@ -75,14 +82,17 @@ export default function MappingsPage() {
   return (
     <ArtData<MappingModel>
         columns={columns}
-        data={pagedData.data}
+        data={pagedData?.data ?? []}
         rowKey={(row) => row.id}
         emptyMessage="No mappings yet. Upload a report to create one."
         pageSize={PAGE_SIZE}
-        total={pagedData.total}
+        total={pagedData?.total ?? 0}
         page={page}
         onPageChange={setPage}
         searchPlaceholder="Search mappings…"
+        onSearch={handleSearch}
+        loading={isLoading}
+        rowHeight={39}
       />
   );
 }

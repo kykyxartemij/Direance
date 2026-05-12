@@ -1,12 +1,13 @@
 'use client';
 
-import { useSuspenseQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSuspenseQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import fetchClient from '@/lib/fetchClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
 import type { UserModel, UpdateUserModel } from '@/models/user.models';
 import type { DbConsumption } from '@/lib/userLimits';
 import type { ApiError } from '@/models/api-error';
+import type { PaginatedResponse } from '@/models/paginated-response.model';
 
 export type { DbConsumption };
 
@@ -25,6 +26,16 @@ export function useGetDbConsumption() {
     queryKey: queryKeys.user.dbConsumption(),
     queryFn: async () => {
       const { data } = await fetchClient.get<DbConsumption>(API.user.dbConsumption());
+      return data;
+    },
+  });
+}
+
+export function useGetPagedUsers(page: number, pageSize: number, freeText?: string) {
+  return useQuery<PaginatedResponse<UserModel>, ApiError>({
+    queryKey: queryKeys.users.paged(page, pageSize, freeText),
+    queryFn: async () => {
+      const { data } = await fetchClient.get<PaginatedResponse<UserModel>>(API.users.paged(page, pageSize, freeText));
       return data;
     },
   });

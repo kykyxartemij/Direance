@@ -1,4 +1,4 @@
-import ArtTitle from '@/components/ui/ArtTitle';
+﻿import ArtTitle from '@/components/ui/ArtTitle';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (

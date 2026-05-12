@@ -43,7 +43,7 @@ function buildColumns(
       key: descHeader,
       label: descHeader,
       sticky: true,
-      width: 220,
+      sizing: { width: 220 },
       render: (row, index) => {
         const indent = rowIndents[index] ?? 0;
         const isEmpty = valueHeaders.every((h) => !row[h]);
@@ -65,6 +65,7 @@ function buildColumns(
     ...valueHeaders.map((h, vIdx) => ({
       key: `${vIdx}_${h}`,
       label: totalColumnIndices?.has(vIdx + 1) ? `Σ ${h}` : h,
+      sizing: {},
       render: (row: Row, index: number) => (
         <span
           className="tabular-nums"

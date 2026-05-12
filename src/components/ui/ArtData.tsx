@@ -25,6 +25,8 @@ interface ArtDataProps<T> {
   // ==== Pagination ====
   /** Enables pagination. Omit for no pagination (show all rows). */
   pageSize?: number;
+  /** Fixed height for each skeleton row in px. Set to match real row content height. */
+  rowHeight?: number;
   /** When provided, shows a rows-per-page selector in the pagination bar. */
   pageSizeOptions?: number[];
   onPageSizeChange?: (size: number) => void;
@@ -71,6 +73,7 @@ function ArtData<T>({
   onRowClick,
   emptyMessage,
   rowKey,
+  rowHeight,
   className,
 }: ArtDataProps<T>) {
   // ==== Mode detection ====
@@ -202,6 +205,7 @@ function ArtData<T>({
         emptyMessage={emptyMessage}
         rowKey={rowKey}
         pageSize={effectivePageSize}
+        rowHeight={rowHeight}
       />
 
       {pageSize !== undefined && (

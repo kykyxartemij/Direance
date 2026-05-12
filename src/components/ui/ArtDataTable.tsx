@@ -3,59 +3,48 @@
 import React, { useMemo } from 'react';
 import ArtIcon from './ArtIcon';
 import ArtSkeleton from './ArtSkeleton';
+import ArtCut from './ArtCut';
 import { cn } from './art.utils';
 import { type ReactNode } from 'react';
 
 // ==== Types ====
 
 export interface ArtColumn<T> {
-  /** Key used to read `row[key]` when no `render` is provided. Also used as the sort key. */
   key: string;
   label: string;
-  /**
-   * Pin column to viewport edge during horizontal scroll.
-   * true / 'left'  → pin to the left edge (auto-computes left offset from preceding sticky-left widths)
-   * 'right'        → pin to the right edge (auto-computes right offset from following sticky-right widths)
-   */
+  /** true / 'left' → pin left edge. 'right' → pin right edge. Pixel string widths required for stacking offsets. */
   sticky?: boolean | 'left' | 'right';
   sortable?: boolean;
-  /** Clip overflowing text with ellipsis. Works reliably with table-layout: fixed. */
-  truncate?: boolean;
-  /**
-   * Pixel width used by the <col> element (table-layout: fixed).
-   * Keeps skeleton rows and data rows at the same width — no layout shift on load/page change.
-   */
-  width?: number | string;
   render?: (row: T, index: number) => ReactNode;
   /**
-   * Set `true` to auto-shimmer this column during loading.
-   * ArtDataTable calls `render` with a blank row and wraps the output in `<ArtSkeleton wrap>`,
-   * so the shimmer exactly matches the component's natural height — no hardcoded size needed.
-   *
-   * Rule: use `width` (hard-cut) OR `renderLoading: true` (auto-sized) — not both.
-   *
-   *   { key: 'status', render: (row) => <ArtBadge>{row.status}</ArtBadge>, renderLoading: true }
-   *
-   * Falls back to a plain shimmer bar if `render` throws with a blank row.
+   * width: number → percentage mode (÷10 = %). width: 300 = 30%.
+   *   Last column auto-gets remaining % (100 - sum of others). Sum > 100 → horizontal scroll.
+   * width: string → literal CSS value ("200px") for sticky-offset columns.
+   * renderLoading: show shimmer bar during loading.
    */
-  renderLoading?: boolean;
+  sizing: {
+    width?: number | string;
+    renderLoading?: boolean;
+  };
 }
 
 // ==== Internal helpers ====
 
-/** Parses a column width to pixels if possible, 0 otherwise */
 function colWidthPx(w: number | string | undefined): number {
-  if (typeof w === 'number') return w;
   if (typeof w === 'string' && w.endsWith('px')) return parseFloat(w);
   return 0;
 }
 
-/** ArtColumn enriched with pre-computed sticky offsets and an optional filler flag */
+function colWidthAsPct(w: number | string | undefined): number {
+  return typeof w === 'number' ? w / 10 : 0;
+}
+
 type ProcessedColumn<T> = ArtColumn<T> & {
   _stickyLeft: number;
   _stickyRight?: number;
-  /** True for the virtual filler column — renders an unstyled cell to extend row dividers to the right edge */
   _isFiller?: boolean;
+  _cutWidth?: string | number;
+  _isLast?: boolean;
 };
 
 const FILLER_KEY = '__art_filler__';
@@ -69,29 +58,21 @@ interface ArtDataTableProps<T> {
   onSort?: (key: string, dir: 'asc' | 'desc') => void;
   onRowClick?: (row: T, index: number) => void;
   emptyMessage?: string;
-  /** Provide a stable key per row to avoid unnecessary re-renders */
   rowKey?: (row: T, index: number) => string | number;
-  /** CSS class name applied to the <tr> element. Use predefined art-data-tr--* variants. */
   rowClassName?: (row: T, index: number) => string | undefined;
-  /**
-   * Rows per page. Drives both pagination display and skeleton row count during loading —
-   * the same value the BE uses for `take` / `pageSize`. Default: 5.
-   */
+  /** Drives skeleton row count. Default: 5. */
   pageSize?: number;
+  /** Fixed height per row (px). Applied via ArtCut so both skeleton and data rows match. */
+  rowHeight?: number;
   className?: string;
   /**
-   * Custom row renderer. When provided, ArtDataTable owns the wrapper, scroll, colgroup,
-   * and thead — the caller renders each <tr> with full control (refs, imperative handles, etc).
-   * Loading and empty states are still managed by ArtDataTable.
-   *
-   * Use this for interactive form-table rows (e.g. RowMappingsSection) where per-row
-   * imperative refs are needed — not possible with the default render-column approach.
+   * Custom row renderer. ArtDataTable owns wrapper, scroll, colgroup, thead.
+   * Loading and empty states still managed by ArtDataTable.
    */
   renderRow?: (row: T, index: number) => ReactNode;
 }
 
-// ==== Internal memoised row ====
-// Typed as `unknown` so React.memo works — type safety enforced at the ArtDataTable call site.
+// ==== Internal row (memoised) ====
 
 interface InternalRowProps {
   row: unknown;
@@ -100,6 +81,7 @@ interface InternalRowProps {
   onRowClick?: (row: unknown, index: number) => void;
   isClickable: boolean;
   rowClassName?: string;
+  rowHeight?: number;
 }
 
 const DataRow = React.memo(function DataRow({
@@ -109,7 +91,27 @@ const DataRow = React.memo(function DataRow({
   onRowClick,
   isClickable,
   rowClassName,
+  rowHeight,
 }: InternalRowProps) {
+  const cellContent = (col: ProcessedColumn<unknown>) => {
+    const raw = col.render
+      ? col.render(row, index)
+      : String((row as Record<string, unknown>)[col.key] ?? '');
+    if (col._cutWidth || rowHeight) {
+      return (
+        <ArtCut
+          width={col._cutWidth}
+          height={rowHeight}
+          text={!col.render && !!col._cutWidth}
+          style={col._isLast ? { justifyContent: 'flex-end' } : undefined}
+        >
+          {raw}
+        </ArtCut>
+      );
+    }
+    return raw;
+  };
+
   return (
     <tr
       className={cn('art-data-tr', isClickable && 'art-data-tr--clickable', rowClassName)}
@@ -126,22 +128,30 @@ const DataRow = React.memo(function DataRow({
               'art-data-td',
               isLeft  && 'art-data-sticky',
               isRight && 'art-data-sticky-right',
-              col.truncate && 'art-data-td--truncate',
             )}
             style={{
-              ...(isLeft  ? { left:  col._stickyLeft          } : {}),
-              ...(isRight ? { right: col._stickyRight ?? 0    } : {}),
+              ...(isLeft  ? { left:  col._stickyLeft       } : {}),
+              ...(isRight ? { right: col._stickyRight ?? 0 } : {}),
             }}
           >
-            {col.render
-              ? col.render(row, index)
-              : String((row as Record<string, unknown>)[col.key] ?? '')}
+            {cellContent(col)}
           </td>
         );
       })}
     </tr>
   );
 });
+
+// ==== Skeleton cell ====
+
+function renderSkeletonCell(col: ProcessedColumn<unknown>): ReactNode {
+  const content = col.render ? col.render({} as unknown, 0) : <span>&nbsp;</span>;
+  return (
+    <ArtCut width={col._cutWidth ?? '100%'}>
+      <ArtSkeleton wrap>{content}</ArtSkeleton>
+    </ArtCut>
+  );
+}
 
 // ==== Component ====
 
@@ -157,54 +167,72 @@ function ArtDataTable<T>({
   rowKey,
   rowClassName,
   pageSize = 5,
+  rowHeight,
   className,
   renderRow,
 }: ArtDataTableProps<T>) {
-  // ==== Pre-compute sticky offsets + insert filler ====
-  // Left-sticky: forward pass — sum widths of preceding left-sticky columns.
-  // Right-sticky: reverse pass — sum widths of following right-sticky columns.
-  // Filler: a zero-width virtual column inserted between the last non-right-sticky
-  //   and the first right-sticky column. Its <col> has no width, so it absorbs all
-  //   remaining table width — extending border-bottom lines to the right edge and
-  //   eliminating the "row divider cut short" visual artifact.
-
   const processedColumns = useMemo((): ProcessedColumn<T>[] => {
-    // Forward pass: left offsets — reduce avoids mutating an outer variable (react-hooks/immutability)
     const [withLeft] = columns.reduce<[ProcessedColumn<T>[], number]>(
       ([cols, off], col) => {
         const isLeft = col.sticky === true || col.sticky === 'left';
         return isLeft
-          ? [[...cols, { ...col, _stickyLeft: off }], off + colWidthPx(col.width)]
+          ? [[...cols, { ...col, _stickyLeft: off }], off + colWidthPx(col.sizing.width)]
           : [[...cols, { ...col, _stickyLeft: 0 }], off];
       },
       [[], 0],
     );
 
-    // Reverse pass: right offsets
     const [computed] = [...withLeft].reverse().reduce<[ProcessedColumn<T>[], number]>(
       ([cols, off], col) => col.sticky === 'right'
-        ? [[...cols, { ...col, _stickyRight: off }], off + colWidthPx(col.width)]
+        ? [[...cols, { ...col, _stickyRight: off }], off + colWidthPx(col.sizing.width)]
         : [[...cols, col], off],
       [[], 0],
     );
     computed.reverse();
 
-    // Split and insert filler between non-right-sticky and right-sticky columns
-    const nonRight  = computed.filter(col => col.sticky !== 'right');
-    const rightCols = computed.filter(col => col.sticky === 'right');
-    const filler: ProcessedColumn<T> = { key: FILLER_KEY, label: '', _stickyLeft: 0, _isFiller: true } as ProcessedColumn<T>;
+    const pctMode = columns.some(col => typeof col.sizing.width === 'number');
+    const withCut = computed.map((col, i) => ({
+      ...col,
+      _cutWidth: pctMode
+        ? (col.sizing.width !== undefined ? '100%' : undefined)
+        : col.sizing.width,
+      _isLast: i === computed.length - 1,
+    }));
 
-    return [...nonRight, filler, ...rightCols];
+    const rightCols = withCut.filter(col => col.sticky === 'right');
+    const nonRight  = withCut.filter(col => col.sticky !== 'right');
+    const filler: ProcessedColumn<T> = { key: FILLER_KEY, label: '', _stickyLeft: 0, _isFiller: true, sizing: {} } as ProcessedColumn<T>;
+
+    if (rightCols.length > 0) return [...nonRight, filler, ...rightCols];
+    const last = nonRight[nonRight.length - 1];
+    const body = nonRight.slice(0, -1);
+    return last ? [...body, filler, last] : [...body, filler];
   }, [columns]);
 
-  // min-width from declared column widths (excluding the filler) so the table
-  // never collapses narrower than the sum of all column widths.
-  const tableMinWidth = useMemo(() => {
-    const sum = columns.reduce((s, col) => s + colWidthPx(col.width), 0);
-    return sum > 0 ? sum : undefined;
+  const { tableMinWidth, colPercents } = useMemo(() => {
+    const usingPct = columns.some(col => typeof col.sizing.width === 'number');
+    if (usingPct) {
+      const nonLast = columns.slice(0, -1);
+      const last    = columns[columns.length - 1];
+      const percents = new Map<string, number>();
+      const nonLastSum = nonLast.reduce((s, col) => {
+        const pct = colWidthAsPct(col.sizing.width);
+        if (pct > 0) percents.set(col.key, pct); // skip 0 — column stays flexible
+        return s + pct;
+      }, 0);
+      if (last) {
+        const lastPct = Math.max(0, 100 - nonLastSum);
+        percents.set(last.key, lastPct);
+      }
+      const totalPct = Math.max(100, nonLastSum + Math.max(0, 100 - nonLastSum));
+      return {
+        tableMinWidth: totalPct > 100 ? `${totalPct}%` : undefined,
+        colPercents: percents,
+      };
+    }
+    const pxSum = columns.reduce((s, col) => s + colWidthPx(col.sizing.width), 0);
+    return { tableMinWidth: pxSum > 0 ? pxSum : undefined, colPercents: new Map<string, number>() };
   }, [columns]);
-
-  // ==== Sort handler ====
 
   const handleSort = (col: ArtColumn<T>) => {
     if (!col.sortable || !onSort) return;
@@ -212,20 +240,20 @@ function ArtDataTable<T>({
     onSort(col.key, newDir);
   };
 
-  // ==== Render ====
-
   return (
     <div className={cn('art-data-table-wrapper', className)}>
-      <div className="art-data-table-scroll art-scrollable">
+      <div className="art-data-table-scroll art-scrollable" style={{ '--art-rows': pageSize } as React.CSSProperties}>
         <table
           className="art-data-table"
           style={tableMinWidth ? { minWidth: tableMinWidth } : undefined}
         >
           <colgroup>
-            {/* text columns: min-width keeps them from collapsing; component columns (renderLoading:true) size to ghost content */}
-            {processedColumns.map((col) => (
-              <col key={col.key} style={!col._isFiller && col.width ? { minWidth: col.width } : undefined} />
-            ))}
+            {processedColumns.map((col) => {
+              if (col._isFiller) return <col key={col.key} />;
+              const pct = colPercents.get(col.key);
+              const w = pct !== undefined ? `${pct}%` : col.sizing.width;
+              return <col key={col.key} style={w ? { width: w } : undefined} />;
+            })}
           </colgroup>
 
           <thead>
@@ -244,8 +272,8 @@ function ArtDataTable<T>({
                       col.sortable && 'art-data-th--sortable',
                     )}
                     style={{
-                      ...(isLeft  ? { left:  col._stickyLeft          } : {}),
-                      ...(isRight ? { right: col._stickyRight ?? 0    } : {}),
+                      ...(isLeft  ? { left:  col._stickyLeft       } : {}),
+                      ...(isRight ? { right: col._stickyRight ?? 0 } : {}),
                     }}
                     onClick={() => handleSort(col)}
                   >
@@ -278,15 +306,7 @@ function ArtDataTable<T>({
                       <td key={FILLER_KEY} className="art-data-filler-col" />
                     ) : (
                       <td key={col.key} className="art-data-td">
-                        {col.renderLoading && col.render
-                          ? (() => {
-                              try {
-                                return <ArtSkeleton wrap>{col.render({} as T, i)}</ArtSkeleton>;
-                              } catch {
-                                return <ArtSkeleton style={{ height: 14, borderRadius: 4 }} />;
-                              }
-                            })()
-                          : <ArtSkeleton style={{ height: 14, borderRadius: 4 }} />}
+                        {renderSkeletonCell(col as ProcessedColumn<unknown>)}
                       </td>
                     )
                   )}
@@ -314,6 +334,7 @@ function ArtDataTable<T>({
                   onRowClick={onRowClick as InternalRowProps['onRowClick']}
                   isClickable={!!onRowClick}
                   rowClassName={rowClassName?.(row, index)}
+                  rowHeight={rowHeight}
                 />
               ))
             )}

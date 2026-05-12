@@ -104,11 +104,11 @@ RowMappingRowItem.displayName = 'RowMappingRowItem';
 // ==== Column definitions (static — no row data needed for headers) ====
 
 const ROW_MAPPING_COLUMNS: ArtColumn<RowMappingRow>[] = [
-  { key: 'sourceName',   label: 'Source Name',   width: 200 },
-  { key: 'displayName',  label: 'Display Name',  width: 220 },
-  { key: 'nameColor',    label: 'Name Color',    width: 130 },
-  { key: 'valueColor',   label: 'Value Color',   width: 130 },
-  { key: 'hidden',       label: 'Hide',          width: 60  },
+  { key: 'sourceName',   label: 'Source Name',   sizing: { width: 200 } },
+  { key: 'displayName',  label: 'Display Name',  sizing: { width: 220 } },
+  { key: 'nameColor',    label: 'Name Color',    sizing: { width: 130 } },
+  { key: 'valueColor',   label: 'Value Color',   sizing: { width: 130 } },
+  { key: 'hidden',       label: 'Hide',          sizing: { width: 60  } },
 ];
 
 // ==== Section ====

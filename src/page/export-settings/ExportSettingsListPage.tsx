@@ -17,25 +17,32 @@ const PAGE_SIZE = 20;
 
 export default function ExportSettingsListPage() {
   const [page, setPage] = useState(1);
-  const { data: pagedData } = useGetPagedExportSettings(page, PAGE_SIZE);
+  const [freeText, setFreeText] = useState('');
+  const { data: pagedData, isLoading } = useGetPagedExportSettings(page, PAGE_SIZE, freeText);
+
+  function handleSearch(value: string) {
+    setFreeText(value);
+    setPage(1);
+  }
   const deleteMutation = useDeleteExportSetting();
 
   const columns: ArtColumn<ExportSettingModel>[] = [
     {
       key: 'name',
       label: 'Name',
+      sizing: { renderLoading: true },
       render: (row) => row.name,
     },
     {
       key: 'tableStartsFrom',
       label: 'Table Starts From',
-      width: 160,
+      sizing: { width: 160, renderLoading: true },
       render: (row) => row.headerLayout?.dataStartCell ?? '—',
     },
     {
       key: 'valueCategories',
       label: 'Value Categories',
-      width: 200,
+      sizing: { width: 200, renderLoading: true },
       render: (row) => row.mappedValueNames.length > 0
         ? row.mappedValueNames.slice(0, 4).join(', ') + (row.mappedValueNames.length > 4 ? `… +${row.mappedValueNames.length - 4}` : '')
         : '—',
@@ -43,7 +50,7 @@ export default function ExportSettingsListPage() {
     {
       key: 'actions',
       label: '',
-      width: 140,
+      sizing: { width: 140 },
       render: (row) => (
         <div className="flex gap-2">
           <Link href={`/export-settings/${row.id}`} prefetch>
@@ -71,14 +78,16 @@ export default function ExportSettingsListPage() {
       </div>
       <ArtData<ExportSettingModel>
         columns={columns}
-        data={pagedData.data}
+        data={pagedData?.data ?? []}
         rowKey={(row) => row.id}
         emptyMessage="No export configs yet."
         pageSize={PAGE_SIZE}
-        total={pagedData.total}
+        total={pagedData?.total ?? 0}
         page={page}
         onPageChange={setPage}
         searchPlaceholder="Search configs…"
+        onSearch={handleSearch}
+        loading={isLoading}
       />
     </>
   );

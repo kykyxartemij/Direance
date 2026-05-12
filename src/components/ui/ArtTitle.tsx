@@ -41,7 +41,7 @@ export function ArtTitle({
   className,
 }: ArtTitleProps) {
   return (
-    <div className={cn('art-title', `art-title--${size}`, color && ART_COLOR_CLASS[color], className)}>
+    <div className={cn('art-title', `art-title--${size}`, size === 'lg' && 'mb-6', color && ART_COLOR_CLASS[color], className)}>
       {icon && <ArtIcon name={icon} size={ICON_SIZE[size]} className="art-title-icon" />}
       <div className="art-title-body">
         <p className="art-title-text" id={id}>{title}</p>

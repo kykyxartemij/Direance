@@ -69,18 +69,20 @@ async function resolveFtsIdsCached(
 /**
  * Returns { findManyFts, countFts } to register on a Prisma $extends model block.
  *
- * @param client             Base PrismaClient (same instance as the one being extended)
- * @param model              Base model delegate, e.g. base.exportSetting
- * @param table              PostgreSQL table name, e.g. '"ExportSetting"'
- * @param collectionCacheKey First element of CACHE_KEYS.x.invalidate(), e.g. 'exportSetting'
- * @param searchColumn       Column used for contains and pg_trgm similarity, e.g. 'name'.
- *                           Must match the column indexed with gin_trgm_ops in the migration.
+ * @param client               Base PrismaClient (same instance as the one being extended)
+ * @param model                Base model delegate, e.g. base.exportSetting
+ * @param table                PostgreSQL table name, e.g. '"ExportSetting"'
+ * @param collectionCacheKey   First element of CACHE_KEYS.x.invalidate(), e.g. 'exportSetting'
+ * @param searchColumn         Primary FTS column (tsvector + trigram), e.g. 'name'
+ * @param extraSearchColumns   Additional columns searched via contains only (no tsvector).
+ *                             Use for structured values like email where tsvector breaks on special chars.
  *
  * Decision tree (same for both methods):
  *   empty                   → no filter, return all               0 extra DB calls
- *   1–4 chars               → contains (ILIKE), substring match   0 extra DB calls
+ *   1–4 chars               → contains on all columns, OR'd          0 extra DB calls
  *   valid UUID              → exact id filter                      0 extra DB calls
- *   5+ chars                → FTS + trigram (cached 5 min)        1 extra DB call
+ *   5+ chars                → FTS + trigram on searchColumn,
+ *                             contains on extraSearchColumns, OR'd    1 extra DB call
  */
 export function withFts<
   TModel extends {
@@ -93,7 +95,34 @@ export function withFts<
   table: string,
   collectionCacheKey: string,
   searchColumn = 'name',
+  extraSearchColumns: string[] = [],
 ) {
+  function buildSubstringWhere(term: string, baseWhere?: any) {
+    if (extraSearchColumns.length === 0) {
+      return { ...baseWhere, [searchColumn]: { contains: term, mode: 'insensitive' } };
+    }
+    return {
+      ...baseWhere,
+      OR: [
+        { [searchColumn]: { contains: term, mode: 'insensitive' } },
+        ...extraSearchColumns.map((col) => ({ [col]: { contains: term, mode: 'insensitive' } })),
+      ],
+    };
+  }
+
+  function buildFtsWhere(ids: string[], term: string, baseWhere?: any) {
+    if (extraSearchColumns.length === 0) {
+      return { ...baseWhere, id: { in: ids } };
+    }
+    return {
+      ...baseWhere,
+      OR: [
+        ...(ids.length > 0 ? [{ id: { in: ids } }] : []),
+        ...extraSearchColumns.map((col) => ({ [col]: { contains: term, mode: 'insensitive' } })),
+      ],
+    };
+  }
+
   return {
     async findManyFts<T extends Parameters<TModel['findMany']>[0]>({
       freeText,
@@ -109,7 +138,7 @@ export function withFts<
       if (term.length < MIN_FTS_LENGTH) {
         return model.findMany({
           ...args,
-          where: { ...(args as any).where, [searchColumn]: { contains: term, mode: 'insensitive' } },
+          where: buildSubstringWhere(term, (args as any).where),
         }) as Awaited<ReturnType<TModel['findMany']>>;
       }
 
@@ -118,9 +147,12 @@ export function withFts<
         return model.findMany({ ...args, where: { ...(args as any).where, id: uuid } }) as Awaited<ReturnType<TModel['findMany']>>;
       }
 
-      const idsByFreeText = await resolveFtsIdsCached(client, table, searchColumn, collectionCacheKey, term, userId);
-      if (idsByFreeText.length === 0) return [] as Awaited<ReturnType<TModel['findMany']>>;
-      return model.findMany({ ...args, where: { ...(args as any).where, id: { in: idsByFreeText } } }) as Awaited<ReturnType<TModel['findMany']>>;
+      const ids = await resolveFtsIdsCached(client, table, searchColumn, collectionCacheKey, term, userId);
+      if (ids.length === 0 && extraSearchColumns.length === 0) return [] as Awaited<ReturnType<TModel['findMany']>>;
+      return model.findMany({
+        ...args,
+        where: buildFtsWhere(ids, term, (args as any).where),
+      }) as Awaited<ReturnType<TModel['findMany']>>;
     },
 
     async countFts({
@@ -139,9 +171,7 @@ export function withFts<
       }
 
       if (term.length < MIN_FTS_LENGTH) {
-        return model.count({
-          where: { ...where, [searchColumn]: { contains: term, mode: 'insensitive' } },
-        });
+        return model.count({ where: buildSubstringWhere(term, where) });
       }
 
       const uuid = tryParseUuid(term);
@@ -149,9 +179,9 @@ export function withFts<
         return model.count({ where: { ...where, id: uuid } });
       }
 
-      const idsByFreeText = await resolveFtsIdsCached(client, table, searchColumn, collectionCacheKey, term, userId);
-      if (idsByFreeText.length === 0) return 0;
-      return model.count({ where: { ...where, id: { in: idsByFreeText } } });
+      const ids = await resolveFtsIdsCached(client, table, searchColumn, collectionCacheKey, term, userId);
+      if (ids.length === 0 && extraSearchColumns.length === 0) return 0;
+      return model.count({ where: buildFtsWhere(ids, term, where) });
     },
   };
 }

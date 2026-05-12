@@ -95,9 +95,10 @@ export async function acceptInvite(req: NextRequest): Promise<NextResponse> {
           emailVerified: new Date(), // invite = pre-verified email
           permissions: invite.permissions,
         },
+        select: { id: true },
       }),
       // Delete instead of marking used — no point keeping it
-      prisma.invite.delete({ where: { token: data.token } }),
+      prisma.invite.delete({ where: { token: data.token }, select: { id: true } }),
     ]);
 
     invalidateCache(...CACHE_KEYS.invite.invalidate(), ...CACHE_KEYS.user.invalidate());

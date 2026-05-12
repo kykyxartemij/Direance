@@ -48,6 +48,10 @@ export const queryKeys = {
   admin: {
     dbStats: () => ['admin', 'dbStats'] as const,
   },
+  users: {
+    paged: (page: number, pageSize: number, freeText?: string) =>
+      ['users', 'list', 'paged', page, pageSize, freeText ?? ''] as const,
+  },
   // Currency data fetched from the open @fawazahmed0/currency-api CDN — never invalidated
   currency: {
     list: () => ['currency', 'list'] as const,

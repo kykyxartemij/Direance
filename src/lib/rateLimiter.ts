@@ -11,7 +11,20 @@ export const RATE_LIMITS = {
   ip_ops:         { max: 20,  windowMs: 60_000 },       // 20 min per IP
   global_ops:     { max: 200, windowMs: 60_000 },       // 200 min across all users
   login_attempts: { max: 5,   windowMs: 5 * 60_000 },  // 5 login attempts per 5 min per email
+  privileged_multiplier: 5,
 } as const;
+
+// ==== In-memory pre-filter ====
+// Impossible to hit under normal global rate limits — ensures a single Vercel instance
+// cannot be overwhelmed if something goes seriously wrong.
+
+let _mem = { count: 0, windowStart: Date.now() };
+
+function checkMemGlobal(): boolean {
+  const now = Date.now();
+  if (now - _mem.windowStart > 60_000) _mem = { count: 0, windowStart: now };
+  return ++_mem.count <= RATE_LIMITS.global_ops.max * RATE_LIMITS.privileged_multiplier;
+}
 
 // ==== Helpers ====
 
@@ -36,12 +49,22 @@ function windowSec(windowMs: number): number {
  */
 export async function checkUserRequestLimit(req: NextRequest, userId: string, permissions: string[]): Promise<void> {
 
+  if (!checkMemGlobal()) throw new ApiError('Server busy, please try again shortly', 429);
+
+  const ip = getIp(req);
+
   if (hasPermission({ permissions }, Permission.NO_DB_REQUEST_LIMITS)) {
+    const x5 = RATE_LIMITS.privileged_multiplier;
+    const [row] = await prisma.$queryRaw<[{ ip_ok: boolean; global_ok: boolean }]>`
+      SELECT
+        check_rate_limit(${`ip:${ip}`}::text, ${RATE_LIMITS.ip_ops.max * x5}::int,     ${windowSec(RATE_LIMITS.ip_ops.windowMs)}::int)     AS ip_ok,
+        check_rate_limit('global'::text,      ${RATE_LIMITS.global_ops.max * x5}::int, ${windowSec(RATE_LIMITS.global_ops.windowMs)}::int) AS global_ok
+    `;
+    if (!row.ip_ok)     throw new ApiError('Too many requests from this IP', 429);
+    if (!row.global_ok) throw new ApiError('Server busy, please try again shortly', 429);
     return;
   }
 
-  // All three checks in 1 roundtrip
-  const ip = getIp(req);
   const [row] = await prisma.$queryRaw<[{ ip_ok: boolean; user_ok: boolean; global_ok: boolean }]>`
     SELECT
       check_rate_limit(${`ip:${ip}`}::text,       ${RATE_LIMITS.ip_ops.max}::int,     ${windowSec(RATE_LIMITS.ip_ops.windowMs)}::int)     AS ip_ok,
@@ -59,6 +82,8 @@ export async function checkUserRequestLimit(req: NextRequest, userId: string, pe
  * Call at the top of public endpoints (acceptInvite, lookupInvite, etc.).
  */
 export async function checkPublicRequestLimit(req: NextRequest): Promise<void> {
+  if (!checkMemGlobal()) throw new ApiError('Server busy, please try again shortly', 429);
+
   const ip = getIp(req);
   const [row] = await prisma.$queryRaw<[{ ip_ok: boolean; global_ok: boolean }]>`
     SELECT

@@ -6,16 +6,13 @@
 
 export const CACHE_KEYS = {
   user: {
-    invalidate: (userId: string) => ['user', userId],
+    invalidate: () => ['user'],
     byId: (userId: string) => ['user', userId, 'byId'],
     byEmail: (email: string) => ['user', 'byEmail', email],
     dbConsumption: (userId: string) => ['user', userId, 'dbConsumption'],
+    paged: (userId: string, page: number, pageSize: number, freeText?: string) => ['user', userId, 'paged', String(page), String(pageSize), freeText ?? ''],
+    count: (userId: string, freeText?: string) => ['user', userId, 'count', freeText ?? ''],
   },
-  // report: {
-  //   invalidate: () => ['report'],
-  //   all: () => ['report', 'all'],
-  //   byId: (id: string) => ['report', 'byId', id],
-  // },
   mapping: {
     invalidate: (userId: string) => ['mapping', userId],
     invalidateAll: () => ['mapping'],

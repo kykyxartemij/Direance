@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery, useSuspenseQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSuspenseQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import fetchClient from '@/lib/fetchClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
@@ -38,7 +38,7 @@ export function useGetLightExportSettings() {
 }
 
 export function useGetPagedExportSettings(page: number, pageSize: number, freeText?: string) {
-  return useSuspenseQuery<PaginatedResponse<ExportSettingModel>, ApiError>({
+  return useQuery<PaginatedResponse<ExportSettingModel>, ApiError>({
     queryKey: queryKeys.exportSetting.paged(page, pageSize, freeText),
     queryFn: async () => {
       const { data } = await fetchClient.get<PaginatedResponse<ExportSettingModel>>(

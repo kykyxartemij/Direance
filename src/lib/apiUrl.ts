@@ -43,4 +43,8 @@ export const API = {
   admin: {
     dbStats: () => '/api/admin/db-stats' as const,
   },
+  users: {
+    paged: (page: number, pageSize: number, freeText?: string) =>
+      `/api/admin/users?page=${page}&pageSize=${pageSize}${freeText ? `&freeText=${encodeURIComponent(freeText)}` : ''}`,
+  },
 } as const;

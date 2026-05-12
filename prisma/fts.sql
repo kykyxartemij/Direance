@@ -50,6 +50,22 @@ CREATE TRIGGER field_mapping_fts_update
   BEFORE INSERT OR UPDATE OF name ON "FieldMapping"
   FOR EACH ROW EXECUTE FUNCTION update_name_search_vector();
 
+-- ==== User ====
+
+ALTER TABLE "User"
+  ADD COLUMN IF NOT EXISTS search_vector tsvector NOT NULL DEFAULT ''::tsvector;
+
+CREATE INDEX IF NOT EXISTS "User_search_vector_idx"
+  ON "User" USING GIN (search_vector);
+
+CREATE INDEX IF NOT EXISTS "User_name_trgm_idx"
+  ON "User" USING GIN (name gin_trgm_ops);
+
+DROP TRIGGER IF EXISTS user_fts_update ON "User";
+CREATE TRIGGER user_fts_update
+  BEFORE INSERT OR UPDATE OF name ON "User"
+  FOR EACH ROW EXECUTE FUNCTION update_name_search_vector();
+
 -- ==== Backfill existing rows ====
 
 UPDATE "ExportSetting"
@@ -57,5 +73,9 @@ UPDATE "ExportSetting"
   WHERE search_vector = ''::tsvector;
 
 UPDATE "FieldMapping"
+  SET search_vector = to_tsvector('english', COALESCE(name, ''))
+  WHERE search_vector = ''::tsvector;
+
+UPDATE "User"
   SET search_vector = to_tsvector('english', COALESCE(name, ''))
   WHERE search_vector = ''::tsvector;
