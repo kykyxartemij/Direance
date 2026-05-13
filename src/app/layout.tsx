@@ -4,6 +4,8 @@ import '@/components/ui/art.style.css';
 import Navbar from './Navbar';
 import ReportSidebar from './ReportSidebar';
 import QueryProvider from '@/providers/QueryProvider';
+import { AuthProvider } from '@/providers/AuthProvider';
+import AuthGate from '@/providers/AuthGate';
 import { ReportProvider } from '@/providers/ReportProvider';
 import { ArtSnackbarProvider } from '@/components/ui/ArtSnackbar';
 import { ArtDialogProvider } from '@/components/ui/ArtDialog';
@@ -18,17 +20,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body>
         <QueryProvider>
-          <ReportProvider>
-            <ArtSnackbarProvider>
-              <ArtDialogProvider>
-                <Navbar />
-                <div className="flex" style={{ minHeight: 'calc(100vh - 56px)' }}>
-                  <main className="flex-1 px-6 py-4">{children}</main>
-                  <ReportSidebar />
-                </div>
-              </ArtDialogProvider>
-            </ArtSnackbarProvider>
-          </ReportProvider>
+          <AuthProvider>
+            <AuthGate>
+              <ReportProvider>
+                <ArtSnackbarProvider>
+                  <ArtDialogProvider>
+                    <div className="flex flex-col" style={{ height: '100vh' }}>
+                      <Navbar />
+                      <div className="flex flex-1 overflow-hidden">
+                        <main className="flex-1 overflow-y-auto px-6 py-4">{children}</main>
+                        <ReportSidebar />
+                      </div>
+                    </div>
+                  </ArtDialogProvider>
+                </ArtSnackbarProvider>
+              </ReportProvider>
+            </AuthGate>
+          </AuthProvider>
         </QueryProvider>
       </body>
     </html>

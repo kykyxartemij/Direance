@@ -1,2 +1,10 @@
-import GlobalPageLoader from '@/components/GlobalPageLoader';
-export default GlobalPageLoader;
+import ArtSkeleton from '@/components/ui/ArtSkeleton';
+import StatsSection from '@/page/admin/StatsSection';
+
+export default function Loading() {
+  return (
+    <ArtSkeleton wrap>  
+      <StatsSection/>
+    </ArtSkeleton>
+  )
+}

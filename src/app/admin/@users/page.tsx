@@ -1,8 +1,6 @@
 'use client';
 
-import dynamic from 'next/dynamic';
-
-const UsersSection = dynamic(() => import('@/page/admin/UsersSection'), { ssr: false });
+import UsersSection from '@/page/admin/UsersSection';
 
 export default function Page() {
   return <UsersSection />;

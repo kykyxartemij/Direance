@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useForm, type Resolver } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
@@ -85,15 +85,15 @@ function MappingFormInner({ id, mapping }: { id?: string; mapping?: MappingModel
 
 // ==== Data loaders ====
 
-// Edit: ArtAsync shows MappingFormSkeleton while mapping fetch is in-flight
-export function MappingFormEdit({ id }: { id: string }) {
+export function MappingFormEdit() {
+  const params = useParams();
+  const id = params.id as string;
   const { data: mapping } = useGetMappingById(id);
   return (
     <MappingFormInner id={id} mapping={mapping} />
   );
 }
 
-// Create: no fetch needed — form renders immediately after GlobalPageLoader
 export function MappingFormCreate() {
   return <MappingFormInner />;
 }

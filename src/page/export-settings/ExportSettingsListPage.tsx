@@ -43,9 +43,12 @@ export default function ExportSettingsListPage() {
       key: 'valueCategories',
       label: 'Value Categories',
       sizing: { width: 200, renderLoading: true },
-      render: (row) => row.mappedValueNames.length > 0
-        ? row.mappedValueNames.slice(0, 4).join(', ') + (row.mappedValueNames.length > 4 ? `… +${row.mappedValueNames.length - 4}` : '')
-        : '—',
+      render: (row) => {
+        const names = row.mappedValueNames ?? [];
+        return names.length > 0
+          ? names.slice(0, 4).join(', ') + (names.length > 4 ? `… +${names.length - 4}` : '')
+          : '—';
+      },
     },
     {
       key: 'actions',
@@ -71,11 +74,6 @@ export default function ExportSettingsListPage() {
 
   return (
     <>
-      <div className="flex justify-end mb-6">
-        <Link href="/export-settings/new" prefetch>
-          <ArtButton color="primary">New config</ArtButton>
-        </Link>
-      </div>
       <ArtData<ExportSettingModel>
         columns={columns}
         data={pagedData?.data ?? []}

@@ -1,7 +1,7 @@
 'use client';
 
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useForm, type Resolver } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
@@ -20,6 +20,7 @@ import { ArtForm, ArtFormInput, ArtFormCheckbox } from '@/components/form';
 import ArtInput from '@/components/ui/ArtInput';
 import ArtButton from '@/components/ui/ArtButton';
 import ArtLabel from '@/components/ui/ArtLabel';
+import GlobalPageLoader from '@/components/GlobalPageLoader';
 
 // ==== Types ====
 
@@ -316,8 +317,8 @@ export default function ExportSettingsFormPage({ id }: ExportSettingsFormPagePro
 
   const { data: existing, isLoading } = useGetExportSettingById(id);
 
-  // Block render until data is ready — defaultValue only sets initial value on mount
-  if (isEdit && (isLoading || !existing)) return null;
+  // Gate render until data ready — defaultValues only fire on mount. Same loader as loading.tsx so transition is seamless.
+  if (isEdit && (isLoading || !existing)) return <GlobalPageLoader />;
 
   return (
     <ExportSettingForm
@@ -329,6 +330,14 @@ export default function ExportSettingsFormPage({ id }: ExportSettingsFormPagePro
       enqueueError={enqueueError}
     />
   );
+}
+
+// ==== Edit wrapper (reads id from route — keeps page.tsx sync/static for instant nav) ====
+
+export function ExportSettingsFormEdit() {
+  const params = useParams();
+  const id = params.id as string;
+  return <ExportSettingsFormPage id={id} />;
 }
 
 // ==== Inner form (renders only once data is ready, defaultValues are stable) ====

@@ -33,11 +33,12 @@ export default function AcceptInvitePage() {
   const router = useRouter();
   const token = searchParams.get('token') ?? '';
 
-  const [invite, setInvite] = useState<InviteState>({ status: 'loading' });
+  const [invite, setInvite] = useState<InviteState>(
+    token ? { status: 'loading' } : { status: 'invalid', message: 'Missing invite token.' },
+  );
 
   useEffect(() => {
-    if (!token) { setInvite({ status: 'invalid', message: 'Missing invite token.' }); return; }
-
+    if (!token) return;
     fetchClient
       .get<{ email: string }>(`/api/invites/lookup?token=${encodeURIComponent(token)}`)
       .then((res) => setInvite({ status: 'valid', email: res.data.email }))

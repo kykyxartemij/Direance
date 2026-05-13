@@ -1,6 +1,6 @@
 'use client';
 
-import { useSuspenseQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import fetchClient from '@/lib/fetchClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
@@ -18,7 +18,7 @@ export type DbStats = {
 // ==== Queries ====
 
 export function useGetDbStats() {
-  return useSuspenseQuery<DbStats, ApiError>({
+  return useQuery<DbStats, ApiError>({
     queryKey: queryKeys.admin.dbStats(),
     queryFn: async () => {
       const { data } = await fetchClient.get<DbStats>(API.admin.dbStats());

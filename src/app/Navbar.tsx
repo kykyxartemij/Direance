@@ -1,73 +1,99 @@
-import Link from 'next/link';
-import { auth } from '@/auth';
-import SignOutButton from './SignOutButton';
-import { hasPermission, Permission } from '@/lib/permissions';
+'use client';
 
-export default async function Navbar() {
-  const session = await auth();
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { signOut } from 'next-auth/react';
+import { useAuth } from '@/providers/AuthProvider';
+import { Permission, type PermissionCheck } from '@/lib/permissions';
+import ArtButton from '@/components/ui/ArtButton';
+
+// ==== Nav config ====
+// Single source of truth. Add a page here → it appears in the nav,
+// gets RSC prefetch via <Link>, and is permission-gated automatically.
+
+type NavItem = {
+  label: string;
+  href: string;
+  permission?: PermissionCheck;  // hidden if user lacks permission
+  prefetch?: boolean;            // default true — RSC prefetch on hover/viewport
+  authOnly?: boolean;            // default true — hide when signed out
+};
+
+const BRAND: NavItem = { label: 'Direance', href: '/', authOnly: false };
+
+const NAV_ITEMS: NavItem[] = [
+  { label: 'Upload',          href: '/upload' },
+  { label: 'Mappings',        href: '/mappings' },
+  { label: 'Export Settings', href: '/export-settings' },
+  { label: 'Admin',           href: '/admin', permission: Permission.CAN_ACCESS_DB_STATS },
+];
+
+// ==== Component ====
+
+export default function Navbar() {
+  const { user, hasPermission } = useAuth();
+  const pathname = usePathname();
+
+  const isVisible = (item: NavItem) => {
+    if (item.authOnly !== false && !user) return false;
+    if (item.permission && !hasPermission(item.permission)) return false;
+    return true;
+  };
+
+  const isActive = (href: string) =>
+    pathname === href || (href !== '/' && pathname.startsWith(href));
+
+  const visibleItems = NAV_ITEMS.filter(isVisible);
 
   return (
     <nav
-      style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
+      style={{
+        borderBottom: '1px solid var(--border)',
+        background: 'var(--surface)',
+        flex: '0 0 auto',
+      }}
       className="px-6 py-3"
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between">
         <div className="flex items-center gap-6">
           <Link
-            href="/"
-            prefetch
-            style={{ color: 'var(--text)' }}
+            href={BRAND.href}
+            prefetch={BRAND.prefetch !== false}
             className="text-base font-semibold"
+            style={{ color: 'var(--text)' }}
           >
-            Direance
+            {BRAND.label}
           </Link>
 
-          {session?.user && (
+          {user && (
             <div className="flex items-center gap-4">
-              <Link
-                href="/upload"
-                prefetch
-                className="text-sm"
-                style={{ color: 'var(--text-muted)' }}
-              >
-                Upload
-              </Link>
-              <Link
-                href="/mappings"
-                prefetch
-                className="text-sm"
-                style={{ color: 'var(--text-muted)' }}
-              >
-                Mappings
-              </Link>
-              <Link
-                href="/export-settings"
-                prefetch
-                className="text-sm"
-                style={{ color: 'var(--text-muted)' }}
-              >
-                Export Settings
-              </Link>
-              {hasPermission(session.user, Permission.CAN_ACCESS_DB_STATS) && (
+              {visibleItems.map((item) => (
                 <Link
-                  href="/admin"
-                  prefetch
+                  key={item.href}
+                  href={item.href}
+                  prefetch={item.prefetch !== false}
                   className="text-sm"
-                  style={{ color: 'var(--text-muted)' }}
+                  style={{ color: isActive(item.href) ? 'var(--text)' : 'var(--text-muted)' }}
                 >
-                  Admin
+                  {item.label}
                 </Link>
-              )}
+              ))}
             </div>
           )}
         </div>
 
-        {session?.user && (
+        {user && (
           <div className="flex items-center gap-4">
             <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
-              {session.user.email}
+              {user.email}
             </span>
-            <SignOutButton />
+            <ArtButton
+              variant="ghost"
+              size="sm"
+              onClick={() => signOut({ callbackUrl: '/auth/sign-in' })}
+            >
+              Sign out
+            </ArtButton>
           </div>
         )}
       </div>

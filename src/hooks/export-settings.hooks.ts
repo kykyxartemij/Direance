@@ -28,7 +28,7 @@ function fileToBase64(file: File): Promise<string> {
 // ==== Queries ====
 
 export function useGetLightExportSettings() {
-  return useSuspenseQuery<ExportSettingLightModel[], ApiError>({
+  return useQuery<ExportSettingLightModel[], ApiError>({
     queryKey: queryKeys.exportSetting.light(),
     queryFn: async () => {
       const { data } = await fetchClient.get<ExportSettingLightModel[]>(API.exportSetting.light());

@@ -24,7 +24,7 @@ export function useGetPagedMappings(page: number, pageSize: number, freeText?: s
 }
 
 export function useGetLightMappings() {
-  return useSuspenseQuery<MappingLightModel[], ApiError>({
+  return useQuery<MappingLightModel[], ApiError>({
     queryKey: queryKeys.mapping.light(),
     queryFn: async () => {
       const { data } = await fetchClient.get<MappingLightModel[]>(API.mapping.light());
