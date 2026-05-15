@@ -18,6 +18,7 @@ const requireParseId           = require('./rules/require-parse-id');
 const requireQueryKeysConstant = require('./rules/require-query-keys-constant');
 const requireNormalizeText     = require('./rules/require-normalize-text');
 const requireAbortEarlyFalse   = require('./rules/require-abort-early-false');
+const requireFtsCacheKeyMatch  = require('./rules/require-fts-cache-key-match');
 const useFetchClient           = require('./rules/use-fetch-client');
 const noRouterPushNavigation   = require('./rules/no-router-push-navigation');
 
@@ -30,6 +31,7 @@ module.exports = {
     'require-parse-id':            requireParseId,
     'require-normalize-text':      requireNormalizeText,
     'require-abort-early-false':   requireAbortEarlyFalse,
+    'require-fts-cache-key-match': requireFtsCacheKeyMatch,
 
     // ==== Shared ====
     'use-fetch-client':            useFetchClient,

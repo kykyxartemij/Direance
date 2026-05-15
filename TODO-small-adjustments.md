@@ -14,21 +14,6 @@ no onSettled functionality. OnError we do not invalidateQuery for less BE calls.
 
 ---
 
-## ArtDataTable — `isFetching` prop
-
-TanStack distinguishes `isPending` (first load, no data) from `isFetching` (background refetch, stale data shown). Table currently only has `loading`. Add `isFetching?: boolean` — when true and data is present, show a subtle top-of-table progress bar or reduce row opacity instead of re-rendering the full skeleton.
-
-```tsx
-// Proposed API
-<ArtDataTable
-  data={data}
-  loading={isPending}      // full skeleton — no data yet
-  isFetching={isFetching}  // subtle indicator — data shown, refetch in flight
-/>
-```
-
----
-
 ## ESLint — type-checked rules (future)
 
 `@typescript-eslint/no-floating-promises` and `@typescript-eslint/no-misused-promises` require TypeScript type information at lint time. Not added yet because they need `parserOptions.project` wired in the ESLint config, which slows linting noticeably. Worth enabling once the team decides the tradeoff is acceptable.

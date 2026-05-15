@@ -48,11 +48,15 @@ export const queryKeys = {
   admin: {
     dbStats: () => ['admin', 'dbStats'] as const,
   },
+  invite: {
+    lookup: (token: string) => ['invite', 'single', 'lookup', token] as const,
+  },
   users: {
     paged: (page: number, pageSize: number, freeText?: string) =>
       ['users', 'list', 'paged', page, pageSize, freeText ?? ''] as const,
   },
-  // Currency data fetched from the open @fawazahmed0/currency-api CDN — never invalidated
+  // Currency data fetched from the open @fawazahmed0/currency-api CDN.
+  // BE cache: 6h TTL. FE cache: 1h staleTime — refreshes from BE cache, cheap.
   currency: {
     list: () => ['currency', 'list'] as const,
     rate: (from: string, to: string) => ['currency', 'rate', from, to] as const,

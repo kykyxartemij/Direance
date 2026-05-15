@@ -1,5 +1,6 @@
 'use client';
 
+// TODO: Mapping page should start reusing mappingStep.tsx, so ui is the same.
 import { useRouter, useParams } from 'next/navigation';
 import { useForm, type Resolver } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';

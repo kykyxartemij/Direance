@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { cached, invalidateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { handleApiError } from '@/lib/errorHandler';
+import { API } from '@/lib/apiUrl';
 import { requireAuth } from '@/auth';
 import { ApiError } from '@/models/api-error';
 import { checkUserRequestLimit } from '@/lib/rateLimiter';
@@ -59,7 +60,7 @@ export async function getLightExportSettings(req: NextRequest): Promise<NextResp
 
     return NextResponse.json(light);
   } catch (error) {
-    return handleApiError(error, 'GET /api/export-settings/light');
+    return handleApiError(error, 'GET', API.exportSetting.light());
   }
 }
 
@@ -95,7 +96,7 @@ export async function getPagedExportSettings(req: NextRequest): Promise<NextResp
 
     return NextResponse.json(createPaginatedResponse(data, page, pageSize, total));
   } catch (error) {
-    return handleApiError(error, 'GET /api/export-settings/paged');
+    return handleApiError(error, 'GET', API.exportSetting.paged(0, 0));
   }
 }
 
@@ -120,7 +121,7 @@ export async function getExportSettingById(
 
     return NextResponse.json(settings);
   } catch (error) {
-    return handleApiError(error, 'GET /api/export-settings/:id');
+    return handleApiError(error, 'GET', API.exportSetting.byId(':id'));
   }
 }
 
@@ -150,7 +151,7 @@ export async function createExportSetting(req: NextRequest): Promise<NextRespons
 
     return NextResponse.json(settings, { status: 201 });
   } catch (error) {
-    return handleApiError(error, 'POST /api/export-settings');
+    return handleApiError(error, 'POST', API.exportSetting.list());
   }
 }
 
@@ -185,7 +186,7 @@ export async function updateExportSetting(
 
     return NextResponse.json(meta);
   } catch (error) {
-    return handleApiError(error, 'PATCH /api/export-settings/:id');
+    return handleApiError(error, 'PATCH', API.exportSetting.byId(':id'));
   }
 }
 
@@ -207,6 +208,6 @@ export async function deleteExportSetting(
     invalidateCache(...CACHE_KEYS.exportSetting.invalidate(userId));
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    return handleApiError(error, 'DELETE /api/export-settings/:id');
+    return handleApiError(error, 'DELETE', API.exportSetting.byId(':id'));
   }
 }

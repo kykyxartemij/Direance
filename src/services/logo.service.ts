@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { cached, invalidateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { handleApiError } from '@/lib/errorHandler';
+import { API } from '@/lib/apiUrl';
 import { requireAuth } from '@/auth';
 import { ApiError } from '@/models/api-error';
 import { checkUserRequestLimit } from '@/lib/rateLimiter';
@@ -99,7 +100,7 @@ export async function getLightLogos(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json(logos);
   } catch (error) {
-    return handleApiError(error, 'GET /api/logos');
+    return handleApiError(error, 'GET', API.logo.list());
   }
 }
 
@@ -126,7 +127,7 @@ export async function getLogoById(
       logoName: logo.name,
     });
   } catch (error) {
-    return handleApiError(error, 'GET /api/logos/:id');
+    return handleApiError(error, 'GET', API.logo.byId(':id'));
   }
 }
 
@@ -158,7 +159,7 @@ export async function getLogoByExportSettingId(
       logoName: row.logo.name,
     });
   } catch (error) {
-    return handleApiError(error, 'GET /api/export-settings/:id/logo');
+    return handleApiError(error, 'GET', API.logo.byExportSettingId(':id'));
   }
 }
 
@@ -188,7 +189,7 @@ export async function createLogo(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json(logo, { status: 201 });
   } catch (error) {
-    return handleApiError(error, 'POST /api/logos');
+    return handleApiError(error, 'POST', API.logo.list());
   }
 }
 
@@ -208,6 +209,6 @@ export async function deleteLogo(
     invalidateCache(...CACHE_KEYS.logo.invalidate(userId));
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    return handleApiError(error, 'DELETE /api/logos/:id');
+    return handleApiError(error, 'DELETE', API.logo.byId(':id'));
   }
 }

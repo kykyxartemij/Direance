@@ -25,7 +25,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Upload',          href: '/upload' },
   { label: 'Mappings',        href: '/mappings' },
   { label: 'Export Settings', href: '/export-settings' },
-  { label: 'Admin',           href: '/admin', permission: Permission.CAN_ACCESS_DB_STATS },
+  { label: 'Invite',          href: '/invite', permission: Permission.CAN_INVITE_USERS },
+  { label: 'Admin',           href: '/admin',  permission: Permission.CAN_ACCESS_DB_STATS },
 ];
 
 // ==== Component ====

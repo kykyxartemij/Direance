@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { cached, invalidateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { handleApiError } from '@/lib/errorHandler';
+import { API } from '@/lib/apiUrl';
 import { requireAuth } from '@/auth';
 import { ApiError } from '@/models/api-error';
 import { checkUserDbLimits } from '@/lib/userLimits';
@@ -59,7 +60,7 @@ export async function getLightMappings(req: NextRequest): Promise<NextResponse> 
 
     return NextResponse.json(mappings);
   } catch (error) {
-    return handleApiError(error, 'GET /api/mapping/light');
+    return handleApiError(error, 'GET', API.mapping.light());
   }
 }
 
@@ -95,7 +96,7 @@ export async function getPagedMappings(req: NextRequest): Promise<NextResponse> 
 
     return NextResponse.json(createPaginatedResponse(data, page, pageSize, total));
   } catch (error) {
-    return handleApiError(error, 'GET /api/mapping/paged');
+    return handleApiError(error, 'GET', API.mapping.paged(0, 0));
   }
 }
 
@@ -120,7 +121,7 @@ export async function getMappingById(
 
     return NextResponse.json(mapping);
   } catch (error) {
-    return handleApiError(error, 'GET /api/mapping/:id');
+    return handleApiError(error, 'GET', API.mapping.byId(':id'));
   }
 }
 
@@ -146,7 +147,7 @@ export async function createMapping(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json(mapping, { status: 201 });
   } catch (error) {
-    return handleApiError(error, 'POST /api/mapping');
+    return handleApiError(error, 'POST', API.mapping.list());
   }
 }
 
@@ -178,7 +179,7 @@ export async function updateMapping(
 
     return NextResponse.json(mapping);
   } catch (error) {
-    return handleApiError(error, 'PATCH /api/mapping/:id');
+    return handleApiError(error, 'PATCH', API.mapping.byId(':id'));
   }
 }
 
@@ -199,6 +200,6 @@ export async function deleteMapping(
     invalidateCache(...CACHE_KEYS.mapping.invalidate(userId));
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    return handleApiError(error, 'DELETE /api/mapping/:id');
+    return handleApiError(error, 'DELETE', API.mapping.byId(':id'));
   }
 }

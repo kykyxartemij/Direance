@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { requireAuth } from '@/auth';
 import { handleApiError } from '@/lib/errorHandler';
+import { API } from '@/lib/apiUrl';
 import { ExcelUploadValidator, type ParsedReportModel } from '@/models/report.models';
 
 // ==== Private helpers ====
@@ -38,6 +39,6 @@ export async function uploadReport(req: NextRequest): Promise<NextResponse> {
     const report = await parseExcelFile(file!);
     return NextResponse.json(report);
   } catch (error) {
-    return handleApiError(error, 'POST /api/report/upload');
+    return handleApiError(error, 'POST', API.report.upload());
   }
 }

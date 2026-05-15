@@ -87,6 +87,7 @@ Themes are set via a class on `<html>`:
 
 ## ==== Page Metadata Rule ====
 
+// TODO: This is wrong. Should be updated based on InstantNavigationAndLoadingState.md
 Every `page.tsx` must export a title. The root layout defines `title.template: '%s | MePipe'` — pages only set the short name, Next.js appends the suffix automatically.
 
 Static page:

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { cached, invalidateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { handleApiError } from '@/lib/errorHandler';
+import { API } from '@/lib/apiUrl';
 import { requireAuth } from '@/auth';
 import { UpdateUserValidator } from '@/models/user.models';
 import { checkUserRequestLimit } from '@/lib/rateLimiter';
@@ -46,7 +47,7 @@ export async function getMe(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json(maskUser(user));
   } catch (error) {
-    return handleApiError(error, 'GET /api/user/me');
+    return handleApiError(error, 'GET', API.user.me());
   }
 }
 
@@ -70,7 +71,7 @@ export async function patchMe(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json(maskUser(user));
   } catch (error) {
-    return handleApiError(error, 'PATCH /api/user/me');
+    return handleApiError(error, 'PATCH', API.user.update());
   }
 }
 
@@ -86,7 +87,7 @@ export async function getDbConsumption(req: NextRequest): Promise<NextResponse> 
 
     return NextResponse.json(data);
   } catch (error) {
-    return handleApiError(error, 'GET /api/user/me/consumption');
+    return handleApiError(error, 'GET', API.user.dbConsumption());
   }
 }
 
@@ -100,7 +101,7 @@ export async function deleteMe(req: NextRequest): Promise<NextResponse> {
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    return handleApiError(error, 'DELETE /api/user/me');
+    return handleApiError(error, 'DELETE', API.user.delete());
   }
 }
 
@@ -133,6 +134,6 @@ export async function getPagedUsers(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json(createPaginatedResponse(data.map(maskUser), page, pageSize, total));
   } catch (error) {
-    return handleApiError(error, 'GET /api/admin/users');
+    return handleApiError(error, 'GET', API.users.paged(0, 0));
   }
 }

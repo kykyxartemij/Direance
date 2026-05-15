@@ -26,11 +26,6 @@ export default function UploadPage() {
 
   return (
     <>
-      <p className="mb-8 text-sm" style={{ color: 'var(--text-muted)' }}>
-        Upload an Excel file exported from Merit.ee or any other source. The file is parsed
-        locally — it never leaves your browser.
-      </p>
-
       <ArtUpload
         ref={fileInputRef}
         label="Report file"

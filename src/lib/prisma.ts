@@ -6,6 +6,8 @@ function makePrisma() {
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
   const base = new PrismaClient({ adapter });
 
+  // collectionCacheKey (4th arg) must match a CACHE_KEYS.<key>.invalidate()[0] entry.
+  // Enforced by the local/require-fts-cache-key-match ESLint rule.
   return base.$extends({
     model: {
       exportSetting: withFts(base, base.exportSetting, '"ExportSetting"', 'exportSetting', 'name'),

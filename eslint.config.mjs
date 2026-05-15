@@ -54,6 +54,10 @@ const eslintConfig = [
       // Warn when .validate() is called without { abortEarly: false }.
       // Default abortEarly: true stops at the first error — users see only one problem at a time.
       'local/require-abort-early-false': 'warn',
+
+      // Warn when withFts(collectionCacheKey) doesn't match CACHE_KEYS.<key>.invalidate()[0].
+      // Drift = mutations stop invalidating the FTS server cache.
+      'local/require-fts-cache-key-match': 'warn',
     },
   },
 

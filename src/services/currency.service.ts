@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { cached } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { handleApiError } from '@/lib/errorHandler';
+import { API } from '@/lib/apiUrl';
 
 // ==== Constants ====
 
@@ -37,7 +38,7 @@ export async function getCurrencyList(): Promise<NextResponse> {
     const data = await cached(fetchCurrencyList, CACHE_KEYS.currency.list(), CUSTOM_TTL);
     return NextResponse.json(data);
   } catch (error) {
-    return handleApiError(error, 'GET /api/currencies');
+    return handleApiError(error, 'GET', API.currency.list());
   }
 }
 
@@ -51,6 +52,6 @@ export async function getCurrencyRate(from: string): Promise<NextResponse> {
     );
     return NextResponse.json(data);
   } catch (error) {
-    return handleApiError(error, `GET /api/currencies/rate/${from}`);
+    return handleApiError(error, 'GET', API.currency.rate(from));
   }
 }

@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { cached } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { handleApiError } from '@/lib/errorHandler';
+import { API } from '@/lib/apiUrl';
 import { requireAuth } from '@/auth';
 import { Permission } from '@/lib/permissions';
 import { ApiError } from '@/models/api-error';
@@ -89,6 +90,6 @@ export async function getDbStats(): Promise<NextResponse> {
       periodEnd: project.quota_reset_at,
     });
   } catch (error) {
-    return handleApiError(error, 'GET /api/admin/db-stats');
+    return handleApiError(error, 'GET', API.admin.dbStats());
   }
 }

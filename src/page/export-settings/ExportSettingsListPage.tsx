@@ -73,20 +73,18 @@ export default function ExportSettingsListPage() {
   ];
 
   return (
-    <>
-      <ArtData<ExportSettingModel>
-        columns={columns}
-        data={pagedData?.data ?? []}
-        rowKey={(row) => row.id}
-        emptyMessage="No export configs yet."
-        pageSize={PAGE_SIZE}
-        total={pagedData?.total ?? 0}
-        page={page}
-        onPageChange={setPage}
-        searchPlaceholder="Search configs…"
-        onSearch={handleSearch}
-        loading={isLoading}
-      />
-    </>
+    <ArtData<ExportSettingModel>
+      columns={columns}
+      data={pagedData?.data ?? []}
+      rowKey={(row) => row.id}
+      emptyMessage="No export configs yet."
+      pageSize={PAGE_SIZE}
+      total={pagedData?.total ?? 0}
+      page={page}
+      onPageChange={setPage}
+      searchPlaceholder="Search configs…"
+      onSearch={handleSearch}
+      loading={isLoading}
+    />
   );
 }

@@ -5,15 +5,7 @@ import fetchClient from '@/lib/fetchClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
 import type { ApiError } from '@/models/api-error';
-
-// ==== Types ====
-
-export type DbStats = {
-  storage: { usedBytes: number; limitBytes: number };
-  transfer: { usedBytes: number; limitBytes: number };
-  compute: { usedCuHours: number; limitCuHours: number };
-  periodEnd: string;
-};
+import type { DbStats } from '@/models/admin.models';
 
 // ==== Queries ====
 

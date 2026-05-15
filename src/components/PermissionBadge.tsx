@@ -7,7 +7,7 @@ import type { ArtIconName } from '@/components/ui/ArtIcon';
 
 // ==== Meta ====
 
-const PERMISSION_META: Record<Permission, { label: string; color?: ArtColor; icon: ArtIconName }> = {
+export const PERMISSION_META: Record<Permission, { label: string; color?: ArtColor; icon: ArtIconName }> = {
   [Permission.IS_ADMIN]:                    { label: 'Admin',              color: 'danger',  icon: 'Lock'     },
   [Permission.CAN_INVITE_USERS]:            { label: 'Invite Users',       color: 'success', icon: 'UserPlus' },
   [Permission.CAN_MODIFY_GLOBAL]:           { label: 'Modify Global',      color: 'primary', icon: 'Globe'    },

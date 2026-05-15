@@ -9,7 +9,7 @@ import type { DbConsumption } from '@/lib/userLimits';
 import type { ApiError } from '@/models/api-error';
 import type { PaginatedResponse } from '@/models/paginated-response.model';
 
-export type { DbConsumption };
+export type { DbConsumption }; // Should be model folder to model. FE don't call BE models directly. new file db-consumption.model.ts should be created
 
 export function useCurrentUser() {
   return useQuery<UserModel, ApiError>({

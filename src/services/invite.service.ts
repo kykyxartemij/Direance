@@ -8,10 +8,11 @@ import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { requireAuth } from '@/auth';
 import { ApiError } from '@/models/api-error';
 import { handleApiError } from '@/lib/errorHandler';
-import { sendInviteEmail } from '@/lib/email';
+import { API } from '@/lib/apiUrl';
+import { sendInviteEmail, sendInviteExtendedEmail } from '@/lib/email';
 import { Permission } from '@/lib/permissions';
 import { checkUserRequestLimit, checkPublicRequestLimit } from '@/lib/rateLimiter';
-import { SendInviteValidator, AcceptInviteValidator } from '@/models/invite.models';
+import { buildSendInviteValidator, AcceptInviteValidator } from '@/models/invite.models';
 
 // ==== Select ====
 
@@ -29,11 +30,11 @@ const INVITE_SELECT = {
 /** POST /api/invites — send an invite email to a new user */
 export async function sendInvite(req: NextRequest): Promise<NextResponse> {
   try {
-    const { userId: inviterId, permissions } = await requireAuth(Permission.CAN_INVITE_USERS);
-    await checkUserRequestLimit(req, inviterId, permissions);
+    const { userId: inviterId, permissions: inviterPerms } = await requireAuth(Permission.CAN_INVITE_USERS);
+    await checkUserRequestLimit(req, inviterId, inviterPerms);
 
     const body = await req.json();
-    const data = await SendInviteValidator.validate(body, { abortEarly: false });
+    const data = await buildSendInviteValidator(inviterPerms).validate(body, { abortEarly: false });
 
     // Block if email already has an active account
     const existing = await cached(
@@ -42,10 +43,16 @@ export async function sendInvite(req: NextRequest): Promise<NextResponse> {
     );
     if (existing) throw new ApiError('A user with this email already exists', 409);
 
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72h
+    // eslint-disable-next-line local/no-uncached-prisma
+    const previous = await prisma.invite.findUnique({
+      where: { email: data.email },
+      select: { createdAt: true },
+    });
 
-    // TODO: Seems overkill. 
+    const token = crypto.randomBytes(32).toString('hex');
+    const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
+    const expiresAt = new Date(Date.now() + TWO_WEEKS_MS);
+
     await prisma.invite.upsert({
       where: { email: data.email },
       create: { email: data.email, token, invitedBy: inviterId, permissions: data.permissions as string[], expiresAt },
@@ -53,11 +60,23 @@ export async function sendInvite(req: NextRequest): Promise<NextResponse> {
     });
 
     invalidateCache(...CACHE_KEYS.invite.invalidate());
-    await sendInviteEmail(data.email, token);
+
+    // Email throttle — one email per 3 days per recipient.
+    // First invite OR previous invite older than 72h: send full invite email (or "extended" if reinvite).
+    const THREE_DAYS_MS = 72 * 60 * 60 * 1000;
+    const isReinvite = !!previous;
+    const previousAge = previous ? Date.now() - previous.createdAt.getTime() : Infinity;
+
+    if (!isReinvite) {
+      await sendInviteEmail(data.email, token);
+    } else if (previousAge >= THREE_DAYS_MS) {
+      await sendInviteExtendedEmail(data.email, token);
+    }
+    // else: silent extension — token/expiry updated, but no email (anti-spam)
 
     return NextResponse.json({ message: 'Invite sent' }, { status: 201 });
   } catch (error) {
-    return handleApiError(error, 'POST /api/invites');
+    return handleApiError(error, 'POST', API.invite.send());
   }
 }
 
@@ -72,8 +91,11 @@ export async function acceptInvite(req: NextRequest): Promise<NextResponse> {
     const invite = await prisma.invite.findUnique({ where: { token: data.token } });
 
     if (!invite) throw new ApiError('Invalid or already used invite link', 400);
+
     if (invite.expiresAt < new Date()) {
-      // Lazy cleanup — expired invite, delete it and inform the user
+      // Lazy cleanup — expired invite, delete and inform the user.
+      // Catch swallows the rare race where another request deletes it first;
+      // the error response is the same either way.
       await prisma.invite.delete({ where: { token: data.token } }).catch(() => undefined);
       invalidateCache(...CACHE_KEYS.invite.invalidate());
       throw new ApiError('This invite link has expired', 400);
@@ -105,7 +127,7 @@ export async function acceptInvite(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json({ email: invite.email }, { status: 201 });
   } catch (error) {
-    return handleApiError(error, 'POST /api/invites/accept');
+    return handleApiError(error, 'POST', API.invite.accept());
   }
 }
 
@@ -127,6 +149,6 @@ export async function lookupInvite(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json({ email: invite.email });
   } catch (error) {
-    return handleApiError(error, 'GET /api/invites/lookup');
+    return handleApiError(error, 'GET', API.invite.lookup(':token'));
   }
 }

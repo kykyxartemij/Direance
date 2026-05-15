@@ -412,6 +412,8 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
+    // TODO: Renovate placement, more proper description. Smt like "---" between sections
+    // TODO: Figurate how to set colors for Value categories and make it work good with MappingStep.tsx, idea, if you select based on ExportSettings, colors got changed and disabled. Concern about storage spacing.
     <ArtForm
         methods={methods}
         onSubmit={onSave}

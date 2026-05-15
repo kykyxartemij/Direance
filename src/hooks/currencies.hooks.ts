@@ -6,7 +6,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import fetchClient from "@/lib/fetchClient";
 import { API } from '@/lib/apiUrl';
 
-const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const ONE_HOUR_MS = 60 * 60 * 1000;
 
 // ==== Currency options ====
 
@@ -22,8 +22,8 @@ export function useCurrencyOptions(): ArtComboBoxOption[] {
         }))
         .sort((a, b) => a.value.localeCompare(b.value));
     },
-    staleTime: ONE_DAY_MS,
-    gcTime: ONE_DAY_MS,
+    staleTime: ONE_HOUR_MS,
+    gcTime: ONE_HOUR_MS,
   });
 
   return data;
@@ -54,8 +54,8 @@ export function useCurrencyRate(
       return json[fromKey]?.[toKey] ?? null;
     },
     enabled,
-    staleTime: ONE_DAY_MS,
-    gcTime: ONE_DAY_MS,
+    staleTime: ONE_HOUR_MS,
+    gcTime: ONE_HOUR_MS,
   });
 
   return { rate: enabled ? (data ?? null) : null, isLoading: enabled && isLoading };

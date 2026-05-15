@@ -2,23 +2,38 @@ import { NextResponse } from 'next/server';
 import { Prisma } from '../../generated/prisma/client';
 import { ApiError } from '@/models/api-error';
 
-export function handleApiError(error: any, context: string) {
-  console.error(`${context} error:`, error);
+// ==== Types ====
+
+export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+
+// ==== Handler ====
+
+/**
+ * Centralized error → NextResponse mapper. The (method, url) pair is the request
+ * context used for logging. Always pass the API helper output as `url` so the
+ * logged context updates automatically when the URL definition changes.
+ *
+ * Example:
+ *   handleApiError(error, 'POST', API.invite.send())
+ *   handleApiError(error, 'PATCH', API.mapping.byId(id))
+ */
+export function handleApiError(error: unknown, method: HttpMethod, url: string) {
+  console.error(`${method} ${url} error:`, error);
 
   if (error instanceof ApiError) {
-    const payload: any = { error: error.message };
+    const payload: Record<string, unknown> = { error: error.message };
     if (error.code) payload.code = error.code;
     if (error.details) payload.details = error.details;
     return NextResponse.json(payload, { status: error.status });
   }
 
-  if (error && typeof error === 'object' && (error as any).name === 'ValidationError') {
-    const yupErr = error as any;
+  if (error && typeof error === 'object' && (error as { name?: string }).name === 'ValidationError') {
+    const yupErr = error as { message?: string; inner?: { path?: string; message?: string }[]; errors?: string[] };
     const message = yupErr.message ?? 'Validation failed';
-    let details: any = undefined;
+    let details: Record<string, unknown> | undefined;
     if (Array.isArray(yupErr.inner) && yupErr.inner.length) {
       const fieldErrors: Record<string, string[]> = {};
-      yupErr.inner.forEach((e: any) => {
+      yupErr.inner.forEach((e) => {
         const path = e.path || '_global';
         fieldErrors[path] = fieldErrors[path] || [];
         if (e.message) fieldErrors[path].push(e.message);
@@ -27,7 +42,7 @@ export function handleApiError(error: any, context: string) {
     } else if (Array.isArray(yupErr.errors) && yupErr.errors.length) {
       details = { errors: yupErr.errors };
     }
-    const payload: any = { error: message };
+    const payload: Record<string, unknown> = { error: message };
     if (details) payload.details = details;
     return NextResponse.json(payload, { status: 400 });
   }

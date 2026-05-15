@@ -25,10 +25,8 @@ import ArtTabs, { type ArtTab } from '@/components/ui/ArtTabs';
 import ArtIconCycle, { type ArtIconCycleOption } from '@/components/ui/ArtIconCycle';
 import ArtPopover from '@/components/ui/ArtPopover';
 import ArtMenu, { type ArtMenuItemDef } from '@/components/ui/ArtMenu';
-// import ArtAvatar from '@/components/ui/ArtAvatar';
 import ArtEmptyState from '@/components/ui/ArtEmptyState';
 import ArtCopyButton from '@/components/ui/ArtCopyButton';
-import ArtCopyText from '@/components/ui/ArtCopyText';
 import ArtCheckbox from '@/components/ui/ArtCheckbox';
 import ArtRadio, { type ArtRadioOption } from '@/components/ui/ArtRadio';
 import ArtCollapse from '@/components/ui/ArtCollapse';
@@ -105,7 +103,6 @@ const GROUP_SECTIONS: Record<GroupId, { id: string; label: string }[]> = {
   foundation: [
     { id: 'artbutton',  label: 'ArtButton'  },
     { id: 'arttabs',    label: 'ArtTabs'    },
-    { id: 'artavatar',  label: 'ArtAvatar'  },
   ],
   form: [
     { id: 'artlabel',    label: 'ArtLabel'    },
@@ -1724,14 +1721,6 @@ function IconsGroup() {
         </Row>
         <Code code={`<ArtCopyButton text={apiKey} size="sm" />`} />
       </Section>
-      <Section id="artcopytext" title="ArtCopyText"
-        tip="Inline text with a copy icon. Use mono for IDs and hashes. Truncate long values with the label prop.">
-        <Row>
-          <ArtCopyText text="550e8400-e29b-41d4-a716-446655440000" mono label="550e8400…" />
-          <ArtCopyText text="https://mepipe.example.com/watch?v=abc123" />
-        </Row>
-        <Code code={`<ArtCopyText text={userId} mono label={userId.slice(0, 8) + '…'} />`} />
-      </Section>
     </>
   );
 }
@@ -1774,36 +1763,6 @@ const items: ArtMenuItemDef[] = [
     </Section>
   );
 }
-
-// ==== AvatarSection ====
-
-// function AvatarSection() {
-//   return (
-//     <Section id="artavatar" title="ArtAvatar"
-//       tip="Circular avatar — image with initials fallback. Framework-agnostic (plain <img>); wrap with next/image at the call site if you need delivery optimisation.">
-//       <Row label="Image">
-//         <ArtAvatar src="https://picsum.photos/seed/mepipe1/64/64" name="Jane Doe" size="sm" />
-//         <ArtAvatar src="https://picsum.photos/seed/mepipe1/64/64" name="Jane Doe" />
-//         <ArtAvatar src="https://picsum.photos/seed/mepipe1/64/64" name="Jane Doe" size="lg" />
-//         <ArtAvatar src="https://picsum.photos/seed/mepipe1/64/64" name="Jane Doe" size="xl" />
-//       </Row>
-//       <Row label="Initials fallback">
-//         <ArtAvatar name="Jane Doe" size="sm" />
-//         <ArtAvatar name="Jane Doe" />
-//         <ArtAvatar name="Jane Doe" size="lg" />
-//         <ArtAvatar name="Jane Doe" size="xl" />
-//       </Row>
-//       <Row label="Colors">
-//         {PALETTE.map((c) => <ArtAvatar key={c} name="JD" color={c} />)}
-//       </Row>
-//       <Code code={`
-// <ArtAvatar src={user.avatarUrl} name={user.name} />   // image + initials fallback
-// <ArtAvatar name="Jane Doe" color="primary" />          // initials only
-// <ArtAvatar name="Jane Doe" size="xl" />                // xl / lg / md / sm
-//       `} />
-//     </Section>
-//   );
-// }
 
 // ==== EmptyStateSection ====
 
