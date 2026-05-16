@@ -10,11 +10,17 @@ import ArtComboBox from '@/components/ui/ArtComboBox';
 import ArtCheckbox from '@/components/ui/ArtCheckbox';
 import ArtCollapse from '@/components/ui/ArtCollapse';
 import ArtDataTable, { ArtDataTr, ArtDataTd, type ArtColumn } from '@/components/ui/ArtDataTable';
+import ArtInput from '@/components/ui/ArtInput';
+import ArtIconButton from '@/components/ui/ArtIconButton';
+import ArtButton from '@/components/ui/ArtButton';
 import ColorSelect from './ColorSelect';
 
 // ==== Types ====
 
-export type RowMappingRow = RowMapping & { _index: number };
+export type RowMappingRow = RowMapping & {
+  _index: number;
+  _unused?: boolean;
+};
 
 export interface RowMappingsSectionRef {
   getRowMappings(): RowMappingRow[];
@@ -28,6 +34,11 @@ interface RowMappingsSectionProps {
   initialExportSettingId?: string | null;
   collapseOpen?: boolean;
   onCollapseChange?: (open: boolean) => void;
+  /**
+   * Form mode: sourceName is an input, section owns add/remove, "+ Add row" button shown.
+   * Excel mode (default false): sourceName is read-only text, rows mirror the prop.
+   */
+  editable?: boolean;
 }
 
 // ==== Row item ====
@@ -39,26 +50,30 @@ interface RowMappingRowItemRef {
 interface RowMappingRowItemProps {
   row: RowMappingRow;
   mappedValueOptions: ArtComboBoxOption[];
+  editable: boolean;
+  onRemove?: () => void;
 }
 
 const RowMappingRowItem = forwardRef<RowMappingRowItemRef, RowMappingRowItemProps>(
-  ({ row, mappedValueOptions }, ref) => {
+  ({ row, mappedValueOptions, editable, onRemove }, ref) => {
     const [nameColor, setNameColor] = useState<ArtColor | undefined>(row.nameColor);
     const [valueColor, setValueColor] = useState<ArtColor | undefined>(row.valueColor);
     const [displayName, setDisplayName] = useState<string | undefined>(row.displayName);
     const hiddenRef = useRef<HTMLInputElement>(null);
+    const sourceNameRef = useRef<HTMLInputElement>(null);
 
     useImperativeHandle(
       ref,
       () => ({
         getData: () => ({
+          sourceName: editable ? (sourceNameRef.current?.value ?? row.sourceName) : row.sourceName,
           displayName: displayName || undefined,
           hidden: hiddenRef.current?.checked ?? false,
           nameColor,
           valueColor,
         }),
       }),
-      [displayName, nameColor, valueColor],
+      [editable, row.sourceName, displayName, nameColor, valueColor],
     );
 
     // When displayName is a free-text value that doesn't match any option, synthesise a
@@ -69,15 +84,26 @@ const RowMappingRowItem = forwardRef<RowMappingRowItemRef, RowMappingRowItemProp
       (displayName ? { label: displayName, value: displayName } : null);
 
     return (
-      <ArtDataTr>
+      <ArtDataTr
+        title={row._unused ? 'Mapping has this row but current Excel does not' : undefined}
+        style={row._unused ? { background: 'color-mix(in srgb, var(--art-danger) 14%, var(--surface))' } : undefined}
+      >
         <ArtDataTd>
-          <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{row.sourceName}</span>
+          {editable ? (
+            <ArtInput
+              ref={sourceNameRef}
+              defaultValue={row.sourceName}
+              placeholder="Source name"
+            />
+          ) : (
+            <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{row.sourceName}</span>
+          )}
         </ArtDataTd>
         <ArtDataTd>
           <ArtComboBox
             options={mappedValueOptions}
             selected={selectedOption}
-            placeholder={row.sourceName}
+            placeholder={row.sourceName || 'Display name'}
             clearable
             noOptionsMessage={false}
             onChange={(opt) => setDisplayName(opt?.value || undefined)}
@@ -94,6 +120,18 @@ const RowMappingRowItem = forwardRef<RowMappingRowItemRef, RowMappingRowItemProp
         <ArtDataTd>
           <ArtCheckbox ref={hiddenRef} defaultChecked={row.hidden ?? false} size="sm" />
         </ArtDataTd>
+        {editable && (
+          <ArtDataTd>
+            <ArtIconButton
+              icon="Close"
+              tooltip="Remove row"
+              size="sm"
+              variant="ghost"
+              type="button"
+              onClick={onRemove}
+            />
+          </ArtDataTd>
+        )}
       </ArtDataTr>
     );
   },
@@ -101,25 +139,46 @@ const RowMappingRowItem = forwardRef<RowMappingRowItemRef, RowMappingRowItemProp
 
 RowMappingRowItem.displayName = 'RowMappingRowItem';
 
-// ==== Column definitions (static — no row data needed for headers) ====
+// ==== Column definitions ====
 
-const ROW_MAPPING_COLUMNS: ArtColumn<RowMappingRow>[] = [
+const BASE_COLUMNS: ArtColumn<RowMappingRow>[] = [
+  { key: 'sourceName',   label: 'Source Name',   sizing: { width: 220 } },
+  { key: 'displayName',  label: 'Display Name',  sizing: { width: 240 } },
+  { key: 'nameColor',    label: 'Name Color',    sizing: { width: 190 } },
+  { key: 'valueColor',   label: 'Value Color',   sizing: { width: 190 } },
+  { key: 'hidden',       label: 'Hide',          sizing: { width: 80  } },
+];
+
+const EDITABLE_COLUMNS: ArtColumn<RowMappingRow>[] = [
   { key: 'sourceName',   label: 'Source Name',   sizing: { width: 200 } },
   { key: 'displayName',  label: 'Display Name',  sizing: { width: 220 } },
-  { key: 'nameColor',    label: 'Name Color',    sizing: { width: 130 } },
-  { key: 'valueColor',   label: 'Value Color',   sizing: { width: 130 } },
-  { key: 'hidden',       label: 'Hide',          sizing: { width: 60  } },
+  { key: 'nameColor',    label: 'Name Color',    sizing: { width: 180 } },
+  { key: 'valueColor',   label: 'Value Color',   sizing: { width: 180 } },
+  { key: 'hidden',       label: 'Hide',          sizing: { width: 70  } },
+  { key: 'actions',      label: 'Delete',        sizing: { width: 90  } },
 ];
 
 // ==== Section ====
 
 const RowMappingsSection = forwardRef<RowMappingsSectionRef, RowMappingsSectionProps>(
   (
-    { rowMappings, initialExportSettingId = null, collapseOpen, onCollapseChange },
+    { rowMappings, initialExportSettingId = null, collapseOpen, onCollapseChange, editable = false },
     ref,
   ) => {
     const rowItemRefs = useRef<Map<number, RowMappingRowItemRef>>(new Map());
     const [exportSettingId, setExportSettingId] = useState<string | null>(initialExportSettingId);
+
+    const [editableRows, setEditableRows] = useState<RowMappingRow[]>(rowMappings);
+
+    const [prevRows, setPrevRows] = useState(rowMappings);
+    if (editable && prevRows !== rowMappings) {
+      setPrevRows(rowMappings);
+      setEditableRows(rowMappings);
+    }
+
+    const rows = editable ? editableRows : rowMappings;
+    // Derive next free _index from current rows — keeps add/remove monotonic.
+    const nextIndex = rows.reduce((max, r) => Math.max(max, r._index), -1) + 1;
 
     const { data: exportSettingsList = [] } = useGetLightExportSettings();
     const { data: linkedExportSetting } = useGetExportSettingById(exportSettingId ?? undefined);
@@ -135,7 +194,7 @@ const RowMappingsSection = forwardRef<RowMappingsSectionRef, RowMappingsSectionP
       ref,
       () => ({
         getRowMappings: () =>
-          rowMappings.map((row) => {
+          rows.map((row) => {
             const item = rowItemRefs.current.get(row._index);
             return item ? { ...row, ...item.getData() } : row;
           }),
@@ -143,37 +202,65 @@ const RowMappingsSection = forwardRef<RowMappingsSectionRef, RowMappingsSectionP
         setExportSettingId,
         getLinkedExportSetting: () => linkedExportSetting,
       }),
-      [rowMappings, exportSettingId, linkedExportSetting],
+      [rows, exportSettingId, linkedExportSetting],
     );
 
     const selectedExportSetting =
       exportSettingOptions.find((o) => o.value === exportSettingId) ?? null;
 
+    function handleAddRow() {
+      const flushed = rows.map((row) => {
+        const item = rowItemRefs.current.get(row._index);
+        return item ? { ...row, ...item.getData() } : row;
+      });
+      setEditableRows([...flushed, { sourceName: '', _index: nextIndex }]);
+    }
+
+    function handleRemoveRow(index: number) {
+      const flushed = rows
+        .filter((r) => r._index !== index)
+        .map((row) => {
+          const item = rowItemRefs.current.get(row._index);
+          return item ? { ...row, ...item.getData() } : row;
+        });
+      rowItemRefs.current.delete(index);
+      setEditableRows(flushed);
+    }
+
     return (
       <ArtCollapse title="Row Mappings" open={collapseOpen} onChange={onCollapseChange}>
         {/* Export Setting */}
-        <div className="mb-4" style={{ maxWidth: 320 }}>
-          <ArtComboBox
-            label="Export Setting"
-            options={exportSettingOptions}
-            selected={selectedExportSetting}
-            placeholder="Select export setting…"
-            clearable
-            onChange={(opt) => setExportSettingId(opt?.value ?? null)}
-          />
-          {mappedValueOptions.length > 0 && (
-            <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-              Display name options come from this export setting&apos;s mapped value names.
-            </p>
+        <div className="mb-4 grid grid-cols-3 gap-4 items-start">
+          <div>
+            <ArtComboBox
+              label="Export Setting"
+              options={exportSettingOptions}
+              selected={selectedExportSetting}
+              placeholder="Select export setting…"
+              clearable
+              onChange={(opt) => setExportSettingId(opt?.value ?? null)}
+            />
+            {mappedValueOptions.length > 0 && (
+              <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                Display name options come from this export setting&apos;s mapped value names.
+              </p>
+            )}
+          </div>
+          {editable && (
+            <div className="col-start-3 flex justify-end">
+              <ArtButton type="button" variant="outlined" size="sm" onClick={handleAddRow}>
+                + Add row
+              </ArtButton>
+            </div>
           )}
         </div>
 
         {/* Table */}
         <ArtDataTable<RowMappingRow>
-          columns={ROW_MAPPING_COLUMNS}
-          data={rowMappings}
+          columns={editable ? EDITABLE_COLUMNS : BASE_COLUMNS}
+          data={rows}
           rowKey={(row) => row._index}
-          emptyMessage="No rows found in the uploaded file"
+          emptyMessage={editable ? 'No rows yet — click "Add row" below.' : 'No rows found in the uploaded file'}
           renderRow={(row) => (
             <RowMappingRowItem
               ref={(el) => {
@@ -182,6 +269,8 @@ const RowMappingsSection = forwardRef<RowMappingsSectionRef, RowMappingsSectionP
               }}
               row={row}
               mappedValueOptions={mappedValueOptions}
+              editable={editable}
+              onRemove={() => handleRemoveRow(row._index)}
             />
           )}
         />

@@ -445,6 +445,8 @@ interface SourceLayoutSectionProps {
   onSheetTotalColumnModeChange: (sheetName: string, mode: TotalColumnMode) => void;
   collapseOpen?: boolean;
   onCollapseChange?: (open: boolean) => void;
+  /** Skip the outer ArtCollapse wrapper — caller already provides one. */
+  bare?: boolean;
 }
 
 export default function SourceLayoutSection({
@@ -457,6 +459,7 @@ export default function SourceLayoutSection({
   onSheetTotalColumnModeChange,
   collapseOpen,
   onCollapseChange,
+  bare = false,
 }: SourceLayoutSectionProps) {
   const sheetNames = workbook.SheetNames;
   const [activeSheet, setActiveSheet] = useState(sheetNames[0] ?? '');
@@ -470,22 +473,28 @@ export default function SourceLayoutSection({
   const layout = sheetLayouts[activeSheet];
   if (!layout) return null;
 
+  const body = (
+    <div className="flex flex-col gap-0">
+      <ArtTabs tabs={tabs} value={activeSheet} onChange={setActiveSheet} />
+      <SheetTab
+        key={activeSheet}
+        sheetName={activeSheet}
+        workbook={workbook}
+        layout={layout}
+        autoDetectedLayout={autoDetectedLayouts[activeSheet] ?? null}
+        config={sheetsConfig[activeSheet] ?? { mode: 'combine' }}
+        onLayoutChange={(newLayout) => onSheetLayoutChange(activeSheet, newLayout)}
+        onModeChange={(newMode) => onSheetModeChange(activeSheet, newMode)}
+        onTotalColumnModeChange={(mode) => onSheetTotalColumnModeChange(activeSheet, mode)}
+      />
+    </div>
+  );
+
+  if (bare) return body;
+
   return (
     <ArtCollapse title="Source Layout" open={collapseOpen} onChange={onCollapseChange}>
-      <div className="flex flex-col gap-0">
-        <ArtTabs tabs={tabs} value={activeSheet} onChange={setActiveSheet} />
-        <SheetTab
-          key={activeSheet}
-          sheetName={activeSheet}
-          workbook={workbook}
-          layout={layout}
-          autoDetectedLayout={autoDetectedLayouts[activeSheet] ?? null}
-          config={sheetsConfig[activeSheet] ?? { mode: 'combine' }}
-          onLayoutChange={(newLayout) => onSheetLayoutChange(activeSheet, newLayout)}
-          onModeChange={(newMode) => onSheetModeChange(activeSheet, newMode)}
-          onTotalColumnModeChange={(mode) => onSheetTotalColumnModeChange(activeSheet, mode)}
-        />
-      </div>
+      {body}
     </ArtCollapse>
   );
 }

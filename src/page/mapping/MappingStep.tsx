@@ -8,28 +8,17 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useReports, type UploadedReport } from '@/providers/ReportProvider';
 import { useGetLightMappings, useCreateMapping, useUpdateMapping, fetchMappingById } from '@/hooks/mapping.hooks';
-import { useCurrencyOptions } from '@/hooks/currencies.hooks';
 import type {
   MappingConfig, RowMapping, SourceLayout, ReportType, MappingModel, SheetConfig,
 } from '@/models/mapping.models';
-import type { ArtSelectOption } from '@/components/ui/ArtSelect';
 import type { ArtFormButtonProps } from '@/components/ui/ArtForm';
 import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox';
 import { autoDetectLayout, extractRowNames, applyMappingMultiSheet } from './applyMapping';
 import RowMappingsSection, { type RowMappingRow, type RowMappingsSectionRef } from './RowMappingsSection';
 import SourceLayoutSection from './SourceLayoutSection';
-import ArtComboBox from '@/components/ui/ArtComboBox';
-import ArtCollapse from '@/components/ui/ArtCollapse';
+import MappingMetaSection from './MappingMetaSection';
 import ArtForm from '@/components/ui/ArtForm';
-import { ArtFormSelect, ArtFormComboBox } from '@/components/form';
 import { useSaveMappingDialog } from './SaveMappingDialog';
-
-// ==== Constants ====
-
-const REPORT_TYPE_OPTIONS: ArtSelectOption[] = [
-  { label: 'Profit & Loss', value: 'pnl' },
-  { label: 'Financial Position', value: 'financial_position' },
-];
 
 // ==== Schema ====
 
@@ -75,7 +64,6 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
 
   const createMapping = useCreateMapping();
   const updateMappingMut = useUpdateMapping();
-  const currencyOptions = useCurrencyOptions();
   const saveMappingDialog = useSaveMappingDialog();
 
   const report = (reportId
@@ -102,7 +90,7 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
 
   // ==== Auto-detect when report changes (adjust-state-during-render pattern) ====
 
-  const [prevReport, setPrevReport] = useState(report);
+  const [prevReport, setPrevReport] = useState<UploadedReport | undefined>(undefined);
   if (prevReport !== report && report) {
     setPrevReport(report);
     const layouts: Record<string, SourceLayout> = {};
@@ -161,14 +149,17 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
     const primaryLayout = newLayouts[primary];
     if (primaryLayout) {
       const names = extractRowNames(report!.workbook, primary, sanitizeLayout(primaryLayout));
+      const namesSet = new Set(names);
       const existingBySource = new Map(mapping.config.rowMappings.map((r) => [r.sourceName, r]));
-      setRowMappings(
-        names.map((sourceName, i) => ({
-          sourceName,
-          _index: i,
-          ...(existingBySource.get(sourceName) ?? {}),
-        })),
-      );
+      const used: RowMappingRow[] = names.map((sourceName, i) => ({
+        sourceName,
+        _index: i,
+        ...(existingBySource.get(sourceName) ?? {}),
+      }));
+      const unused: RowMappingRow[] = mapping.config.rowMappings
+        .filter((r) => !namesSet.has(r.sourceName))
+        .map((r, j) => ({ ...r, _index: names.length + j, _unused: true }));
+      setRowMappings([...used, ...unused]);
     }
   }
 
@@ -342,55 +333,19 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
       <FormProvider {...methods}>
         <ArtForm onSubmit={handleFormSubmit} buttons={formButtons}>
           {/* ==== Mapping ==== */}
-          <ArtCollapse title="Mapping" defaultOpen>
-            <div className="flex flex-col gap-4">
-              <div className="grid grid-cols-2 gap-4">
-                <ArtFormSelect
-                  name="reportType"
-                  label="Report Type"
-                  options={REPORT_TYPE_OPTIONS}
-                  required
-                />
-
-                <ArtComboBox
-                  label="Mapping"
-                  options={mappingOptions}
-                  selected={selectedMappingOption}
-                  onChange={handleMappingChange}
-                  placeholder="Select or create mapping…"
-                  clearable
-                />
-
-                <ArtFormComboBox
-                  name="fromCurrency"
-                  label="From Currency"
-                  options={currencyOptions}
-                  placeholder="EUR"
-                                    searchable
-                  onSubmit={(text) => { if (text) methods.setValue('fromCurrency', text.toUpperCase()); }}
-                />
-
-                <div className="flex flex-col gap-1">
-                  <ArtFormComboBox
-                    name="toCurrency"
-                    label="To Currency"
-                    options={currencyOptions}
-                    placeholder="EUR"
-                                        searchable
-                    onSubmit={(text) => { if (text) methods.setValue('toCurrency', text.toUpperCase()); }}
-                  />
-                </div>
-              </div>
-
-              {selectedMapping && (
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {selectedMapping.isGlobal
-                    ? 'Global mapping — changes are not saved unless you save a copy.'
-                    : `Editing: ${selectedMapping.name}`}
-                </p>
-              )}
-            </div>
-          </ArtCollapse>
+          <MappingMetaSection
+            showMappingSelector
+            mappingOptions={mappingOptions}
+            selectedMappingOption={selectedMappingOption}
+            onMappingChange={handleMappingChange}
+            hint={
+              selectedMapping
+                ? selectedMapping.isGlobal
+                  ? 'Global mapping — changes are not saved unless you save a copy.'
+                  : `Editing: ${selectedMapping.name}`
+                : undefined
+            }
+          />
 
           {/* ==== Source Layout ==== */}
           {Object.keys(sheetLayouts).length > 0 && (
