@@ -1,4 +1,5 @@
 import 'server-only';
+import { cache } from 'react';
 import { Prisma } from '../../generated/prisma/client';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { unstable_cache } from 'next/cache';
@@ -25,11 +26,12 @@ async function resolveFtsIds(
   freeText: string,
 ): Promise<string[]> {
   const rows = await client.$queryRaw<{ id: string }[]>`
+    WITH q AS MATERIALIZED (SELECT plainto_tsquery('english', ${freeText}) AS query)
     SELECT DISTINCT id,
-      ts_rank(search_vector, plainto_tsquery('english', ${freeText})) AS rank
-    FROM ${Prisma.raw(table)}
+      ts_rank(search_vector, q.query) AS rank
+    FROM ${Prisma.raw(table)}, q
     WHERE
-      search_vector @@ plainto_tsquery('english', ${freeText})
+      search_vector @@ q.query
       OR similarity(${Prisma.raw(searchColumn)}, ${freeText}) > 0.2
     ORDER BY rank DESC
   `;
@@ -43,7 +45,9 @@ async function resolveFtsIds(
  * CRUD mutations that call invalidateCache(...CACHE_KEYS.x.invalidate())
  * automatically bust this cache — no extra invalidation needed.
  */
-async function resolveFtsIdsCached(
+// cache() deduplicates concurrent calls with the same args within one request —
+// findManyFts + countFts called in Promise.all both hit this; only one FTS query fires.
+const resolveFtsIdsCached = cache(async function (
   client: PrismaClient,
   table: string,
   searchColumn: string,
@@ -62,7 +66,7 @@ async function resolveFtsIdsCached(
     cacheKey,
     { revalidate: FTS_CACHE_TTL, tags },
   )();
-}
+});
 
 // ==== Factory ====
 
@@ -147,11 +151,11 @@ export function withFts<
         return model.findMany({ ...args, where: { ...(args as any).where, id: uuid } }) as Awaited<ReturnType<TModel['findMany']>>;
       }
 
-      const ids = await resolveFtsIdsCached(client, table, searchColumn, collectionCacheKey, term, userId);
-      if (ids.length === 0 && extraSearchColumns.length === 0) return [] as Awaited<ReturnType<TModel['findMany']>>;
+      const idsByFreeText = await resolveFtsIdsCached(client, table, searchColumn, collectionCacheKey, term, userId);
+      if (idsByFreeText.length === 0 && extraSearchColumns.length === 0) return [] as Awaited<ReturnType<TModel['findMany']>>;
       return model.findMany({
         ...args,
-        where: buildFtsWhere(ids, term, (args as any).where),
+        where: buildFtsWhere(idsByFreeText, term, (args as any).where),
       }) as Awaited<ReturnType<TModel['findMany']>>;
     },
 
@@ -179,9 +183,9 @@ export function withFts<
         return model.count({ where: { ...where, id: uuid } });
       }
 
-      const ids = await resolveFtsIdsCached(client, table, searchColumn, collectionCacheKey, term, userId);
-      if (ids.length === 0 && extraSearchColumns.length === 0) return 0;
-      return model.count({ where: buildFtsWhere(ids, term, where) });
+      const idsByFreeText = await resolveFtsIdsCached(client, table, searchColumn, collectionCacheKey, term, userId);
+      if (idsByFreeText.length === 0 && extraSearchColumns.length === 0) return 0;
+      return model.count({ where: buildFtsWhere(idsByFreeText, term, where) });
     },
   };
 }

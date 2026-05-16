@@ -27,19 +27,17 @@ export type PermissionCheck =
 // ==== Check helper ====
 
 export function checkPermission(
-  user: { permissions: string[] } | null | undefined,
+  userOrPerms: { permissions: string[] } | string[] | null | undefined,
   check: PermissionCheck,
 ): boolean {
-  if (!user) return false;
-  const perms = user.permissions ?? [];
+  const perms = Array.isArray(userOrPerms)
+    ? userOrPerms
+    : (userOrPerms?.permissions ?? []);
+
   if (perms.includes(Permission.IS_ADMIN)) return true;
   if (typeof check === 'string') return perms.includes(check);
   if ('anyOf' in check) return check.anyOf.some(p => perms.includes(p));
   return check.allOf.every(p => perms.includes(p));
 }
 
-// ==== Legacy alias ====
-export const hasPermission = (
-  user: { permissions: string[] },
-  perm: Permission,
-) => checkPermission(user, perm);
+export const hasPermission = checkPermission;

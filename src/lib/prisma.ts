@@ -1,6 +1,8 @@
 import { PrismaClient } from '../../generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { withFts } from './fts';
+import { withFts } from './prismaFts';
+import { withCrud } from './prismaCrud';
+import type { FieldMappingModel } from '../../generated/prisma/models/FieldMapping';
 
 function makePrisma() {
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
@@ -11,8 +13,11 @@ function makePrisma() {
   return base.$extends({
     model: {
       exportSetting: withFts(base, base.exportSetting, '"ExportSetting"', 'exportSetting', 'name'),
-      fieldMapping:  withFts(base, base.fieldMapping, '"FieldMapping"', 'mapping', 'name'),
-      user:          withFts(base, base.user, '"User"', 'user', 'name', ['email']),
+      fieldMapping:  {
+        ...withFts(base, base.fieldMapping, '"FieldMapping"', 'mapping', 'name'),
+        ...withCrud<FieldMappingModel>(base, '"FieldMapping"')
+      },
+      user: withFts(base, base.user, '"User"', 'user', 'name', ['email']),
     },
   });
 }

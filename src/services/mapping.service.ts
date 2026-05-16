@@ -13,6 +13,7 @@ import { CreateMappingValidator, UpdateMappingValidator } from '@/models/mapping
 import { parsePaginationFromUrl, createPaginatedResponse } from '@/models/paginated-response.model';
 import { parseFreeTextFromUrl } from '@/lib/normalizeText';
 import { checkUserRequestLimit } from '@/lib/rateLimiter';
+import { hasPermission, Permission } from '@/lib/permissions';
 
 // ==== Select ====
 
@@ -134,15 +135,18 @@ export async function createMapping(req: NextRequest): Promise<NextResponse> {
     await checkUserDbLimits(userId, permissions);
     
     const body = await req.json();
-    // TODO: Allow isGlobal when admin functionality is implemented
     const data = await CreateMappingValidator.validate(body, { abortEarly: false });
 
+    const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
+    if (!canModifyGlobal && data.isGlobal) throw new ApiError('Only users with permission CAN_MODIFY_GLOBAL can create global mappings.', 403);
+
     const mapping = await prisma.fieldMapping.create({
-      data: { ...data, userId, isGlobal: false },
+      data: { ...data, userId },
       select: MAPPING_SELECT,
     });
 
     invalidateCache(...CACHE_KEYS.mapping.invalidate(userId));
+    if (data.isGlobal) invalidateCache(...CACHE_KEYS.mapping.invalidateAll());
     await cached(() => Promise.resolve(mapping), CACHE_KEYS.mapping.byId(userId, mapping.id));
 
     return NextResponse.json(mapping, { status: 201 });
@@ -163,11 +167,16 @@ export async function updateMapping(
     const id = parseIdFromRoute(await params);
 
     const body = await req.json();
-    // TODO: Allow isGlobal updates when admin functionality is implemented
     const data = await UpdateMappingValidator.validate(body, { abortEarly: false });
 
+    const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
+    if (!canModifyGlobal && data.isGlobal) throw new ApiError('Only users with permission CAN_MODIFY_GLOBAL can modify global mappings.', 403);
+    const where = canModifyGlobal
+        ? { id, OR: [{ userId }, { isGlobal: true }] }
+        : { id, userId, isGlobal: false };
+
     const results = await prisma.fieldMapping.updateManyAndReturn({
-      where: { id, userId },
+      where,
       data,
       select: MAPPING_SELECT,
     });
@@ -175,6 +184,7 @@ export async function updateMapping(
     const mapping = results[0];
 
     invalidateCache(...CACHE_KEYS.mapping.invalidate(userId));
+    if (mapping.isGlobal) invalidateCache(...CACHE_KEYS.mapping.invalidateAll());
     await cached(() => Promise.resolve(mapping), CACHE_KEYS.mapping.byId(userId, id));
 
     return NextResponse.json(mapping);
@@ -193,11 +203,19 @@ export async function deleteMapping(
 
     const id = parseIdFromRoute(await params);
 
-    // TODO: Allow isGlobal deletion when admin functionality is implemented
-    const { count } = await prisma.fieldMapping.deleteMany({ where: { id, userId } });
-    if (count === 0) throw new ApiError('Mapping not found', 404);
+    const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
+    const where = canModifyGlobal
+        ? { id, OR: [{ userId }, { isGlobal: true }] }
+        : { id, userId, isGlobal: false };
+
+    const deleted = await prisma.fieldMapping.deleteManyAndReturn({
+      where,
+      select: { isGlobal: true },
+    });
+    if (deleted.length === 0) throw new ApiError('Mapping not found', 404);
 
     invalidateCache(...CACHE_KEYS.mapping.invalidate(userId));
+    if (deleted[0].isGlobal) invalidateCache(...CACHE_KEYS.mapping.invalidateAll());
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     return handleApiError(error, 'DELETE', API.mapping.byId(':id'));

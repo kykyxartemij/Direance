@@ -149,6 +149,7 @@ export const CreateMappingValidator = yup.object({
   reportType: yup.string().oneOf(REPORT_TYPES, 'Invalid report type').default('pnl'),
   config: MappingConfigValidator.required('This field is required'),
   exportSettingId: yup.string().nullable().optional(),
+  isGlobal: yup.boolean().optional(),
 });
 
 export const UpdateMappingValidator = yup.object({
@@ -156,6 +157,7 @@ export const UpdateMappingValidator = yup.object({
   reportType: yup.string().oneOf(REPORT_TYPES, 'Invalid report type').optional(),
   config: MappingConfigValidator.optional(),
   exportSettingId: yup.string().nullable().optional(),
+  isGlobal: yup.boolean().optional(),
 });
 
 export type CreateMappingModel = yup.InferType<typeof CreateMappingValidator>;
