@@ -66,10 +66,10 @@ const schema = yup.object({
   // note: async .test() with onChange mode can be slow — keep .test() sync
 });
 
-// In component — just name, error appears automatically (once ArtFormInput exists)
-<ArtInput {...register('name')} helperText={errors.name?.message} />
-<ArtInput {...register('website')} helperText={errors.website?.message} />
-// ↑ Direance: manual for now until ArtFormInput is created (see TODO-RHF-Migration.md)
+// ArtFormInput (src/components/form/ArtFormInput.tsx) — wires register + error display automatically
+<ArtFormInput name="name" label="Name" />
+<ArtFormInput name="website" label="Website" />
+// ↑ no helperText prop needed — ArtFormInput reads errors from FormProvider context
 ```
 
 **Validation modes:**
@@ -96,7 +96,7 @@ useForm({
 })
 ```
 
-See `TODO-RHF-Migration.md` for which pages in this project should be migrated.
+Available `ArtForm*` components in `src/components/form/`: `ArtFormInput`, `ArtFormTextarea`, `ArtFormSelect`, `ArtFormComboBox`, `ArtFormCheckbox`, `ArtFormSwitch`, `ArtFormListbox`.
 
 ---
 
@@ -120,21 +120,24 @@ function MyForm() {
 
 ```tsx
 function MyForm() {
-  const { register, handleSubmit } = useForm({ defaultValues: { name: existing?.name ?? '' } });
+  const methods = useForm({ resolver: yupResolver(schema), defaultValues: { name: existing?.name ?? '' } });
 
   return (
-    <form onSubmit={handleSubmit((data) => console.log(data.name))}>
-      <ArtInput {...register('name')} />
-      {/* or: <ArtFormInput name="name" label="Name" /> — same thing, ArtFormInput is a helper that wraps {...register} + auto error display */}
-    </form>
+    <FormProvider {...methods}>
+      <form onSubmit={methods.handleSubmit((data) => console.log(data.name))}>
+        <ArtFormInput name="name" label="Name" />
+        {/* ArtFormInput = ArtInput + {...register} + error from FormProvider — no extra props */}
+      </form>
+    </FormProvider>
   );
 }
 ```
 
-Key points (both):
-- `defaultValue` sets the initial value (renders once, never again)
+Key points:
+- `defaultValues` sets initial values (renders once, never again)
 - Value is read at submit time — zero re-renders while typing
-- `{...register('name')}` wires up onChange/onBlur/ref — same field tracking as `<ArtFormInput name="name" />`; ArtFormInput just wraps this pattern and adds automatic error display
+- `ArtFormInput` reads from `FormProvider` — just `name` + `label`, errors wire automatically
+- Use raw `<ArtInput {...register('name')} helperText={errors.name?.message} />` only outside a `FormProvider`
 
 ---
 

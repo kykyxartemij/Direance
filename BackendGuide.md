@@ -16,6 +16,7 @@ Read alongside `UncontrolledInputsGuide.md`.
 | Cache keys | Always `CACHE_KEYS.*` — never raw string arrays |
 | Update | `updateManyAndReturn` — ownership in WHERE clause (Prisma native) |
 | Delete | `deleteManyAndReturn` — ownership in WHERE clause (custom extension) |
+| Upsert | `upsertAndReturn` — single roundtrip, returns `wasUpdated: boolean` (custom extension) |
 | Ownership fail | Throw 404, not 403 — no info disclosure |
 | DB calls | Encode logic in WHERE — no pre-fetch to check ownership |
 | ID lookup | `findFirstOrThrow` — auto-throws P2025 → 404 |
@@ -164,6 +165,13 @@ const mappings = await cached(
 // After mutation: invalidate, then seed by-ID to avoid extra DB call on next GET
 invalidateCache(...CACHE_KEYS.mapping.invalidate());
 await cached(() => Promise.resolve(mapping), CACHE_KEYS.mapping.byId(mapping.id));
+
+// populateCache — fetch fresh, invalidate stale entry, seed cache with new value.
+// Use when you need the fresh DB value AND want it in cache (e.g. existence check after write).
+const existing = await populateCache(
+  () => prisma.user.findUnique({ where: { email }, select: { id: true } }),
+  CACHE_KEYS.user.byEmail(email),
+);
 ```
 
 ---
@@ -231,6 +239,24 @@ No "fetch then check then act". One query does all three.
 ### deleteManyAndReturn (custom extension)
 
 Postgres doesn't support `DELETE ... RETURNING` natively in Prisma ORM. `withCrud` in `src/lib/prismaCrud.ts` adds it as a Prisma extension using `$queryRaw` internally. Accepts Prisma-style `where` (equality + OR), `select`, and optional `limit`. Return type is inferred from `select` — no manual generics at the call site.
+
+### upsertAndReturn (custom extension)
+
+Single-roundtrip INSERT ... ON CONFLICT DO UPDATE ... RETURNING. Detects insert vs update via the Postgres `xmax` trick — no extra query needed.
+
+```ts
+const [{ createdAt, wasUpdated }] = await prisma.invite.upsertAndReturn({
+  where:  { email },                        // conflict key
+  create: { email, token, invitedBy, permissions },
+  update: { token, invitedBy, permissions, createdAt: new Date() }, // reset clock
+  select: { createdAt: true },
+});
+// wasUpdated: true = row existed (UPDATE), false = fresh row (INSERT)
+```
+
+**`@updatedAt` caveat:** `withCrud` uses raw SQL — Prisma middleware doesn't run. `@updatedAt` fields won't auto-update. Two options:
+- Use `@default(now())` (DB-level default) and pass `createdAt: new Date()` explicitly in `update`
+- Or accept that the field won't update (if staleness doesn't matter)
 
 ---
 

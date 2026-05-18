@@ -1,4 +1,33 @@
-# MePipe — Project Conventions for Claude
+# Direance — Project Conventions for Claude
+
+## ==== Project Philosophy ====
+
+This project is about **architecture and rules**, not shipping fast. Every decision should account for:
+
+- **React re-renders** — uncontrolled inputs, memoization in Art lib only, no inline objects as props
+- **Network transfer** — minimal select projections, bytes on dedicated endpoints, no over-fetching
+- **Storage space** — compress images before store, per-user DB limits, lazy cleanup instead of accumulation
+
+**No dev/prod separation.** There is one environment — treat every change as production. No "fix it later", no hardcoded test data, no skipped validation.
+
+This is an ecosystem project, not a single website. Rules and reusability apply on both BE and FE. A quick solution that doesn't fit the pattern is wrong even if it works.
+
+---
+
+## ==== Extended Guides ====
+
+When working in an area, read the relevant guide first:
+
+| Area | Guide |
+|------|-------|
+| Backend services, Prisma, caching, auth | `BackendGuide.md` |
+| Images, binary storage, BytesResponse | `ImagesGuide.md` |
+| Forms, uncontrolled inputs, RHF | `UncontrolledInputsGuide.md` |
+| TanStack Query mutations, optimistic updates | `TanStackMutationGuide.md` |
+| Navigation, loading states, page structure | `InstantNavigationAndLoadingState.md` |
+| Layout, ArtTitle, page conventions | `LayoutGuide.md` |
+
+---
 
 ## ==== Comment Style ====
 
@@ -53,11 +82,7 @@ pressing: color-mix(in srgb, white 18%, var(--border))   (~#585)
 selected: color-mix(in srgb, white  8%, var(--border))   (~#434)  ← between default and hover
 ```
 
-Selected sits between hover and pressing so it reads as "active choice at rest" without competing with interaction feedback.
-
 ### Colored variants
-
-Follow the same 4-layer structure using `var(--art-accent)` tints:
 
 ```
 default:  color: var(--art-accent); background: transparent
@@ -70,62 +95,56 @@ selected: background: color-mix(in srgb, var(--art-accent) 14%, transparent)
 
 ## ==== Navigation Rule ====
 
-Every `page.tsx` that fetches data must have a sibling `loading.tsx` that renders a skeleton layout. Components own their loading state via a `loading?: boolean` prop — they render their own skeleton rather than relying on a separate loader component.
+Every `page.tsx` that fetches data must have a sibling `loading.tsx` that exports `GlobalPageLoader`. Components own their loading state via a `loading?: boolean` prop — they render their own skeleton rather than relying on a parent loader.
+
+See `InstantNavigationAndLoadingState.md` for full pattern.
 
 ---
 
 ## ==== Theme System ====
 
-See `TailwindTheme.md` for full token documentation.
-
-Themes are set via a class on `<html>`:
-- Dark (default): no class needed, `:root` defines dark tokens
+Themes are set via a class on `<html>` (toggled in JS via `document.documentElement.classList`):
+- Dark (default): no class needed — `:root` in `globals.css` defines dark tokens
 - Light: `className="theme-light"`
 - High Contrast: `className="theme-contrast"`
+
+Token definitions live in `src/app/globals.css`. Art component overrides live in `src/components/ui/art.style.css`.
 
 ---
 
 ## ==== Page Metadata Rule ====
 
-// TODO: This is wrong. Should be updated based on InstantNavigationAndLoadingState.md
-Every `page.tsx` must export a title. The root layout defines `title.template: '%s | MePipe'` — pages only set the short name, Next.js appends the suffix automatically.
+Every `page.tsx` exports a **static** metadata title. Dynamic data (e.g. record name) lives in the layout via `<ArtTitle>` — never in `generateMetadata`.
 
-Static page:
 ```ts
-export const metadata: Metadata = { title: 'Upload' };  // → "Upload | MePipe"
-```
+// page.tsx — always static
+export const metadata: Metadata = { title: 'Mapping Detail' };
 
-Dynamic page (data-driven title):
-```ts
-export async function generateMetadata({ params }): Promise<Metadata> {
-  const video = await getVideoById((await params).id);
-  return { title: video.title };  // → "My Video | MePipe"
+export default function Page() {
+  return <MappingDetailPage />;
 }
 ```
 
-The browser tab title and the on-page `<h1>`/`<h2>` should always match.
+Root layout defines `title.template: '%s | Direance'` — pages only set the short name.
 
 ---
 
 ## ==== Page Layout Convention ====
 
-Every page with a visible title uses `<PageHeader title="..." />` from `src/components/PageHeader.tsx`.
+Page structure: layout owns chrome (title, actions slot), page.tsx is a thin shell, feature component owns the content.
 
-The optional `actions` slot is for **page-level** buttons — buttons that are NOT part of a form (navigation, opening a dialog, triggering a mutation directly). Never put a `type="submit"` button here.
-
-```tsx
-// List page — "Create" is a page action, not a form submit
-<PageHeader title="Videos" actions={<ArtButton color="primary">Create</ArtButton>} />
-
-// Form page — no actions, submit button lives inside the form
-<PageHeader title="Upload Video" />
-<UploadForm />   // ← submit button is at the bottom of this form
 ```
+app/mappings/(list)/
+  layout.tsx    ← ArtTitle + actions (New Mapping button)
+  page.tsx      ← export metadata + render <MappingsPage />
+  loading.tsx   ← export GlobalPageLoader
+```
+
+Title and page-level actions live in `layout.tsx` via `<ArtTitle title="..." actions={...} />`. Never in `page.tsx` or the feature component.
 
 ### Form button convention
 
-Form action buttons stay **inside** the form component (they need the loading state and mutation).
-Always at the bottom, consistent order: secondary actions left, primary action right.
+Form action buttons stay **inside** the form component. Always at the bottom, consistent order: secondary left, primary right.
 
 | Action      | Props                                    |
 |-------------|------------------------------------------|
@@ -141,15 +160,15 @@ Validators live in two places with distinct responsibilities:
 
 | Location | Owner | Purpose |
 |---|---|---|
-| `src/models/*.models.ts` | Backend | API request body contracts. Fields follow HTTP semantics: `required` for POST, `optional` for PATCH. Used by services via `.validate(body, { abortEarly: false })`. |
-| Page / component file | Frontend | Form validation only. Always strict — required where a field is shown. Never exported; local to the file. |
+| `src/models/*.models.ts` | Backend | API request body contracts. Fields follow HTTP semantics: `required` for POST, `optional` for PATCH. |
+| Page / component file | Frontend | Form validation only. Always strict. Never exported. |
 
 **Rules:**
 - Never add a validator to `models/` solely because a form needs it.
 - FE forms define a local `schema` + `type FormValues`. They may mirror a model validator or be stricter.
 - FE-only fields (e.g. `confirmPassword`) exist only in the local schema — never in models.
-- When yup `InferType` causes TS errors (optional vs required key mismatch), define `FormValues` explicitly instead of using `InferType`, and cast the resolver: `yupResolver(schema) as Resolver<FormValues>`.
-- When `FormValues` uses a wider type (e.g. `string`) but the mutation expects a union (e.g. `ReportType`), cast at the call site: `reportType: data.reportType as ReportType`.
+- When yup `InferType` causes TS errors, define `FormValues` explicitly and cast the resolver: `yupResolver(schema) as Resolver<FormValues>`.
+- When `FormValues` uses a wider type but the mutation expects a union, cast at the call site: `data.reportType as ReportType`.
 
 ---
 
@@ -161,13 +180,24 @@ All Yup validation calls must use `{ abortEarly: false }`:
 const data = await MyValidator.validate(body, { abortEarly: false });
 ```
 
-**Why:** `abortEarly: true` (the default) stops at the first error. `abortEarly: false` collects all errors and returns them together — the user sees every problem at once instead of fixing one at a time. Applies to every `.validate()` call regardless of how many fields the schema has.
+Collects all field errors at once. Applies to every `.validate()` call regardless of field count.
+
+---
+
+## ==== Raw SQL + Prisma Middleware ====
+
+`withCrud` extensions (`upsertAndReturn`, `deleteManyAndReturn`) use `$queryRaw` — Prisma middleware does not run:
+
+- `@updatedAt` fields **will not auto-update** — use `@default(now())` (DB-level) and pass the value explicitly in `update`: `{ createdAt: new Date() }`
+- `onDelete`/`onUpdate` cascades are DB-level constraints — they **do** apply
+- `@default` values are DB-level — they **do** apply on INSERT
 
 ---
 
 ## ==== CSS Architecture ====
 
-- `globals.css` — Art component styles only. Feature-level UI uses Tailwind inline.
-- `art-scrollable` — shared thin scrollbar class. Add to any scrollable Art element.
-- All colors reference CSS custom properties (`var(--surface)`, `var(--border)`, etc.) — never hardcode hex inside component CSS.
+- `src/app/globals.css` — theme tokens (CSS custom properties) + feature-level global styles
+- `src/components/ui/art.style.css` — Art component styles only. Feature UI uses Tailwind inline.
+- `art-scrollable` — shared thin scrollbar class defined in `art.style.css`. Add to any scrollable Art element.
+- All colors reference CSS custom properties (`var(--surface)`, `var(--border)`, etc.) — never hardcode hex in component CSS.
 - Memoization (`React.memo`, `useMemo`) only in Art library components, not in feature components.

@@ -61,18 +61,26 @@ return new BytesResponse(logo.data, logo.mime, { name: logo.name });
 
 ## BE/FE bridge — BytesResponse + bytesClient
 
-`BytesResponse` and `bytesClient` form a typed bridge for binary transfer. Define metadata once on the BE; read it back on the FE with no manual header strings.
+Three helpers live in `src/lib/images/`:
 
-**BE (`src/lib/BytesResponse.ts`)** — extends `NextResponse`:
+| File | Side | Purpose |
+|------|------|---------|
+| `BytesResponse.ts` | BE | Binary `NextResponse` with typed X-* meta headers |
+| `bytesClient.ts` | FE | Fetch binary, decode to base64, read meta headers |
+| `imageProcessor.ts` | BE | Sharp compression pipeline |
+
+`BytesResponse<T>` and `bytesClient` form a typed bridge — define metadata once on the BE, read it back on the FE with no manual header strings. The generic `T` constrains which keys are valid.
+
+**BE (`src/lib/images/BytesResponse.ts`)** — extends `NextResponse`:
 ```ts
-// Keys auto-convert to X-* headers: { name } → X-Name, { createdAt } → X-Created-At
-return new BytesResponse(logo.data, logo.mime, { name: logo.name, id: logo.id });
+// Keys auto-convert to X-* headers: { name } → X-Name, { id } → X-Id
+return new BytesResponse<LogoMetadataModel>(logo.data, logo.mime, { name: logo.name, id: logo.id });
 ```
 
-**FE (`src/lib/bytesClient.ts`)** — fetches binary, decodes to base64, reads X-* headers back as `meta`:
+**FE (`src/lib/images/bytesClient.ts`)** — fetches binary, decodes to base64, reads X-* headers back as `meta`:
 ```ts
-const result = await bytesClient.get(API.logo.byId(id));
-// result: { data: string (base64), mime: string | null, meta: { name, id, ... } }
+const result = await bytesClient.get<LogoMetadataModel>(API.logo.byId(id));
+// result: { data: string (base64), mime: string | null, meta: { name, id } }
 ```
 
 No manual `btoa`, no `headers.get('X-Logo-Name')`, no `as unknown as Buffer` casts.
@@ -108,27 +116,34 @@ export function useGetLogoById(id: string) {
 
 Always process before storing. Never save raw upload bytes. Output is always **WebP** — better compression than PNG/JPEG (~30% smaller on disk), supports transparency, supported in all modern browsers (Safari 14+).
 
+Implemented in `src/lib/images/imageProcessor.ts` — `processImage(buffer, maxBytes, maxWidth)`.
+
 **Pipeline:**
-1. Resize to max 800px wide (`fit: 'inside'`, no upscale)
-2. Encode as WebP at quality 85
-3. If still over 200 KB — shrink to 600px at quality 65
+1. Resize to max width (`fit: 'inside'`, no upscale), encode as WebP at quality 70
+2. If still over limit — shrink proportionally: `width *= sqrt(limit / actual)`, retry once
+3. Still over → throw 400
 
 ```ts
-const LOGO_MAX_BYTES = 200 * 1024; // 200 KB hard cap
-const LOGO_MAX_WIDTH = 800;
+const LOGO_MAX_BYTES = 80 * 1024;  // 80 KB — logo displays at 180px in Excel, 400px is plenty
+const LOGO_MAX_WIDTH = 400;
 
-let result = await sharp(buffer)
-  .resize(LOGO_MAX_WIDTH, undefined, { fit: 'inside', withoutEnlargement: true })
-  .webp({ quality: 85 })
-  .toBuffer();
-
-if (result.length > LOGO_MAX_BYTES) {
-  result = await sharp(buffer)
-    .resize(600, undefined, { fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: 65 })
-    .toBuffer();
+// src/lib/images/imageProcessor.ts
+export async function processImage(buffer: Buffer, maxBytes: number, maxWidth: number) {
+  const limit = Math.floor(maxBytes * 0.95); // 5% buffer so rounding never sneaks past
+  let width = maxWidth;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await sharp(buffer)
+      .resize(width, undefined, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 70 })
+      .toBuffer();
+    if (result.length <= limit) return { data: result, mime: 'image/webp' };
+    width = Math.floor(width * Math.sqrt(limit / result.length));
+  }
+  throw new ApiError('Image too large to compress within limits', 400);
 }
 ```
+
+**Why 400px / 80 KB:** Excel renders logos at ~180px. 400px gives 2× retina headroom. 80 KB is generous at that size — proportional compression handles outliers without needing a fixed fallback width.
 
 Accepted input formats: PNG, JPEG, WebP, GIF. Output always WebP.
 
@@ -161,8 +176,9 @@ return new BytesResponse(processed.data, processed.mime, { id: logo.id, name: lo
 1. **Create separate model** — never embed `Bytes` in the parent model
 2. **Two selects** — `_LIGHT` (no bytes) and full with `data` field
 3. **Two endpoints** — list/light + bytes-by-id
-4. **processLogoFile** — reusable from `logo.service.ts`, call before storing
-5. **BytesResponse** — use for all binary endpoints, pass metadata as plain keys
-6. **Client hook** — `bytesClient.get/post`, `staleTime: Infinity, gcTime: Infinity, enabled: !!id`
-7. **No server cache on bytes** — suppress with `// eslint-disable-next-line local/no-uncached-prisma`
-8. **Seed cache on create** — decode binary response in `onSuccess`, call `queryClient.setQueryData`
+4. **`processImage`** — import from `src/lib/images/imageProcessor.ts`, call before storing
+5. **`BytesResponse<T>`** — use for all binary endpoints, pass typed metadata as plain keys
+6. **Define a `*MetadataModel`** — `{ id: string; name: string }` style, shared between BE and FE generic `T`
+7. **Client hook** — `bytesClient.get<T>/post<T>`, `staleTime: Infinity, gcTime: Infinity, enabled: !!id`
+8. **No server cache on bytes** — suppress with `// eslint-disable-next-line local/no-uncached-prisma`
+9. **Seed cache on create** — decode binary response in `onSuccess`, call `queryClient.setQueryData`
