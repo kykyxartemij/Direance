@@ -9,6 +9,8 @@ import ArtData from '@/components/ui/ArtData';
 import ArtBadge from '@/components/ui/ArtBadge';
 import ArtButton from '@/components/ui/ArtButton';
 import { ArtConfirmDialog } from '@/components/ui/ArtDialog';
+import { FSLink } from '@/components/FSLink';
+import { HREF } from '@/lib/hrefUrl';
 
 // ==== Constants ====
 
@@ -63,9 +65,9 @@ export default function MappingsPage() {
       render: (row) =>
         row.isGlobal ? null : (
           <div className="flex gap-2">
-            <Link href={`/mappings/${row.id}`} prefetch>
+            <FSLink href={HREF.exportSettingById(row.id)}>
               <ArtButton variant="ghost">Edit</ArtButton>
-            </Link>
+            </FSLink>
             <ArtConfirmDialog
               title="Delete mapping"
               description={`Are you sure you want to delete "${row.name}"?`}

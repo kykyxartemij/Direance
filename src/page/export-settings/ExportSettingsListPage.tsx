@@ -8,6 +8,8 @@ import type { ArtColumn } from '@/components/ui/ArtDataTable';
 import ArtData from '@/components/ui/ArtData';
 import ArtButton from '@/components/ui/ArtButton';
 import { ArtConfirmDialog } from '@/components/ui/ArtDialog';
+import { HREF } from '@/lib/hrefUrl';
+import { FSLink } from '@/components/FSLink';
 
 // ==== Constants ====
 
@@ -56,9 +58,9 @@ export default function ExportSettingsListPage() {
       sizing: { width: 140 },
       render: (row) => (
         <div className="flex gap-2">
-          <Link href={`/export-settings/${row.id}`} prefetch>
+          <FSLink href={HREF.exportSettingById(row.id)}>
             <ArtButton variant="ghost">Edit</ArtButton>
-          </Link>
+          </FSLink>
           <ArtConfirmDialog
             title="Delete export setting"
             description={`Delete "${row.name}"?`}

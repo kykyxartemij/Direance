@@ -1,46 +1,45 @@
-// TODO: Update with FindManyFts examples
-
 # Backend Guide
 
-Read alongside `UncontrolledInputsGuide.md` and `ImageBytesGuide.md`.
+Read alongside `UncontrolledInputsGuide.md`.
 
 ## Quick reference
 
 | Pattern | Rule |
 |---------|------|
 | Prisma client | Import from `@/lib/prisma` — never `new PrismaClient()` |
-| Auth | `requireAuth` / `requireAuth` / `requirePermission` — pick right one |
+| Auth | `requireAuth()` / `requireAuth(Permission.X)` — always call with `()` |
 | Route file | Thin adapter only — all logic in service |
-| Error handling | Always `try/catch` → `handleApiError(error, context)` |
+| Error handling | `try/catch` → `handleApiError(error, method, url)` |
 | ID from route | `parseIdFromRoute(await params)` — never raw `params.id` |
 | Yup validation | Always `{ abortEarly: false }` |
 | Prisma reads | Always wrap in `cached()` — never call bare |
 | Cache keys | Always `CACHE_KEYS.*` — never raw string arrays |
-| Update/Delete | `updateManyAndReturn` / `deleteMany` — ownership in WHERE clause |
+| Update | `updateManyAndReturn` — ownership in WHERE clause (Prisma native) |
+| Delete | `deleteManyAndReturn` — ownership in WHERE clause (custom extension) |
+| Ownership fail | Throw 404, not 403 — no info disclosure |
+| DB calls | Encode logic in WHERE — no pre-fetch to check ownership |
 | ID lookup | `findFirstOrThrow` — auto-throws P2025 → 404 |
 | Pagination | `Promise.all([data, count])` — never sequential awaits |
+| FTS | `findManyFts` / `countFts` — never raw `$queryRaw` for search |
 | Select | Always explicit `select` — never bare `findMany` |
-| File upload | FormData + sharp — see `ImageBytesGuide.md` |
+| File upload | FormData + sharp — see `ImagesGuide.md` |
 
 ---
 
-## Auth helpers
+## Auth
+
+One function — optional permission check:
 
 ```ts
-// Read endpoint — userId only
-const userId = await requireAuth;
-
-// Mutating endpoint — userId + permissions
+// Any authenticated endpoint
 const { userId, permissions } = await requireAuth();
-checkUserRequestLimit(req, userId, permissions);
-await checkUserDbLimits(userId, permissions);
 
-// Permission-gated endpoint (admin pages)
-const userId = await requirePermission(Permission.IS_ADMIN);
+// Permission-gated endpoint
+const { userId, permissions } = await requireAuth(Permission.IS_ADMIN);
+// throws 403 if user lacks that permission
 ```
 
-> Permissions embedded in JWT at sign-in — no DB call on subsequent requests.  
-> Auth.js v5 caches `auth()` per request — calling `requireAuth` and `requireAuth` in the same handler is one JWT decode.  
+> Permissions embedded in JWT at sign-in — no DB call on subsequent requests.
 > Permission changes take effect on next sign-in.
 
 ---
@@ -48,19 +47,20 @@ const userId = await requirePermission(Permission.IS_ADMIN);
 ## Route structure
 
 ```ts
-// route.ts — binding only
+// route.ts — thin adapter, binding only
 export async function GET(req: NextRequest) {
-  return getPagedMappings(req); // all logic in service
+  return getPagedMappings(req);
 }
 
-// service.ts — owns everything
+// service.ts — owns all logic
 export async function getPagedMappings(req: NextRequest): Promise<NextResponse> {
   try {
-    const userId = await requireAuth;
+    const { userId, permissions } = await requireAuth();
+    await checkUserRequestLimit(req, userId, permissions);
     // ... validate, DB, cache
     return NextResponse.json(result);
   } catch (error) {
-    return handleApiError(error, 'GET /api/mapping/paged');
+    return handleApiError(error, 'GET', API.mapping.paged(0, 0));
   }
 }
 ```
@@ -69,7 +69,14 @@ export async function getPagedMappings(req: NextRequest): Promise<NextResponse> 
 
 ## Error handling
 
-`handleApiError` maps automatically:
+`handleApiError(error, method, url)` — 3 args, always:
+
+```ts
+return handleApiError(error, 'GET', API.mapping.byId(':id'));
+return handleApiError(error, 'POST', API.mapping.list());
+```
+
+Maps automatically:
 
 | Thrown | Status |
 |--------|--------|
@@ -77,7 +84,6 @@ export async function getPagedMappings(req: NextRequest): Promise<NextResponse> 
 | Yup `ValidationError` | 400 + `details.fieldErrors` |
 | Prisma P2025 / P2003 | 404 |
 | Prisma P2002 | 409 |
-| Axios error | Proxied |
 | Unknown | 500 |
 
 ```ts
@@ -90,9 +96,9 @@ throw new ApiError('Limit reached: max 20 mappings', 403);
 ## parseIdFromRoute
 
 ```ts
-// ❌ params.id — raw string, skips UUID check, malformed input reaches Prisma
+// ❌ Raw string — skips UUID check, malformed input reaches Prisma, ensures no broken BE calls
 // ✅
-const id = parseIdFromRoute(await params); // throws sync → handleApiError → 400
+const id = parseIdFromRoute(await params); // validates UUID format, throws 400 on malformed input
 ```
 
 ---
@@ -100,7 +106,7 @@ const id = parseIdFromRoute(await params); // throws sync → handleApiError →
 ## Yup validation
 
 ```ts
-// Always abortEarly: false — collect all field errors, not just first
+// Always abortEarly: false — collect all field errors at once
 const data = await MyValidator.validate(body, { abortEarly: false });
 ```
 
@@ -110,7 +116,7 @@ Validators live in model files (`src/models/*.models.ts`) alongside their types.
 
 ## Shared validators — BE + FE
 
-Define once in model file, import on both sides. `File` is the shared type — FE unwraps `FileList[0]`.
+Define once in model file (`src/models/*.models.ts`), import on both sides. FE may reuse or define its own stricter version.
 
 ```ts
 // src/models/report.models.ts
@@ -123,10 +129,6 @@ export const ExcelUploadValidator = yup.object({
 const { file } = await ExcelUploadValidator.validate(
   { file: formData.get('file') }, { abortEarly: false },
 );
-
-// FE — input.files is FileList, unwrap to File first
-const file = e.target.files?.[0];
-await ExcelUploadValidator.validate({ file }, { abortEarly: false });
 ```
 
 ---
@@ -137,23 +139,23 @@ await ExcelUploadValidator.validate({ file }, { abortEarly: false });
 // FE — never set Content-Type (browser sets multipart boundary automatically)
 const fd = new FormData();
 fd.append('file', file); // File, not FileList
-await axios.post('/api/report/upload', fd);
+await fetchClient.post('/api/report/upload', fd);
 
-// BE — formData not json
+// BE
 const formData = await req.formData();
 const { file } = await ExcelUploadValidator.validate(
   { file: formData.get('file') }, { abortEarly: false },
 );
 ```
 
-For binary/image uploads (logos, files stored as `Bytes` in DB) — see `ImageBytesGuide.md`.
+For image/binary uploads stored as `Bytes` in DB — see `ImagesGuide.md`.
 
 ---
 
-## unstable_cache
+## Caching
 
 ```ts
-// Every Prisma read must go through cached()
+// Every Prisma read goes through cached()
 const mappings = await cached(
   () => prisma.fieldMapping.findMany({ where, select }),
   CACHE_KEYS.mapping.paged(userId, page, pageSize),
@@ -164,45 +166,79 @@ invalidateCache(...CACHE_KEYS.mapping.invalidate());
 await cached(() => Promise.resolve(mapping), CACHE_KEYS.mapping.byId(mapping.id));
 ```
 
-> Don't set TTL manually — rely on global cache settings. TTL override exists if needed but should be rare.
-
 ---
 
-## updateManyAndReturn / deleteMany
+## updateManyAndReturn / deleteManyAndReturn
 
 > Ownership check lives in WHERE, not in code. One round trip. No TOCTOU.
 
 ```ts
-// ❌ Two-step — TOCTOU race, extra DB round trip, leaks existence info
+// ❌ Two-step — race condition, extra DB call, leaks existence to attacker
 const existing = await prisma.fieldMapping.findFirst({ where: { id } });
 if (!existing) throw new ApiError('Not found', 404);
-if (existing.userId !== userId) throw new ApiError('Forbidden', 403); // ← tells attacker record exists
+if (existing.userId !== userId) throw new ApiError('Forbidden', 403); // tells attacker record exists
 await prisma.fieldMapping.update({ where: { id }, data });
 
-// ✅ One step — ownership enforced atomically in WHERE
+// ✅ Update — Prisma native (5.x)
 const results = await prisma.fieldMapping.updateManyAndReturn({
   where: { id, userId }, // wrong owner → results.length === 0, same as not found
   data,
   select: MAPPING_SELECT,
 });
 if (results.length === 0) throw new ApiError('Mapping not found', 404);
-// Don't distinguish "not found" from "wrong user" — 404 for both = no info disclosure
 
-// Delete
-const { count } = await prisma.fieldMapping.deleteMany({ where: { id, userId } });
-if (count === 0) throw new ApiError('Mapping not found', 404);
+// ✅ Delete — custom extension (withCrud in prismaCrud.ts)
+const deleted = await prisma.fieldMapping.deleteManyAndReturn({
+  where: { id, userId },
+  select: { id: true },
+});
+if (deleted.length === 0) throw new ApiError('Mapping not found', 404);
 ```
 
-Benefits: fewer DB calls, no race condition, no info disclosure (attacker can't probe whether a record exists).
+Never distinguish "not found" from "wrong owner" — 404 for both = no info disclosure.
+
+```
+// ❌ "This item doesn't belong to you" — tells attacker the record exists
+// ✅ 404 "Not found" for both missing and unauthorized — simpler code, no info leak
+```
+
+### One DB call — encode logic in WHERE
+
+Permissions come from JWT, ownership from the `where` clause. Zero extra DB calls needed.
+
+The mapping update is a good example: instead of fetching the mapping first, checking `isGlobal`, verifying `userId`, then updating — all logic is resolved upfront in JS and encoded into a single `where`:
+
+```ts
+const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
+
+// Guard — no DB call, pure permission check
+if (!canModifyGlobal && data.isGlobal) {
+  throw new ApiError('Only users with CAN_MODIFY_GLOBAL can modify global mappings.', 403);
+}
+
+// WHERE encodes all ownership + visibility rules in one shot
+const where = canModifyGlobal
+  ? { id, OR: [{ userId }, { isGlobal: true }] }  // can touch own + global
+  : { id, userId, isGlobal: false };               // own non-global only
+
+const results = await prisma.fieldMapping.updateManyAndReturn({ where, data, select });
+if (results.length === 0) throw new ApiError('Mapping not found', 404);
+// ↑ covers: doesn't exist, wrong owner, no permission — all 404, no info disclosure
+```
+
+No "fetch then check then act". One query does all three.
+
+### deleteManyAndReturn (custom extension)
+
+Postgres doesn't support `DELETE ... RETURNING` natively in Prisma ORM. `withCrud` in `src/lib/prismaCrud.ts` adds it as a Prisma extension using `$queryRaw` internally. Accepts Prisma-style `where` (equality + OR), `select`, and optional `limit`. Return type is inferred from `select` — no manual generics at the call site.
 
 ---
 
 ## findFirstOrThrow
 
-Prefer `OrThrow` variants for all single-record lookups — Prisma throws P2025 → `handleApiError` maps to 404 automatically. No manual null check needed.
+Prefer `OrThrow` variants for all single-record lookups — Prisma throws P2025 → `handleApiError` maps to 404. No manual null check needed.
 
 ```ts
-// ✅ ID lookup — throws automatically if not found
 const mapping = await prisma.fieldMapping.findFirstOrThrow({
   where: { id, OR: [{ userId }, { isGlobal: true }] },
   select: MAPPING_SELECT,
@@ -219,52 +255,65 @@ const mapping = await prisma.fieldMapping.findFirstOrThrow({
 ```ts
 const { page, pageSize } = await parsePaginationFromUrl(new URL(req.url).searchParams);
 // parsePaginationFromUrl: URL is 1-indexed → internal is 0-indexed
-// createPaginatedResponse: converts back to 1-indexed automatically — never pass page + 1
+// createPaginatedResponse: converts back to 1-indexed automatically
 
-const [data, total] = await Promise.all([ // parallel — never sequential
-  cached(() => prisma.model.findMany({ where, skip: page * pageSize, take: pageSize }),
-    CACHE_KEYS.model.paged(userId, page, pageSize)),
-  cached(() => prisma.model.count({ where }),
-    CACHE_KEYS.model.count(userId)), // count key is user-level, not page-level
+const where = { OR: [{ userId }, { isGlobal: true }] };
+const [data, total] = await Promise.all([ // always parallel
+  cached(
+    () => prisma.fieldMapping.findManyFts({
+      freeText,
+      userId,
+      where,
+      select: MAPPING_SELECT_PAGED,
+      orderBy: { name: 'asc' },
+      skip: page * pageSize,
+      take: pageSize,
+    }),
+    CACHE_KEYS.mapping.paged(userId, page, pageSize, freeText),
+  ),
+  cached(
+    () => prisma.fieldMapping.countFts({ freeText, userId, where }),
+    CACHE_KEYS.mapping.count(userId, freeText),
+  ),
 ]);
 
 return NextResponse.json(createPaginatedResponse(data, page, pageSize, total));
-// total is optional — skip if FE doesn't use it
 ```
 
-> Never do `findMany` without pagination — no `getAll`. Even 1,000 rows is a problem.  
-> `total` is a convenience for FE to render page count. If FE doesn't need it, omit the count query.
+> Never `findMany` without pagination for user-facing lists — no `getAll`. Even 1,000 rows is a problem.
+> Exception: `_LIGHT` queries (id + name only) are acceptable unpaginated — low cost, used for dropdowns.
 
 ---
 
-## Full-text search
+## Full-text search (findManyFts / countFts)
 
-> Raw SQL required — Prisma's `fullTextSearch` preview uses `to_tsquery` (crashes on raw user input). Always use `plainto_tsquery` for safety.
+FTS is handled by the `withFts` Prisma extension (`src/lib/prismaFts.ts`). Use `findManyFts` / `countFts` — never write raw FTS SQL yourself.
+
+**Decision tree (handled automatically by the extension):**
+
+| Input | Strategy |
+|-------|----------|
+| Empty | No filter — return all |
+| 1–4 chars | `contains` (case-insensitive) on search columns |
+| Valid UUID | Exact `id` match |
+| 5+ chars | FTS (tsvector + plainto_tsquery) + trigram similarity |
 
 ```ts
-// Requires GIN index in migration:
-// CREATE INDEX idx_name_fts ON "Model" USING GIN (to_tsvector('english', name));
-
-const results = await prisma.$queryRaw<Row[]>`
-  SELECT id, name
-  FROM "Model"
-  WHERE "userId" = ${userId}
-    AND to_tsvector('english', name) @@ plainto_tsquery('english', ${freeText})
-  ORDER BY ts_rank(to_tsvector('english', name), plainto_tsquery('english', ${freeText})) DESC
-  LIMIT ${pageSize} OFFSET ${page * pageSize}
-`;
-// plainto_tsquery = safe for user input. to_tsquery = crashes on raw input — never use.
-
-// Trigram fuzzy (pg_trgm) — for typo tolerance:
-// CREATE EXTENSION IF NOT EXISTS pg_trgm;
-// CREATE INDEX idx_name_trgm ON "Model" USING GIN (name gin_trgm_ops);
-// WHERE similarity(name, ${freeText}) > 0.3
-
-// Cache must include freeText in key
-cached(() => ..., CACHE_KEYS.model.paged(userId, page, pageSize, freeText));
+// Search + count — FTS IDs deduped via React cache(), only one SQL query fires
+// even when findManyFts and countFts are called in Promise.all
+await prisma.model.findManyFts({ freeText, userId, where, select, orderBy, skip, take });
+await prisma.model.countFts({ freeText, userId, where });
 ```
 
-> Neon supports all standard Postgres extensions including `pg_trgm` and `pgvector`. For semantic search (AI embeddings), `pgvector` + `vector` column type. Decide per resource: FTS for keyword match, trigram for typo tolerance, pgvector for semantic.
+The extension requires per-table DB setup: `search_vector` GIN index (tsvector) + trigram GIN index on the search column.
+
+### $queryRaw — when to use
+
+`$queryRaw` is used internally by `withFts` and `withCrud`. In service code, avoid it directly. If a complex query can't be expressed in Prisma ORM:
+
+- Check if `withFts` or `withCrud` already covers it.
+- If truly unique (e.g., `checkDbConsumption` measuring raw storage across multiple models), use `$queryRaw` directly.
+- If the raw query is reusable, wrap it as a custom Prisma extension (same pattern as `withFts`) so it gets Prisma-style typed props, caching, and test isolation.
 
 ---
 
@@ -273,31 +322,25 @@ cached(() => ..., CACHE_KEYS.model.paged(userId, page, pageSize, freeText));
 ```ts
 // Every mutating endpoint — after requireAuth(), before doing work
 const { userId, permissions } = await requireAuth();
-checkUserRequestLimit(req, userId, permissions);
-// Limits (rateLimiter.ts): 5/min per user, 20/min per IP, 200/min global. Global never bypassed.
+await checkUserRequestLimit(req, userId, permissions);
 
-// DB size — before CREATE and UPDATE (not DELETE)
+// Before CREATE and UPDATE (not DELETE)
 await checkUserDbLimits(userId, permissions);
-// Measures all user content (mapping configs + logo bytes + header layouts)
-// Throws 403 if total > USER_DB_LIMIT_BYTES (1 MB). No-op for NO_DB_SIZE_LIMITS.
-
-// Row limit — before CREATE only (defense: prevents index bloat from many tiny rows)
-// eslint-disable-next-line local/no-uncached-prisma
-await checkRowLimit(() => prisma.model.count({ where: { userId } }), ROW_LIMITS.model, 'models', permissions);
 ```
 
-> Rate limiter uses in-memory sliding window — works on single-instance deployments. On Vercel (serverless), each cold start gets a fresh window. Acceptable for low-traffic graduation project; replace with Upstash Redis for production multi-instance.
+> Rate limiter uses in-memory sliding window. On Vercel (serverless), each cold start resets the window. Acceptable for single-instance; replace with Upstash Redis for multi-instance production.
 
 ---
 
 ## Select projections
 
+Three tiers per resource — always explicit select, never bare `findMany`:
+
 ```ts
-// Three tiers per resource — always explicit select, never bare findMany
-const MODEL_SELECT_LIGHT  = { id: true, name: true } as const;
-const MODEL_SELECT_PAGED  = { ...MODEL_SELECT_LIGHT, ...displayFields } as const;
-const MODEL_SELECT        = { ...MODEL_SELECT_PAGED, config: true } as const;
-//                                                    ↑ heavy fields (JSON) — full only
+const MODEL_SELECT_LIGHT = { id: true, name: true } as const;
+const MODEL_SELECT_PAGED = { ...MODEL_SELECT_LIGHT, isGlobal: true, reportType: true } as const;
+const MODEL_SELECT       = { ...MODEL_SELECT_PAGED, config: true } as const;
+//                                                   ↑ heavy fields (JSON) — full only
 // Bytes (logos/files) never appear in any select tier — dedicated endpoint only
 ```
 
@@ -307,9 +350,14 @@ const MODEL_SELECT        = { ...MODEL_SELECT_PAGED, config: true } as const;
 | `_PAGED` | + display fields (flags, refs) | Paged list rows |
 | Full (`_SELECT`) | + heavy fields (JSON, relations) | Detail / edit — no `Bytes` ever |
 
-Complex relation example:
+---
+
+## Prisma relations (cool example)
+
+Prisma can express complex joins as pure TypeScript. This "find similar videos" query shows how deep relation traversal looks — no raw SQL needed:
 
 ```ts
+// Find videos sharing at least one genre with videoId
 prisma.video.findMany({
   where: {
     id: { not: videoId },
@@ -324,12 +372,6 @@ prisma.video.findMany({
   skip: page * pageSize,
   take: pageSize,
   orderBy: { publishedAt: 'desc' },
-  select: {
-    id: true,
-    title: true,
-    thumbnailUrl: true,
-    description: true,
-    durationSeconds: true,
-  },
+  select: { id: true, title: true, thumbnailUrl: true, description: true, durationSeconds: true },
 });
 ```

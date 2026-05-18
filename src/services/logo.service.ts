@@ -1,6 +1,5 @@
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
-import sharp from 'sharp';
 import { prisma } from '@/lib/prisma';
 import { cached, invalidateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
@@ -11,67 +10,13 @@ import { ApiError } from '@/models/api-error';
 import { checkUserRequestLimit } from '@/lib/rateLimiter';
 import { checkUserDbLimits } from '@/lib/userLimits';
 import { parseIdFromRoute } from '@/models';
-import { LOGO_ACCEPTED_MIME_TYPES } from '@/models/logo.model';
+import { BytesResponse } from '@/lib/images/BytesResponse';
+import { processImageFile } from '@/lib/images/imageProcessor';
+import type { LogoMetadataModel } from '@/models/logo.model';
 
-// ==== Logo processing ====
-
-const LOGO_MAX_BYTES = 200 * 1024;
-const LOGO_MAX_WIDTH = 800;
-
-async function processLogo(buffer: Buffer): Promise<{ data: Buffer; mime: string }> {
-  const meta = await sharp(buffer).metadata();
-  const hasAlpha = meta.hasAlpha === true;
-
-  if (hasAlpha) {
-    let result = await sharp(buffer)
-      .resize(LOGO_MAX_WIDTH, undefined, { fit: 'inside', withoutEnlargement: true })
-      .png({ compressionLevel: 9 })
-      .toBuffer();
-
-    if (result.length > LOGO_MAX_BYTES) {
-      result = await sharp(buffer)
-        .resize(600, undefined, { fit: 'inside', withoutEnlargement: true })
-        .png({ compressionLevel: 9, palette: true })
-        .toBuffer();
-    }
-
-    return { data: result, mime: 'image/png' };
-  }
-
-  let result = await sharp(buffer)
-    .resize(LOGO_MAX_WIDTH, undefined, { fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 85 })
-    .toBuffer();
-
-  if (result.length > LOGO_MAX_BYTES) {
-    result = await sharp(buffer)
-      .resize(LOGO_MAX_WIDTH, undefined, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 65 })
-      .toBuffer();
-  }
-
-  if (result.length > LOGO_MAX_BYTES) {
-    result = await sharp(buffer)
-      .resize(600, undefined, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 60 })
-      .toBuffer();
-  }
-
-  return { data: result, mime: 'image/jpeg' };
-}
-
-// Exported helper — validates file type, runs sharp processing.
-// Used by export-settings service for inline logo create/update.
-// Intentionally throws — callers wrap in their own try/catch handler.
-// eslint-disable-next-line local/require-api-try-catch
-export async function processLogoFile(file: File): Promise<{ data: Buffer; mime: string; name: string }> {
-  if (!(LOGO_ACCEPTED_MIME_TYPES as readonly string[]).includes(file.type)) {
-    throw new ApiError('Logo must be PNG, JPEG, WebP, or GIF', 400);
-  }
-  const raw = Buffer.from(await file.arrayBuffer());
-  const processed = await processLogo(raw);
-  return { ...processed, name: file.name };
-}
+const LOGO_MAX_BYTES = 80 * 1024;
+const LOGO_MAX_WIDTH = 400;
+const processLogo = (file: File) => processImageFile(file, LOGO_MAX_BYTES, LOGO_MAX_WIDTH);
 
 // ==== Selects ====
 
@@ -79,7 +24,11 @@ const LOGO_SELECT_LIGHT = {
   id: true,
   mime: true,
   name: true,
-  createdAt: true,
+} as const;
+
+const LOGO_SELECT = {
+  ...LOGO_SELECT_LIGHT,
+  data: true
 } as const;
 
 // ==== HTTP handlers ====
@@ -117,15 +66,11 @@ export async function getLogoById(
     // eslint-disable-next-line local/no-uncached-prisma
     const logo = await prisma.logo.findFirst({
       where: { id, userId },
-      select: { data: true, mime: true, name: true },
+      select: { id: true, data: true, mime: true, name: true },
     });
     if (!logo) throw new ApiError('Logo not found', 404);
 
-    return NextResponse.json({
-      logoData: Buffer.from(logo.data).toString('base64'),
-      logoMime: logo.mime,
-      logoName: logo.name,
-    });
+    return new BytesResponse<LogoMetadataModel>(logo.data, logo.mime, { id: logo.id, name: logo.name });
   } catch (error) {
     return handleApiError(error, 'GET', API.logo.byId(':id'));
   }
@@ -144,20 +89,13 @@ export async function getLogoByExportSettingId(
     // eslint-disable-next-line local/no-uncached-prisma
     const row = await prisma.exportSetting.findFirst({
       where: { id, userId },
-      select: { logo: { select: { data: true, mime: true, name: true } } },
+      select: { logo: { select: LOGO_SELECT } },
     });
 
     if (!row) throw new ApiError('Export setting not found', 404);
+    if (!row.logo?.data) return new NextResponse(null, { status: 204 });
 
-    if (!row.logo?.data) {
-      return NextResponse.json({ logoData: null, logoMime: null, logoName: null });
-    }
-
-    return NextResponse.json({
-      logoData: Buffer.from(row.logo.data).toString('base64'),
-      logoMime: row.logo.mime,
-      logoName: row.logo.name,
-    });
+    return new BytesResponse<LogoMetadataModel>(row.logo.data, row.logo.mime, { id: row.logo.id, name: row.logo.name });
   } catch (error) {
     return handleApiError(error, 'GET', API.logo.byExportSettingId(':id'));
   }
@@ -173,7 +111,7 @@ export async function createLogo(req: NextRequest): Promise<NextResponse> {
     const file = formData.get('logo') as File | null;
     if (!file) throw new ApiError('No logo file provided', 400);
 
-    const processed = await processLogoFile(file);
+    const processed = await processLogo(file);
 
     const logo = await prisma.logo.create({
       data: {
@@ -187,7 +125,7 @@ export async function createLogo(req: NextRequest): Promise<NextResponse> {
 
     invalidateCache(...CACHE_KEYS.logo.invalidate(userId));
 
-    return NextResponse.json(logo, { status: 201 });
+    return new BytesResponse<LogoMetadataModel>(processed.data, processed.mime, { id: logo.id, name: logo.name }, 201);
   } catch (error) {
     return handleApiError(error, 'POST', API.logo.list());
   }

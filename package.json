@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev --turbopack -p 3317",
     "build": "next build",
     "start": "next start",
     "lint": "eslint src",
@@ -25,6 +25,7 @@
     "bcryptjs": "^2.4.3",
     "clsx": "^2.1.1",
     "exceljs": "^4.4.0",
+    "js.foresight": "^3.5.0",
     "lodash.debounce": "^4.0.8",
     "next": "^15.1.0",
     "next-auth": "beta",

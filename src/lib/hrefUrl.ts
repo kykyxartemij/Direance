@@ -1,0 +1,16 @@
+export const HREF = {
+  home: '/',
+  upload: '/upload',
+  uploadMapping: '/upload/mapping',
+  mappings: '/mappings',
+  mappingNew: '/mappings/new',
+  mappingById: (id: string) => `/mappings/${id}`,
+  exportSettings: '/export-settings',
+  exportSettingNew: '/export-settings/new',
+  exportSettingById: (id: string) => `/export-settings/${id}`,
+  admin: '/admin',
+  invite: '/invite',
+  signIn: '/auth/sign-in',
+  acceptInvite: '/auth/accept-invite',
+  ui: '/ui',
+} as const;

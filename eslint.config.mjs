@@ -23,6 +23,7 @@ const ROUTE_FILES = [
 const FE_FILES = [
   'src/components/**/*.{ts,tsx}',
   'src/app/**/*.tsx',
+  'src/page/**/*.{ts,tsx}',
   'src/hooks/**/*.{ts,tsx}',
   'src/providers/**/*.{ts,tsx}',
 ];
@@ -46,10 +47,6 @@ const eslintConfig = [
 
       // Warn when cached() is called with a raw array instead of CACHE_KEYS.*
       'local/require-cache-keys-constant': 'warn',
-
-      // Warn when searchParams.get() for a text param is not wrapped in normalizeText().
-      // Raw URL strings are untrimmed, case-sensitive, and unbounded.
-      'local/require-normalize-text': 'warn',
 
       // Warn when .validate() is called without { abortEarly: false }.
       // Default abortEarly: true stops at the first error — users see only one problem at a time.
@@ -93,6 +90,10 @@ const eslintConfig = [
       // Next.js 15 defaults to hover-only prefetch — without this, quick clicks
       // show a blank gap before the skeleton. With prefetch, skeleton appears instantly.
       'local/require-link-prefetch': 'warn',
+
+      // Warn when <Link> or <FSLink> uses hardcoded href instead of HREF constants.
+      // HREF constants in src/lib/href.ts centralize routes for safe refactoring.
+      'local/require-href-constant': 'warn',
 
       // Warn when a page.tsx has no sibling loading.tsx.
       // loading.tsx is the Suspense skeleton — without it navigation shows a blank screen.

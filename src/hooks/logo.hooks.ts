@@ -2,10 +2,11 @@
 
 import { useQuery, useSuspenseQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import fetchClient from '@/lib/fetchClient';
+import { bytesClient } from '@/lib/images/bytesClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
 import type { ApiError } from '@/models/api-error';
-import type { LogoModel, LogoBytesModel } from '@/models/logo.model';
+import type { LogoModel, LogoBytesModel, LogoMetadataModel } from '@/models/logo.model';
 
 export type { LogoModel, LogoBytesModel };
 
@@ -22,16 +23,39 @@ export function useGetLightLogos() {
 }
 
 // Logo bytes never auto-refetch — staleTime + gcTime: Infinity.
-// Cache is populated via setQueryData after upload mutations.
-// Explicit .refetch() or invalidation are the only ways to update it.
-export function useGetLogoByExportSettingId(id: string) {
+// Fetched as binary (33% smaller than base64 JSON), decoded to base64 in bytesClient.
+// TanStack Query is the primary cache — independent of browser cache.
+export function useGetLogoById(id: string) {
   return useQuery<LogoBytesModel, ApiError>({
-    queryKey: queryKeys.logo.byExportSettingId(id),
+    queryKey: queryKeys.logo.byId(id),
     queryFn: async () => {
-      const { data } = await fetchClient.get<LogoBytesModel>(API.logo.byExportSettingId(id));
-      return data;
+      const result = await bytesClient.get<LogoMetadataModel>(API.logo.byId(id));
+      return { 
+        id, 
+        data: result?.data ?? null, 
+        mime: result?.mime ?? null, 
+        name: result?.meta.name ?? null };
     },
     enabled: !!id,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+}
+
+export function useGetLogoByExportSettingId(exportSettingId: string) {
+  return useQuery<LogoBytesModel | null, ApiError>({
+    queryKey: queryKeys.logo.byExportSettingId(exportSettingId),
+    queryFn: async () => {
+      const result = await bytesClient.get<LogoMetadataModel>(API.logo.byExportSettingId(exportSettingId));
+      if (!result) return null;
+      return { 
+        id: result.meta.id, 
+        data: result.data, 
+        mime: result.mime, 
+        name: result.meta.name 
+      };
+    },
+    enabled: !!exportSettingId,
     staleTime: Infinity,
     gcTime: Infinity,
   });
@@ -41,15 +65,21 @@ export function useGetLogoByExportSettingId(id: string) {
 
 export function useCreateLogo() {
   const queryClient = useQueryClient();
-  return useMutation<LogoModel, ApiError, File>({
+  return useMutation<LogoBytesModel, ApiError, File>({
     mutationFn: async (file) => {
       const formData = new FormData();
       formData.append('logo', file);
-      const { data } = await fetchClient.post<LogoModel>(API.logo.list(), formData);
-      return data;
+      const result = await bytesClient.post<LogoMetadataModel>(API.logo.list(), formData);
+      return {
+        id: result!.meta.id!,
+        name: result!.meta.name,
+        mime: result!.mime,
+        data: result!.data,
+      };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.logo.invalidate.all() });
+      queryClient.setQueryData<LogoBytesModel>(queryKeys.logo.byId(result.id), result);
     },
   });
 }

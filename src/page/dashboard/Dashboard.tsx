@@ -14,6 +14,8 @@ import { combineReports, buildProcessedWorkbook, type Row } from './combineRepor
 import { exportToExcel } from './exportExcel';
 import ExcelViewer from './ExcelViewer';
 import ExportDialog from './ExportDialog';
+import { FSLink } from '@/components/FSLink';
+import { HREF } from '@/lib/hrefUrl';
 
 // ==== Helpers ====
 
@@ -131,7 +133,7 @@ export default function Dashboard() {
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
           Upload one or more Excel reports to see them combined here.
         </p>
-        <Link href="/upload" prefetch>
+        <Link href={HREF.upload} prefetch>
           <ArtButton color="primary">Upload report</ArtButton>
         </Link>
       </div>
@@ -186,18 +188,18 @@ export default function Dashboard() {
           {reports.some((r) => !r.processedHeaders) && (
             <div className="flex items-center gap-2">
               {reports.filter((r) => !r.processedHeaders).map((r) => (
-                <Link key={r.id} href="/upload">
+                <FSLink key={r.id} href={HREF.upload}>
                   <ArtBadge color="warning" size="sm">
                     {r.fileName} — unmapped
                   </ArtBadge>
-                </Link>
+                </FSLink>
               ))}
             </div>
           )}
         </div>
         <div className="flex gap-2">
           <ExportDialog onExport={handleExport} />
-          <Link href="/upload" prefetch>
+          <Link href={HREF.upload} prefetch>
             <ArtButton color="primary">Add report</ArtButton>
           </Link>
         </div>

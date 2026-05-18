@@ -9,16 +9,15 @@ export type LogoMime = (typeof LOGO_ACCEPTED_MIME_TYPES)[number];
 
 export type LogoModel = {
   id: string;
-  name: string;
-  mime: string;
+  mime: string | null;
+  name: string | null;
 };
 
-/** Full logo — metadata + decoded bytes merged for runtime use (export dialog, preview) */
-export type LogoBytesModel = {
-  logoData: string | null;
-  logoMime: string | null;
-  logoName: string | null;
+export type LogoBytesModel = LogoModel & {
+  data: string | null;
 };
+
+export type LogoMetadataModel = { id: string; name: string };
 
 // ==== Validators ====
 

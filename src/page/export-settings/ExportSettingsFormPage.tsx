@@ -231,8 +231,8 @@ function LogoSectionEdit({ id }: { id: string }) {
   const uploadMutation = useUpdateExportSetting();
   const deleteMutation = useDeleteLogo();
 
-  const previewSrc = logoQuery.data?.logoData
-    ? `data:${logoQuery.data.logoMime ?? 'image/jpeg'};base64,${logoQuery.data.logoData}`
+  const previewSrc = logoQuery.data?.data
+    ? `data:${logoQuery.data.mime ?? 'image/jpeg'};base64,${logoQuery.data.data}`
     : null;
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -248,7 +248,7 @@ function LogoSectionEdit({ id }: { id: string }) {
   return (
     <LogoUI
       previewSrc={previewSrc}
-      fileName={logoQuery.data?.logoName ?? settings?.logo?.name ?? null}
+      fileName={logoQuery.data?.name ?? settings?.logo?.name ?? null}
       hasStoredLogo={!!settings?.logo?.name && !previewSrc}
       uploading={uploadMutation.isPending}
       deleting={deleteMutation.isPending}

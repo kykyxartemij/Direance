@@ -1,5 +1,9 @@
 'use client';
 
+// TODO: To change
+// ability to select "include/not"
+// Less hardcoded stuff 
+
 import Link from 'next/link';
 import { useReports } from '@/providers/ReportProvider';
 import ArtBadge from '@/components/ui/ArtBadge';

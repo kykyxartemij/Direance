@@ -12,18 +12,8 @@ import type {
 } from '@/models/export-settings.models';
 import type { PaginatedResponse } from '@/models/paginated-response.model';
 import type { ApiError } from '@/models/api-error';
-import type { LogoModel, LogoBytesModel } from '@/hooks/logo.hooks';
-
-// ==== Helpers ====
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve((reader.result as string).split(',')[1]);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
+import type { LogoBytesModel } from '@/hooks/logo.hooks';
+import { useCreateLogo } from '@/hooks/logo.hooks';
 
 // ==== Queries ====
 
@@ -62,73 +52,63 @@ export function useGetExportSettingById(id: string | undefined) {
 
 // ==== Mutations ====
 
-// logo?: File  → creates logo first, links logoId to the new ExportSettingModel
+// logo?: File  → creates logo first (via useCreateLogo), links logoId to the new ExportSettingModel
 // logo?: string → treats the value as logoId directly (existing logo)
 export function useCreateExportSetting() {
   const queryClient = useQueryClient();
-  return useMutation<ExportSettingModel, ApiError, { body: CreateExportSettingModel; logo?: File | string }>({
+  const createLogo = useCreateLogo();
+  return useMutation<{ setting: ExportSettingModel; logoId?: string; logoBytes?: LogoBytesModel }, ApiError, { body: CreateExportSettingModel; logo?: File | string }>({
     mutationFn: async ({ body, logo }) => {
       let logoId = body.logoId;
+      let logoBytes: LogoBytesModel | undefined;
 
       if (logo instanceof File) {
-        const formData = new FormData();
-        formData.append('logo', logo);
-        const { data: created } = await fetchClient.post<LogoModel>(API.logo.list(), formData);
-        logoId = created.id;
+        const uploaded = await createLogo.mutateAsync(logo);
+        logoId = uploaded.id;
+        logoBytes = uploaded;
       } else if (typeof logo === 'string') {
         logoId = logo;
       }
 
-      const { data } = await fetchClient.post<ExportSettingModel>(API.exportSetting.list(), { ...body, logoId });
-      return data;
+      const { data: setting } = await fetchClient.post<ExportSettingModel>(API.exportSetting.list(), { ...body, logoId });
+      return { setting, logoId, logoBytes };
     },
-    onSuccess: (setting, { logo }) => {
+    onSuccess: ({ setting, logoId, logoBytes }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.exportSetting.invalidate.all() });
-      if (logo instanceof File) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.logo.invalidate.all() });
-        void fileToBase64(logo).then(logoData => {
-          queryClient.setQueryData<LogoBytesModel>(queryKeys.logo.byExportSettingId(setting.id), {
-            logoData,
-            logoMime: logo.type,
-            logoName: logo.name,
-          });
-        });
+      queryClient.setQueryData<ExportSettingModel>(queryKeys.exportSetting.byId(setting.id), setting);
+      if (logoBytes && logoId) {
+        queryClient.setQueryData<LogoBytesModel>(queryKeys.logo.byExportSettingId(setting.id), logoBytes);
       }
     },
   });
 }
 
-// logo?: File  → creates logo first, links logoId via PATCH
+// logo?: File  → creates logo first (via useCreateLogo), links logoId via PATCH
 // logo?: string → treats the value as logoId directly
 export function useUpdateExportSetting() {
   const queryClient = useQueryClient();
-  return useMutation<ExportSettingModel, ApiError, { id: string; body: Omit<UpdateExportSettingModel, 'id'>; logo?: File | string }>({
+  const createLogo = useCreateLogo();
+  return useMutation<{ setting: ExportSettingModel; logoId?: string; logoBytes?: LogoBytesModel }, ApiError, { id: string; body: Omit<UpdateExportSettingModel, 'id'>; logo?: File | string }>({
     mutationFn: async ({ id, body, logo }) => {
       let logoId = body.logoId;
+      let logoBytes: LogoBytesModel | undefined;
 
       if (logo instanceof File) {
-        const formData = new FormData();
-        formData.append('logo', logo);
-        const { data: created } = await fetchClient.post<LogoModel>(API.logo.list(), formData);
-        logoId = created.id;
+        const uploaded = await createLogo.mutateAsync(logo);
+        logoId = uploaded.id;
+        logoBytes = uploaded;
       } else if (typeof logo === 'string') {
         logoId = logo;
       }
 
-      const { data } = await fetchClient.patch<ExportSettingModel>(API.exportSetting.byId(id), { ...body, logoId });
-      return data;
+      const { data: setting } = await fetchClient.patch<ExportSettingModel>(API.exportSetting.byId(id), { ...body, logoId });
+      return { setting, logoId, logoBytes };
     },
-    onSuccess: (setting, { logo }) => {
+    onSuccess: ({ setting, logoId, logoBytes }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.exportSetting.invalidate.all() });
-      if (logo instanceof File) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.logo.invalidate.all() });
-        void fileToBase64(logo).then(logoData => {
-          queryClient.setQueryData<LogoBytesModel>(queryKeys.logo.byExportSettingId(setting.id), {
-            logoData,
-            logoMime: logo.type,
-            logoName: logo.name,
-          });
-        });
+      queryClient.setQueryData<ExportSettingModel>(queryKeys.exportSetting.byId(setting.id), setting);
+      if (logoBytes && logoId) {
+        queryClient.setQueryData<LogoBytesModel>(queryKeys.logo.byExportSettingId(setting.id), logoBytes);
       }
     },
   });
