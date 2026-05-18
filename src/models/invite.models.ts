@@ -71,6 +71,4 @@ export type InviteModel = {
   email: string;
   invitedBy: string;
   permissions: Permission[];
-  expiresAt: Date;
-  createdAt: Date;
 };

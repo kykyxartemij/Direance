@@ -19,3 +19,15 @@ export function invalidateCache(...tags: string[]): void {
     revalidateTag(tag);
   }
 }
+
+export async function populateCache<T>(
+  queryFn: () => Promise<T>,
+  cacheKey: string[],
+  ttl: number = DEFAULT_TTL,
+): Promise<T> {
+  const value = await queryFn();
+  invalidateCache(...cacheKey);
+  // eslint-disable-next-line local/require-cache-keys-constant
+  await cached(() => Promise.resolve(value), cacheKey, ttl);
+  return value;
+}

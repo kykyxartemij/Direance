@@ -47,7 +47,7 @@ module.exports = {
       CallExpression(node) {
         // Only care about calls to cached(fn, key)
         const callee = node.callee;
-        if (callee.type !== 'Identifier' || callee.name !== 'cached') return;
+        if (callee.type !== 'Identifier' || (callee.name !== 'cached' && callee.name !== 'populateCache')) return;
 
         const keyArg = node.arguments[1];
         if (!keyArg) return; // missing key is caught by TypeScript

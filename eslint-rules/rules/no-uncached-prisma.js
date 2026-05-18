@@ -66,7 +66,7 @@ function isInsideCachedWrapper(node) {
       current.parent?.type === 'CallExpression'
     ) {
       const parentCallee = current.parent.callee;
-      if (parentCallee.type === 'Identifier' && parentCallee.name === 'cached') {
+      if (parentCallee.type === 'Identifier' && (parentCallee.name === 'cached' || parentCallee.name === 'populateCache')) {
         return true;
       }
     }

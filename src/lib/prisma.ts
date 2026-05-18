@@ -3,6 +3,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { withFts } from './prismaFts';
 import { withCrud } from './prismaCrud';
 import type { FieldMappingModel } from '../../generated/prisma/models/FieldMapping';
+import type { InviteModel } from '../../generated/prisma/models/Invite';
 
 function makePrisma() {
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
@@ -17,6 +18,7 @@ function makePrisma() {
         ...withFts(base, base.fieldMapping, '"FieldMapping"', 'mapping', 'name'),
         ...withCrud<FieldMappingModel>(base, '"FieldMapping"')
       },
+      invite: withCrud<InviteModel>(base, '"Invite"'),
       user: withFts(base, base.user, '"User"', 'user', 'name', ['email']),
     },
   });

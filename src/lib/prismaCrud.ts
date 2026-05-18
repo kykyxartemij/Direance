@@ -22,6 +22,21 @@ function buildWhere(where: SimpleWhere): Prisma.Sql {
   return Prisma.join(parts, ' AND ');
 }
 
+// ==== Value → Prisma.Sql ====
+// Maps a JS value to a parameterized SQL fragment with the correct Postgres type cast.
+// Exported so custom $queryRaw helpers outside withCrud can reuse the same mapping.
+
+export const toSql = (v: unknown): Prisma.Sql => {
+  if (Buffer.isBuffer(v) || v instanceof Uint8Array) return Prisma.sql`${v}::bytea`;
+  if (!Array.isArray(v)) return Prisma.sql`${v as Prisma.Sql}`;
+  if (typeof v[0] === 'number')  return Prisma.sql`${v}::float8[]`;
+  if (typeof v[0] === 'boolean') return Prisma.sql`${v}::bool[]`;
+  if (typeof v[0] === 'bigint')  return Prisma.sql`${v}::int8[]`;
+  if (v[0] instanceof Date)      return Prisma.sql`${v}::timestamp[]`;
+  if (Buffer.isBuffer(v[0]) || v[0] instanceof Uint8Array) return Prisma.sql`${v}::bytea[]`;
+  return Prisma.sql`${v}::text[]`;
+};
+
 // ==== Select builder ====
 
 function buildReturning(select?: Record<string, boolean>): Prisma.Sql {
@@ -86,6 +101,49 @@ export function withCrud<TModel extends object>(client: PrismaClient, table: str
 
       return client.$queryRaw`
         DELETE FROM ${t} WHERE ${whereSql} RETURNING ${returningSql}
+      `;
+    },
+    /**
+     * INSERT ... ON CONFLICT DO UPDATE ... RETURNING — single roundtrip.
+     * API mirrors Prisma's native upsert: where (conflict key), create, update, select.
+     * Always includes `isReinvite: boolean` in result (true = row existed, false = fresh insert).
+     * Arrays are automatically cast to `text[]`.
+     *
+     * @example
+     * const [row] = await prisma.invite.upsertAndReturn({
+     *   where:  { email },
+     *   create: { email, token, invitedBy, permissions, expiresAt },
+     *   update: { token, invitedBy, permissions, expiresAt },
+     *   select: { createdAt: true },
+     * });
+     * row.wasUpdated // boolean
+     */
+    upsertAndReturn<
+      TSelect extends Partial<Record<keyof TModel, boolean>> | undefined = undefined,
+    >(args: {
+      where: Partial<TModel>;
+      create: Partial<TModel>;
+      update: Partial<TModel>;
+      select?: TSelect;
+    }): Prisma.PrismaPromise<
+      ((TSelect extends undefined
+        ? TModel
+        : Pick<TModel, Extract<keyof NonNullable<TSelect>, keyof TModel>>) & { wasUpdated: boolean })[]
+    > {
+      const t = Prisma.raw(table);
+      const insertCols = Prisma.join(Object.keys(args.create).map(k => Prisma.raw(`"${k}"`)));
+      const insertVals = Prisma.join(Object.values(args.create).map(toSql));
+      const conflictCols = Prisma.join(Object.keys(args.where).map(k => Prisma.raw(`"${k}"`)));
+      const setSql = Prisma.join(
+        Object.entries(args.update).map(([k, v]) => Prisma.sql`${Prisma.raw(`"${k}"`)} = ${toSql(v)}`),
+      );
+      const returningSql = buildReturning(args.select as Record<string, boolean> | undefined);
+
+      return client.$queryRaw`
+        INSERT INTO ${t} (${insertCols})
+        VALUES (${insertVals})
+        ON CONFLICT (${conflictCols}) DO UPDATE SET ${setSql}
+        RETURNING ${returningSql}, (xmax::text::int > 0) AS "wasUpdated"
       `;
     },
   };

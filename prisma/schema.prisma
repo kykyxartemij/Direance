@@ -36,17 +36,16 @@ model User {
 }
 
 // ─────────────────────────────────────────────────────────────────
-//  Invite — email-specific, single-use, 72h invite token
+//  Invite — email-specific, single-use, 2-week invite token
 // ─────────────────────────────────────────────────────────────────
 
 model Invite {
-  id          String    @id @default(cuid())
-  email       String    @unique   // one active invite per email
-  token       String    @unique
+  id          String   @id @default(cuid())
+  email       String   @unique   // one active invite per email
+  token       String   @unique
   invitedBy   String
-  inviter     User      @relation(fields: [invitedBy], references: [id], onDelete: Cascade)
-  permissions String[]  @default([])
-  expiresAt   DateTime
+  inviter     User     @relation(fields: [invitedBy], references: [id], onDelete: Cascade)
+  permissions String[] @default([])
 
   createdAt DateTime @default(now())
 }
