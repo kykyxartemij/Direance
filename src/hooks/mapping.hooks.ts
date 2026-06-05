@@ -23,11 +23,11 @@ export function useGetPagedMappings(page: number, pageSize: number, freeText?: s
   });
 }
 
-export function useGetLightMappings() {
+export function useGetLightMappings(reportType?: string) {
   return useQuery<MappingLightModel[], ApiError>({
-    queryKey: queryKeys.mapping.light(),
+    queryKey: queryKeys.mapping.light(reportType),
     queryFn: async () => {
-      const { data } = await fetchClient.get<MappingLightModel[]>(API.mapping.light());
+      const { data } = await fetchClient.get<MappingLightModel[]>(API.mapping.light(reportType));
       return data;
     },
   });

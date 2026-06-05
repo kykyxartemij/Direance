@@ -5,7 +5,12 @@ import type { ArtColor } from '@/components/ui/art.types';
 
 export type ReportType = 'pnl' | 'financial_position';
 
-const REPORT_TYPES: ReportType[] = ['pnl', 'financial_position'];
+export const REPORT_TYPES: ReportType[] = ['pnl', 'financial_position'];
+
+export const REPORT_TYPE_LABELS: Record<ReportType, string> = {
+  pnl:                'Profit & Loss',
+  financial_position: 'Financial Position',
+};
 
 // ==== Config sub-types ====
 
@@ -74,6 +79,7 @@ export type MappingConfig = {
 export type MappingLightModel = {
   id: string;
   name: string;
+  reportType: ReportType;
 };
 
 export type MappingModel = {

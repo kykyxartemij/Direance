@@ -50,6 +50,22 @@ CREATE TRIGGER field_mapping_fts_update
   BEFORE INSERT OR UPDATE OF name ON "FieldMapping"
   FOR EACH ROW EXECUTE FUNCTION update_name_search_vector();
 
+-- ==== Connection ====
+
+ALTER TABLE "Connection"
+  ADD COLUMN IF NOT EXISTS search_vector tsvector NOT NULL DEFAULT ''::tsvector;
+
+CREATE INDEX IF NOT EXISTS "Connection_search_vector_idx"
+  ON "Connection" USING GIN (search_vector);
+
+CREATE INDEX IF NOT EXISTS "Connection_name_trgm_idx"
+  ON "Connection" USING GIN (name gin_trgm_ops);
+
+DROP TRIGGER IF EXISTS connection_fts_update ON "Connection";
+CREATE TRIGGER connection_fts_update
+  BEFORE INSERT OR UPDATE OF name ON "Connection"
+  FOR EACH ROW EXECUTE FUNCTION update_name_search_vector();
+
 -- ==== User ====
 
 ALTER TABLE "User"
@@ -77,5 +93,9 @@ UPDATE "FieldMapping"
   WHERE search_vector = ''::tsvector;
 
 UPDATE "User"
+  SET search_vector = to_tsvector('english', COALESCE(name, ''))
+  WHERE search_vector = ''::tsvector;
+
+UPDATE "Connection"
   SET search_vector = to_tsvector('english', COALESCE(name, ''))
   WHERE search_vector = ''::tsvector;

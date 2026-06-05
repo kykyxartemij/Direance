@@ -1,0 +1,40 @@
+// ─────────────────────────────────────────────────────────────────
+//  Connection — external integration credentials + config
+//  type: 'merit' | 'odoo' (extend as drivers added)
+//  config: non-secret per-type fields (URLs, db names, company ids)
+//  secret: pgcrypto-encrypted JSON blob (api keys, passwords). Never selected
+//          in listing queries — only decrypted server-side during fetch.
+//  mappingId: optional link to a FieldMapping used to normalize fetched data.
+// ─────────────────────────────────────────────────────────────────
+
+enum ConnectionType {
+  merit
+  odoo
+}
+
+model Connection {
+  id     String         @id @default(dbgenerated("gen_random_uuid()"))
+  name   String
+  type   ConnectionType
+  userId String
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /** Auto-load into the Dashboard report list on session start when true. */
+  isDefault  Boolean @default(false)
+
+  /** Which report this connection produces — drives mapping selector filtering. */
+  reportType String  @default("pnl")
+
+  config Json   @default("{}")
+  secret Bytes
+
+  mappingId String?
+  mapping   FieldMapping? @relation(fields: [mappingId], references: [id], onDelete: SetNull)
+
+  search_vector Unsupported("tsvector")? // managed by fts.sql trigger
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@index([userId])
+}

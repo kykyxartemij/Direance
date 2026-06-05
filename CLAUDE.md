@@ -186,11 +186,25 @@ Collects all field errors at once. Applies to every `.validate()` call regardles
 
 ## ==== Raw SQL + Prisma Middleware ====
 
-`withCrud` extensions (`upsertAndReturn`, `deleteManyAndReturn`) use `$queryRaw` — Prisma middleware does not run:
+`withCrud` extensions (`upsertAndReturn`, `deleteManyAndReturn`) use `$queryRaw` — Prisma middleware does not run.
 
-- `@updatedAt` fields **will not auto-update** — use `@default(now())` (DB-level) and pass the value explicitly in `update`: `{ createdAt: new Date() }`
-- `onDelete`/`onUpdate` cascades are DB-level constraints — they **do** apply
-- `@default` values are DB-level — they **do** apply on INSERT
+### Never use JS-side Prisma features in schema
+
+| What to avoid | Why | Use instead |
+|---|---|---|
+| `@updatedAt` | JS-side injection, skipped by `$queryRaw` | `@default(now())` — trigger in `functions.sql` handles UPDATE |
+| `@default(cuid())` | JS-side, no DB DEFAULT | `@default(dbgenerated("gen_random_uuid()"))` |
+| `@default(uuid())` | JS-side, no DB DEFAULT | `@default(dbgenerated("gen_random_uuid()"))` |
+
+When you need auto-behavior that Prisma can't express via a DB-level `@default(...)`, the solution is always a PostgreSQL function or trigger in `functions.sql` — not JS-side workarounds.
+
+### What works automatically with `$queryRaw`
+
+- `@default(now())` — DB-level, applies on INSERT. Omit from `create`.
+- `@default(dbgenerated("gen_random_uuid()"))` — DB-level. Do **not** pass `id` in `create`.
+- All scalar defaults (`@default(false)`, `@default("pnl")`, `@default("{}")`) — DB-level. Omit from `create`.
+- `updatedAt` — auto-set by `set_updated_at` trigger (see `functions.sql`). Do **not** pass in `update`.
+- `onDelete: Cascade` / `onDelete: SetNull` — DB-level FK constraints, always apply.
 
 ---
 

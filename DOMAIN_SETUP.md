@@ -8,6 +8,7 @@ unset → `email.ts` falls back to console dev-stub.
 - Domain: `direance.eu.org` (free, EU.org volunteer registry)
 - DNS host: Hurricane Electric (`dns.he.net`) — 5 nameservers ns1…ns5.he.net
 - EU.org request: `20260519180907-arf-50919` (submitted 2026-05-19, awaiting review, 1–4 weeks)
+  - 2026-06-06: confirmed still active (re-submit attempt was ignored — request alive)
 - Cloudflare zone for `direance.eu.org`: **dead weight, delete after approval**
 
 ## ==== After EU.org approves ====

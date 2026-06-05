@@ -21,6 +21,7 @@ import { hasPermission, Permission } from '@/lib/permissions';
 const MAPPING_SELECT_LIGHT = {
   id: true,
   name: true,
+  reportType: true,
 } as const;
 
 // Paged — list view, no config (heavy field)
@@ -49,14 +50,19 @@ export async function getLightMappings(req: NextRequest): Promise<NextResponse> 
     const { userId, permissions } = await requireAuth();
     await checkUserRequestLimit(req, userId, permissions);
 
+    const reportType = new URL(req.url).searchParams.get('reportType') ?? undefined;
+
     const mappings = await cached(
       () =>
         prisma.fieldMapping.findMany({
-          where: { OR: [{ userId }, { isGlobal: true }] },
+          where: {
+            OR: [{ userId }, { isGlobal: true }],
+            ...(reportType ? { reportType } : {}),
+          },
           select: MAPPING_SELECT_LIGHT,
           orderBy: { name: 'asc' },
         }),
-      CACHE_KEYS.mapping.light(userId),
+      CACHE_KEYS.mapping.light(userId, reportType),
     );
 
     return NextResponse.json(mappings);

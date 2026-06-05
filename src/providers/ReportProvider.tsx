@@ -31,6 +31,16 @@ export type MappedReport = {
 export type UploadedReport = {
   id: string;
   fileName: string;
+  /** 'file' = xlsx upload; 'connection' = data fetched via a Connection driver. */
+  source: 'file' | 'connection';
+  /** Originating Connection id (only set when source === 'connection'). Used to refetch with new filters. */
+  connectionId?: string;
+  /** Driver type of the originating Connection — drives per-driver filter UI. */
+  connectionType?: 'merit' | 'odoo';
+  /** ISO timestamp of last successful fetch from the connection (connection sources only). */
+  fetchedAt?: string;
+  /** Whether this report contributes to the combined Dashboard view. Defaults to true. */
+  active: boolean;
   /** Raw uploaded workbook — never re-derived. */
   workbook: XLSX.WorkBook;
   activeSheet: string;
@@ -42,14 +52,26 @@ export type UploadedReport = {
   mapped?: MappedReport;
 };
 
+/** Shape produced by connection drivers (src/lib/connections/*). */
+export type ConnectionSheet = {
+  name: string;
+  rows: Record<string, unknown>[];
+};
+
 type ReportContextValue = {
   reports: UploadedReport[];
   addReport: (file: File) => Promise<void>;
+  /** Add a report built from connection-driver output. Builds a synthetic xlsx workbook so the rest of the pipeline (mapping, viewer, export) works unchanged. */
+  addReportFromSheets: (fileName: string, sheets: ConnectionSheet[], opts?: { connectionId?: string; connectionType?: 'merit' | 'odoo'; fetchedAt?: string }) => string;
+  /** Replace the data of an existing connection-sourced report (refetch path). Re-applies the existing mapping if one was set. */
+  replaceReportSheets: (id: string, sheets: ConnectionSheet[], fetchedAt?: string) => void;
   removeReport: (id: string) => void;
   /** Patch the raw report (does NOT recompute mapped). For setting the applied mapping, use setMapping. */
   updateReport: (id: string, patch: Partial<UploadedReport>) => void;
   /** Apply (or clear) a mapping. Recomputes `mapped` so callers never run mapping logic themselves. */
   setMapping: (id: string, mapping: MappingModel | undefined) => void;
+  /** Toggle whether the report contributes to the combined Dashboard view. */
+  setActive: (id: string, active: boolean) => void;
 };
 
 // ==== Helpers ====
@@ -102,8 +124,44 @@ export function ReportProvider({ children }: { children: React.ReactNode }) {
 
     setReports((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), fileName: file.name, workbook, activeSheet, rowIndents },
+      { id: crypto.randomUUID(), fileName: file.name, source: 'file', active: true, workbook, activeSheet, rowIndents },
     ]);
+  }
+
+  function buildSheetsWorkbook(sheets: ConnectionSheet[]): { workbook: XLSX.WorkBook; activeSheet: string; rowIndents: number[] } {
+    const workbook = XLSX.utils.book_new();
+    for (const s of sheets) {
+      const ws = XLSX.utils.json_to_sheet(s.rows);
+      XLSX.utils.book_append_sheet(workbook, ws, s.name.slice(0, 31)); // xlsx caps at 31 chars
+    }
+    const activeSheet = workbook.SheetNames[0] ?? 'Sheet1';
+    const rowIndents = (sheets[0]?.rows ?? []).map(() => 0);
+    return { workbook, activeSheet, rowIndents };
+  }
+
+  function addReportFromSheets(fileName: string, sheets: ConnectionSheet[], opts?: { connectionId?: string; connectionType?: 'merit' | 'odoo'; fetchedAt?: string }): string {
+    const { workbook, activeSheet, rowIndents } = buildSheetsWorkbook(sheets);
+    const id = crypto.randomUUID();
+    setReports((prev) => [
+      ...prev,
+      { id, fileName, source: 'connection', connectionId: opts?.connectionId, connectionType: opts?.connectionType, fetchedAt: opts?.fetchedAt, active: true, workbook, activeSheet, rowIndents },
+    ]);
+    return id;
+  }
+
+  function replaceReportSheets(id: string, sheets: ConnectionSheet[], fetchedAt?: string) {
+    const { workbook, activeSheet, rowIndents } = buildSheetsWorkbook(sheets);
+    setReports((prev) => prev.map((r) => {
+      if (r.id !== id) return r;
+      const next = { ...r, workbook, activeSheet, rowIndents, fetchedAt, mapped: undefined as MappedReport | undefined };
+      // Re-derive mapped view if a mapping was already in effect.
+      if (r.mapping) next.mapped = buildMappedReport(next, r.mapping);
+      return next;
+    }));
+  }
+
+  function setActive(id: string, active: boolean) {
+    setReports((prev) => prev.map((r) => (r.id === id ? { ...r, active } : r)));
   }
 
   function removeReport(id: string) {
@@ -124,7 +182,7 @@ export function ReportProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <ReportContext.Provider value={{ reports, addReport, removeReport, updateReport, setMapping }}>
+    <ReportContext.Provider value={{ reports, addReport, addReportFromSheets, replaceReportSheets, removeReport, updateReport, setMapping, setActive }}>
       {children}
     </ReportContext.Provider>
   );

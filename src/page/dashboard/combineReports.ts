@@ -29,10 +29,10 @@ export function combineReports(reports: UploadedReport[]): CombinedReports {
   const empty: CombinedReports = { headers: [], rows: [], rowIndents: [], rowColors: [], valueColorByHeader: [] };
   if (reports.length === 0) return empty;
 
-  // Only consider reports that have been mapped. Unmapped uploads are surfaced
-  // in the dashboard as warnings — they don't contribute rows.
+  // Only consider reports that have been mapped AND are active. Unmapped or
+  // deactivated reports stay in the sidebar but don't contribute rows.
   const mapped = reports
-    .filter((r) => r.mapped)
+    .filter((r) => r.mapped && r.active)
     .map((r) => ({
       label: r.fileName.replace(/\.(xlsx|xls)$/i, '').slice(0, 10),
       rowIndents: r.rowIndents,

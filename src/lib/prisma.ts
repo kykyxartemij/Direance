@@ -2,6 +2,7 @@ import { PrismaClient } from '../../generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { withFts } from './prismaFts';
 import { withCrud } from './prismaCrud';
+import { withLazyCleanup } from './prismaLazyCleanup';
 import type { FieldMappingModel } from '../../generated/prisma/models/FieldMapping';
 import type { InviteModel } from '../../generated/prisma/models/Invite';
 
@@ -18,8 +19,16 @@ function makePrisma() {
         ...withFts(base, base.fieldMapping, '"FieldMapping"', 'mapping', 'name'),
         ...withCrud<FieldMappingModel>(base, '"FieldMapping"')
       },
-      invite: withCrud<InviteModel>(base, '"Invite"'),
+      invite: {
+        ...withCrud<InviteModel>(base, '"Invite"'),
+        ...withLazyCleanup<InviteModel>(base, '"Invite"', {
+          ttl:                  { field: 'createdAt', ms: 14 * 24 * 60 * 60 * 1000 },
+          limit:                50,
+          limitExceededMessage: 'Too many invites sent. Please try again later, after some invitations expire.',
+        }),
+      },
       user: withFts(base, base.user, '"User"', 'user', 'name', ['email']),
+      connection: withFts(base, base.connection, '"Connection"', 'connection', 'name'),
     },
   });
 }

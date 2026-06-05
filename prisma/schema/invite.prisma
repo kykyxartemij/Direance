@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────
 
 model Invite {
-  id          String   @id @default(cuid())
+  id          String   @id @default(dbgenerated("gen_random_uuid()"))
   email       String   @unique   // one active invite per email
   token       String   @unique
   invitedBy   String
@@ -11,4 +11,5 @@ model Invite {
   permissions String[] @default([])
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
 }

@@ -1,12 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useReports } from '@/providers/ReportProvider';
 import { useGetLightExportSettings, useGetExportSettingById } from '@/hooks/export-settings.hooks';
-import ArtButton from '@/components/ui/ArtButton';
 import ArtBadge from '@/components/ui/ArtBadge';
-import ArtCheckbox from '@/components/ui/ArtCheckbox';
 import ArtComboBox, { type ArtComboBoxOption } from '@/components/ui/ArtComboBox';
 import ArtDataTable, { type ArtColumn } from '@/components/ui/ArtDataTable';
 import ArtTabs from '@/components/ui/ArtTabs';
@@ -16,6 +13,7 @@ import { combineReports, buildProcessedWorkbook, type Row } from './combineRepor
 import { exportToExcel } from './exportExcel';
 import ExcelViewer from './ExcelViewer';
 import ExportDialog from './ExportDialog';
+import ConnectionRefreshBar from './ConnectionRefreshBar';
 import { FSLink } from '@/components/FSLink';
 import { HREF } from '@/lib/hrefUrl';
 
@@ -164,16 +162,13 @@ export default function Dashboard() {
 
   if (reports.length === 0) {
     return (
-      <div className="mt-16 flex flex-col items-center gap-4 text-center">
+      <div className="mt-16 flex flex-col items-center gap-2 text-center">
         <p className="text-lg font-medium" style={{ color: 'var(--text)' }}>
-          No reports uploaded yet
+          Nothing here yet
         </p>
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          Upload one or more Excel reports to see them combined here.
+          Load a connection or upload a file from the sidebar.
         </p>
-        <Link href={HREF.upload} prefetch>
-          <ArtButton color="primary">Upload report</ArtButton>
-        </Link>
       </div>
     );
   }
@@ -216,6 +211,7 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Top bar: tabs + meta + export controls */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <ArtTabs tabs={VIEW_TABS} value={view} onChange={setView} />
@@ -247,23 +243,11 @@ export default function Dashboard() {
             </div>
           )}
           <ExportDialog onExport={handleExport} />
-          <Link href={HREF.upload} prefetch>
-            <ArtButton color="primary">Add report</ArtButton>
-          </Link>
         </div>
       </div>
 
-      {showDerivedTotal && (
-        <div className="flex flex-wrap items-center gap-3">
-          <ArtCheckbox
-            label="Show Σ Total column"
-            size="sm"
-            checked
-            onChange={() => { /* selector handles this — checkbox here is visual */ }}
-            color="primary"
-          />
-        </div>
-      )}
+      {/* Filters + table/excel */}
+      <ConnectionRefreshBar />
 
       {view === 'table' ? (
         <ArtDataTable<Row>

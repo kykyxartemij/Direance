@@ -173,10 +173,11 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
 
   // ==== Redirect if no report ====
 
-  if (!report) {
-    router.push('/upload');
-    return null;
-  }
+  useEffect(() => {
+    if (!report) router.push('/upload');
+  }, [report, router]);
+
+  if (!report) return null;
 
   // ==== Derived ====
 

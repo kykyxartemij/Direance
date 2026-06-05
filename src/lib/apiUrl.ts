@@ -20,7 +20,7 @@ export const API = {
   },
   mapping: {
     list: () => '/api/mapping',
-    light: () => '/api/mapping/light',
+    light: (reportType?: string) => `/api/mapping/light${reportType ? `?reportType=${reportType}` : ''}`,
     paged: (page: number, pageSize: number, freeText?: string) =>
       `/api/mapping/paged?page=${page}&pageSize=${pageSize}${freeText ? `&freeText=${encodeURIComponent(freeText)}` : ''}`,
     byId: (id: string) => `/api/mapping/${id}`,
@@ -36,6 +36,14 @@ export const API = {
     paged: (page: number, pageSize: number, freeText?: string) =>
       `/api/export-settings/paged?page=${page}&pageSize=${pageSize}${freeText ? `&freeText=${encodeURIComponent(freeText)}` : ''}`,
     byId: (id: string) => `/api/export-settings/${id}`,
+  },
+  connection: {
+    light: () => '/api/connections/light',
+    list: () => '/api/connections',
+    paged: (page: number, pageSize: number, freeText?: string) =>
+      `/api/connections/paged?page=${page}&pageSize=${pageSize}${freeText ? `&freeText=${encodeURIComponent(freeText)}` : ''}`,
+    byId: (id: string) => `/api/connections/${id}`,
+    fetch: (id: string) => `/api/connections/${id}/fetch`,
   },
   currency: {
     list: () => '/api/currencies',

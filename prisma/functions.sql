@@ -1,6 +1,39 @@
 -- Run once against your Neon database after prisma db push.
+-- Re-running is safe (CREATE OR REPLACE / IF NOT EXISTS).
+
+-- ==== set_updated_at trigger ====
+-- Fires BEFORE UPDATE on every table that has an "updatedAt" column.
+-- Auto-discovers tables via information_schema — re-run after prisma db push to pick up new tables.
+
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW."updatedAt" = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DO $$
+DECLARE
+  tbl text;
+BEGIN
+  FOR tbl IN
+    SELECT table_name
+    FROM information_schema.columns
+    WHERE column_name = 'updatedAt'
+      AND table_schema = 'public'
+  LOOP
+    EXECUTE format(
+      'CREATE OR REPLACE TRIGGER %I BEFORE UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION set_updated_at()',
+      tbl || '_updated_at',
+      tbl
+    );
+  END LOOP;
+END;
+$$;
+
+-- ==== check_rate_limit ====
 -- Creates the check_rate_limit function used by rateLimiter.ts.
--- Re-running is safe (CREATE OR REPLACE).
 
 CREATE OR REPLACE FUNCTION check_rate_limit(
   p_key            TEXT,

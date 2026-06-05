@@ -16,7 +16,7 @@ export const CACHE_KEYS = {
   mapping: {
     invalidate: (userId: string) => ['mapping', userId],
     invalidateAll: () => ['mapping'],
-    light: (userId: string) => ['mapping', userId, 'light'],
+    light: (userId: string, reportType?: string) => ['mapping', userId, 'light', reportType ?? ''],
     paged: (userId: string, page: number, pageSize: number, freeText?: string) => ['mapping', userId, 'paged', String(page), String(pageSize), freeText ?? ''],
     count: (userId: string, freeText?: string) => ['mapping', userId, 'count', freeText ?? ''],
     byId: (userId: string, id: string) => ['mapping', userId, 'byId', id],
@@ -25,6 +25,7 @@ export const CACHE_KEYS = {
     invalidate: () => ['invite'],
     byToken: (token: string) => ['invite', 'byToken', token],
     limits: () => ['invite', 'limits'],
+    count: () => ['invite', 'count'],
   },
   admin: {
     dbSize: () => ['admin', 'db-size'],
@@ -44,5 +45,12 @@ export const CACHE_KEYS = {
     paged: (userId: string, page: number, pageSize: number, freeText?: string) => ['exportSetting', userId, 'paged', String(page), String(pageSize), freeText ?? ''],
     count: (userId: string, freeText?: string) => ['exportSetting', userId, 'count', freeText ?? ''],
     byId: (userId: string, id: string) => ['exportSetting', userId, 'byId', id],
+  },
+  connection: {
+    invalidate: (userId: string) => ['connection', userId],
+    light: (userId: string) => ['connection', userId, 'light'],
+    paged: (userId: string, page: number, pageSize: number, freeText?: string) => ['connection', userId, 'paged', String(page), String(pageSize), freeText ?? ''],
+    count: (userId: string, freeText?: string) => ['connection', userId, 'count', freeText ?? ''],
+    byId: (userId: string, id: string) => ['connection', userId, 'byId', id],
   },
 };

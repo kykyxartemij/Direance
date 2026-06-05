@@ -3,22 +3,63 @@ import { Prisma } from '../../generated/prisma/client';
 import type { PrismaClient } from '../../generated/prisma/client';
 
 // ==== Where builder ====
-// Supports equality conditions and OR arrays — enough for any delete where clause.
 
-type SimpleValue = string | number | boolean | null | undefined;
-type SimpleWhere = { OR?: SimpleWhere[] } & Record<string, SimpleValue | SimpleWhere[]>;
+type SimpleValue = string | number | boolean | Date | null | undefined;
 
-function buildWhere(where: SimpleWhere): Prisma.Sql {
+type ComparisonOp = {
+  lt?:  SimpleValue;
+  lte?: SimpleValue;
+  gt?:  SimpleValue;
+  gte?: SimpleValue;
+  not?: SimpleValue;
+  in?:  SimpleValue[];
+};
+
+export type SimpleWhere =
+  { OR?: SimpleWhere[]; AND?: SimpleWhere[] } &
+  Record<string, SimpleValue | ComparisonOp | SimpleWhere[]>;
+
+export function buildWhere(where: SimpleWhere): Prisma.Sql {
   const parts: Prisma.Sql[] = [];
+
   for (const [key, val] of Object.entries(where)) {
     if (key === 'OR' && Array.isArray(val)) {
       const clauses = (val as SimpleWhere[]).map(buildWhere);
       parts.push(Prisma.sql`(${Prisma.join(clauses, ' OR ')})`);
-    } else if (val !== undefined) {
-      parts.push(Prisma.sql`${Prisma.raw(`"${key}"`)} = ${val as SimpleValue}`);
+      continue;
     }
+    if (key === 'AND' && Array.isArray(val)) {
+      const clauses = (val as SimpleWhere[]).map(buildWhere);
+      parts.push(Prisma.sql`(${Prisma.join(clauses, ' AND ')})`);
+      continue;
+    }
+    if (val === undefined) continue;
+
+    const col = Prisma.raw(`"${key}"`);
+
+    if (val !== null && typeof val === 'object' && !(val instanceof Date) && !Array.isArray(val)) {
+      const op = val as ComparisonOp;
+      if (op.lt  !== undefined) parts.push(Prisma.sql`${col} < ${op.lt}`);
+      if (op.lte !== undefined) parts.push(Prisma.sql`${col} <= ${op.lte}`);
+      if (op.gt  !== undefined) parts.push(Prisma.sql`${col} > ${op.gt}`);
+      if (op.gte !== undefined) parts.push(Prisma.sql`${col} >= ${op.gte}`);
+      if (op.not !== undefined) parts.push(
+        op.not === null
+          ? Prisma.sql`${col} IS NOT NULL`
+          : Prisma.sql`${col} != ${op.not}`,
+      );
+      if (op.in !== undefined) parts.push(Prisma.sql`${col} = ANY(${op.in})`);
+      continue;
+    }
+
+    parts.push(
+      val === null
+        ? Prisma.sql`${col} IS NULL`
+        : Prisma.sql`${col} = ${val as SimpleValue}`,
+    );
   }
-  if (parts.length === 0) throw new Error('deleteManyAndReturn: where cannot be empty');
+
+  if (parts.length === 0) throw new Error('where cannot be empty');
   return Prisma.join(parts, ' AND ');
 }
 
@@ -39,7 +80,7 @@ export const toSql = (v: unknown): Prisma.Sql => {
 
 // ==== Select builder ====
 
-function buildReturning(select?: Record<string, boolean>): Prisma.Sql {
+export function buildReturning(select?: Record<string, boolean>): Prisma.Sql {
   if (!select) return Prisma.sql`*`;
   const cols = Object.entries(select)
     .filter(([, v]) => v)
@@ -50,27 +91,24 @@ function buildReturning(select?: Record<string, boolean>): Prisma.Sql {
 // ==== Factory ====
 
 /**
- * Returns { deleteManyAndReturn } to register on a Prisma $extends model block.
- * Accepts Prisma-style where (equality + OR), select, and limit.
+ * Returns { upsertAndReturn, deleteManyAndReturn } to register on a Prisma $extends model block.
+ *
+ * SimpleWhere supports: equality, null (IS NULL), comparison ops (lt/lte/gt/gte/not/in), OR, AND.
  * Return type is inferred from select — no manual generic at the call site.
  * Returns Prisma.PrismaPromise — usable in prisma.$transaction([...]).
  *
  * @param client  Base PrismaClient (same instance as the one being extended)
- * @param table   PostgreSQL table name, e.g. '"FieldMapping"'
+ * @param table   Quoted PostgreSQL table name, e.g. '"FieldMapping"'
  *
  * @example
- * // prisma.ts — register alongside withFts:
- * import type { FieldMappingModel } from '../../generated/prisma/models/FieldMapping';
- *
  * fieldMapping: {
  *   ...withFts(base, base.fieldMapping, '"FieldMapping"', 'mapping', 'name'),
- *   ...withDeleteReturning<FieldMappingModel>(base, '"FieldMapping"'),
+ *   ...withCrud<FieldMappingModel>(base, '"FieldMapping"'),
  * }
  *
- * // service — return type inferred from select, no manual generic needed:
  * const deleted = await prisma.fieldMapping.deleteManyAndReturn({
  *   where: { id, userId },
- *   select: { isGlobal: true },  // → { isGlobal: boolean }[]
+ *   select: { isGlobal: true },
  * });
  */
 export function withCrud<TModel extends object>(client: PrismaClient, table: string) {
@@ -103,17 +141,18 @@ export function withCrud<TModel extends object>(client: PrismaClient, table: str
         DELETE FROM ${t} WHERE ${whereSql} RETURNING ${returningSql}
       `;
     },
+
     /**
      * INSERT ... ON CONFLICT DO UPDATE ... RETURNING — single roundtrip.
      * API mirrors Prisma's native upsert: where (conflict key), create, update, select.
-     * Always includes `isReinvite: boolean` in result (true = row existed, false = fresh insert).
+     * Always includes `wasUpdated: boolean` in result (true = row existed, false = fresh insert).
      * Arrays are automatically cast to `text[]`.
      *
      * @example
      * const [row] = await prisma.invite.upsertAndReturn({
      *   where:  { email },
-     *   create: { email, token, invitedBy, permissions, expiresAt },
-     *   update: { token, invitedBy, permissions, expiresAt },
+     *   create: { email, token, invitedBy, permissions },
+     *   update: { token, invitedBy, permissions },
      *   select: { createdAt: true },
      * });
      * row.wasUpdated // boolean

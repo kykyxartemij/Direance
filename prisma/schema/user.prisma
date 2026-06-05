@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────
 
 model User {
-  id            String    @id @default(cuid())
+  id            String    @id @default(dbgenerated("gen_random_uuid()"))
   name          String?
   email         String    @unique
   emailVerified DateTime?
@@ -13,7 +13,7 @@ model User {
   permissions String[] @default([])
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now())
 
   // Auth.js relations (needed for OAuth + session adapter)
   accounts Account[]
@@ -23,4 +23,5 @@ model User {
   exportSettings  ExportSetting[]
   sentInvites     Invite[]
   logos           Logo[]
+  connections     Connection[]
 }
