@@ -31,7 +31,8 @@ const EXPORT_SETTING_SELECT_PAGED = {
   name: true,
   applyHeaderToAllSheets: true,
   includeOriginalSheets: true,
-  mappedValueNames: true,
+  mappedValues: true,
+  hasTotalColumn: true,
 } as const;
 
 // Full — detail view, adds headerLayout and logo metadata (no bytes — bytes can't survive JSON caching)

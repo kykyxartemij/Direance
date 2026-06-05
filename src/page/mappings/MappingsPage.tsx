@@ -65,7 +65,7 @@ export default function MappingsPage() {
       render: (row) =>
         row.isGlobal ? null : (
           <div className="flex gap-2">
-            <FSLink href={HREF.exportSettingById(row.id)}>
+            <FSLink href={HREF.mappingById(row.id)}>
               <ArtButton variant="ghost">Edit</ArtButton>
             </FSLink>
             <ArtConfirmDialog

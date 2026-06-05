@@ -72,3 +72,11 @@ export type InviteModel = {
   invitedBy: string;
   permissions: Permission[];
 };
+
+// Invite send limits. Stats backed by Resend emails.list (page 1 of 100).
+// capped = true when fetched 100 items had_more — real volume ≥ shown.
+export type InviteLimitsModel = {
+  daily:   { sent: number; limit: number };
+  monthly: { sent: number; limit: number };
+  capped: boolean;
+};

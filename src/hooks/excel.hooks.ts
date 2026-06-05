@@ -16,7 +16,7 @@ export type ExportExcelInput = {
   rows: Row[];
   rowIndents: number[];
   rowColors?: (ArtColor | undefined)[];
-  valueColors?: (ArtColor | undefined)[];
+  valueColorByHeader?: Record<string, ArtColor | undefined>[];
   exportSettings?: ExportSettingResolvedModel | null;
   originalWorkbooks?: { name: string; workbook: XLSX.WorkBook; skippedSheets?: string[] }[];
   placeholders?: Record<string, string>;
@@ -33,7 +33,7 @@ export function useExportExcel() {
       rows,
       rowIndents,
       rowColors,
-      valueColors,
+      valueColorByHeader,
       exportSettings,
       originalWorkbooks,
       placeholders,
@@ -45,7 +45,7 @@ export function useExportExcel() {
         rows,
         rowIndents,
         rowColors,
-        valueColors,
+        valueColorByHeader,
         exportSettings,
         originalWorkbooks,
         placeholders,

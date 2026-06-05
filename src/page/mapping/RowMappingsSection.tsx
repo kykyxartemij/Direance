@@ -4,6 +4,7 @@ import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { useGetLightExportSettings } from '@/hooks/export-settings.hooks';
 import { useGetExportSettingById } from '@/hooks/export-settings.hooks';
 import type { RowMapping } from '@/models/mapping.models';
+import type { MappedValueModel } from '@/models/export-settings.models';
 import type { ArtColor } from '@/components/ui/art.types';
 import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox';
 import ArtComboBox from '@/components/ui/ArtComboBox';
@@ -12,6 +13,7 @@ import ArtCollapse from '@/components/ui/ArtCollapse';
 import ArtDataTable, { ArtDataTr, ArtDataTd, type ArtColumn } from '@/components/ui/ArtDataTable';
 import ArtInput from '@/components/ui/ArtInput';
 import ArtIconButton from '@/components/ui/ArtIconButton';
+import ArtTooltip from '@/components/ui/ArtTooltip';
 import ArtButton from '@/components/ui/ArtButton';
 import ColorSelect from './ColorSelect';
 
@@ -50,15 +52,27 @@ interface RowMappingRowItemRef {
 interface RowMappingRowItemProps {
   row: RowMappingRow;
   mappedValueOptions: ArtComboBoxOption[];
+  mappedValues: MappedValueModel[];
   editable: boolean;
   onRemove?: () => void;
 }
 
+function findCategory(name: string | undefined, categories: MappedValueModel[]): MappedValueModel | undefined {
+  if (!name) return undefined;
+  const key = name.trim().toLowerCase();
+  return categories.find((c) => c.name.trim().toLowerCase() === key);
+}
+
+
 const RowMappingRowItem = forwardRef<RowMappingRowItemRef, RowMappingRowItemProps>(
-  ({ row, mappedValueOptions, editable, onRemove }, ref) => {
+  ({ row, mappedValueOptions, mappedValues, editable, onRemove }, ref) => {
     const [nameColor, setNameColor] = useState<ArtColor | undefined>(row.nameColor);
     const [valueColor, setValueColor] = useState<ArtColor | undefined>(row.valueColor);
     const [displayName, setDisplayName] = useState<string | undefined>(row.displayName);
+
+    const matchedCategory = findCategory(displayName, mappedValues);
+    const lockedNameColor = matchedCategory?.color;
+    const effectiveNameColor = lockedNameColor ?? nameColor;
     const hiddenRef = useRef<HTMLInputElement>(null);
     const sourceNameRef = useRef<HTMLInputElement>(null);
 
@@ -69,11 +83,11 @@ const RowMappingRowItem = forwardRef<RowMappingRowItemRef, RowMappingRowItemProp
           sourceName: editable ? (sourceNameRef.current?.value ?? row.sourceName) : row.sourceName,
           displayName: displayName || undefined,
           hidden: hiddenRef.current?.checked ?? false,
-          nameColor,
+          nameColor: effectiveNameColor,
           valueColor,
         }),
       }),
-      [editable, row.sourceName, displayName, nameColor, valueColor],
+      [editable, row.sourceName, displayName, effectiveNameColor, valueColor],
     );
 
     // When displayName is a free-text value that doesn't match any option, synthesise a
@@ -112,7 +126,13 @@ const RowMappingRowItem = forwardRef<RowMappingRowItemRef, RowMappingRowItemProp
           />
         </ArtDataTd>
         <ArtDataTd>
-          <ColorSelect value={nameColor} onChange={setNameColor} />
+          {lockedNameColor !== undefined ? (
+            <ArtTooltip label={`Color set by category "${matchedCategory!.name}" in the linked Export Setting`}>
+              <ColorSelect value={lockedNameColor} onChange={() => {}} disabled />
+            </ArtTooltip>
+          ) : (
+            <ColorSelect value={nameColor} onChange={setNameColor} />
+          )}
         </ArtDataTd>
         <ArtDataTd>
           <ColorSelect value={valueColor} onChange={setValueColor} />
@@ -187,8 +207,9 @@ const RowMappingsSection = forwardRef<RowMappingsSectionRef, RowMappingsSectionP
       label: es.name,
       value: es.id,
     }));
+    const mappedValues: MappedValueModel[] = linkedExportSetting?.mappedValues ?? [];
     const mappedValueOptions: ArtComboBoxOption[] =
-      (linkedExportSetting?.mappedValueNames ?? []).map((n) => ({ label: n, value: n }));
+      mappedValues.map((v) => ({ label: v.name, value: v.name, color: v.color }));
 
     useImperativeHandle(
       ref,
@@ -269,6 +290,7 @@ const RowMappingsSection = forwardRef<RowMappingsSectionRef, RowMappingsSectionP
               }}
               row={row}
               mappedValueOptions={mappedValueOptions}
+              mappedValues={mappedValues}
               editable={editable}
               onRemove={() => handleRemoveRow(row._index)}
             />

@@ -3,7 +3,7 @@
 import { useForm, FormProvider } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { signIn } from 'next-auth/react';
+import { signIn, getSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArtFormInput } from '@/components/form';
 import ArtButton from '@/components/ui/ArtButton';
@@ -39,8 +39,16 @@ export default function SignInPage() {
       return;
     }
 
-    router.push('/');
+    // 1. Invalidate the RSC cache that was populated while signed out
+    //    (Navbar prefetched '/' as the signed-out shell).
     router.refresh();
+    // 2. Force SessionProvider to refetch with the new cookie so useSession()
+    //    in Navbar flips to 'authenticated' before we navigate.
+    await getSession();
+    // 3. Prefetch the dashboard now that the cookie is set — fresh RSC payload.
+    router.prefetch('/');
+    // 4. Soft-navigate using the just-prefetched authenticated payload.
+    router.push('/');
   };
 
   return (

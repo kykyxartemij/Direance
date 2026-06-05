@@ -16,7 +16,7 @@ export const PERMISSION_META: Record<Permission, { label: string; color?: ArtCol
   [Permission.CAN_DELETE_USERS]:            { label: 'Delete Users',       color: 'danger',  icon: 'Close'    },
   [Permission.NO_DB_SIZE_LIMITS]:           { label: 'No DB Size Limits',  color: 'neutral', icon: 'Database' },
   [Permission.NO_DB_REQUEST_LIMITS]:        { label: 'No Rate Limits',     color: 'neutral', icon: 'Zap'      },
-  [Permission.CAN_ACCESS_DB_STATS]:         { label: 'DB Stats',           color: 'primary', icon: 'BarChart' },
+  [Permission.CAN_ACCESS_STATS]:            { label: 'Stats',              color: 'primary', icon: 'BarChart' },
 };
 
 // ==== Component ====

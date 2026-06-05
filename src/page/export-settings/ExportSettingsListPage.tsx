@@ -46,7 +46,8 @@ export default function ExportSettingsListPage() {
       label: 'Value Categories',
       sizing: { width: 200, renderLoading: true },
       render: (row) => {
-        const names = row.mappedValueNames ?? [];
+        const values = row.mappedValues ?? [];
+        const names = values.map((v) => v.name);
         return names.length > 0
           ? names.slice(0, 4).join(', ') + (names.length > 4 ? `… +${names.length - 4}` : '')
           : '—';

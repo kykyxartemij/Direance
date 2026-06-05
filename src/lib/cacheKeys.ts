@@ -24,6 +24,7 @@ export const CACHE_KEYS = {
   invite: {
     invalidate: () => ['invite'],
     byToken: (token: string) => ['invite', 'byToken', token],
+    limits: () => ['invite', 'limits'],
   },
   admin: {
     dbSize: () => ['admin', 'db-size'],

@@ -14,7 +14,7 @@ export enum Permission {
 
   NO_DB_SIZE_LIMITS    = 'NO_DB_SIZE_LIMITS',
   NO_DB_REQUEST_LIMITS = 'NO_DB_REQUEST_LIMITS',
-  CAN_ACCESS_DB_STATS  = 'CAN_ACCESS_DB_STATS',
+  CAN_ACCESS_STATS     = 'CAN_ACCESS_STATS',
 }
 
 // ==== Check types ====

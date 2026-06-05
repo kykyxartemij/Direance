@@ -9,7 +9,7 @@ import { requireAuth } from '@/auth';
 import { ApiError } from '@/models/api-error';
 import { handleApiError } from '@/lib/errorHandler';
 import { API } from '@/lib/apiUrl';
-import { sendInviteEmail, sendInviteExtendedEmail } from '@/lib/email';
+import { sendInviteEmail, sendInviteExtendedEmail, fetchInviteLimits } from '@/lib/email';
 import { Permission } from '@/lib/permissions';
 import { checkUserRequestLimit, checkPublicRequestLimit } from '@/lib/rateLimiter';
 import { buildSendInviteValidator, AcceptInviteValidator, InviteModel } from '@/models/invite.models';
@@ -66,6 +66,23 @@ async function fetchValidInvite(token: string): Promise<InviteModel> {
 
 // ==== HTTP handlers ====
 
+export async function getInviteLimits(): Promise<NextResponse> {
+  try {
+    await requireAuth(Permission.CAN_ACCESS_STATS);
+
+    const limits = await cached(
+      fetchInviteLimits, 
+      CACHE_KEYS.invite.limits(), 
+      60 * 60
+    );
+    if (!limits) throw new ApiError('Invite limits unavailable — RESEND_API_KEY not configured', 503);
+
+    return NextResponse.json(limits);
+  } catch (error) {
+    return handleApiError(error, 'GET', API.invite.limits());
+  }
+}
+
 /** POST /api/invites — send an invite email to a new user */
 export async function sendInvite(req: NextRequest): Promise<NextResponse> {
   try {
@@ -87,20 +104,20 @@ export async function sendInvite(req: NextRequest): Promise<NextResponse> {
 
     const [{ createdAt, wasUpdated }] = await prisma.invite.upsertAndReturn({
       where:  { email: data.email },
-      create: { email: data.email, token, invitedBy: inviterId, permissions: data.permissions },
+      create: { id: crypto.randomUUID(), email: data.email, token, invitedBy: inviterId, permissions: data.permissions },
       update: { token, invitedBy: inviterId, permissions: data.permissions, createdAt: new Date() },
       select: { createdAt: true },
     });
 
     invalidateCache(...CACHE_KEYS.invite.invalidate());
 
-    const THREE_DAYS_MS = 72 * 60 * 60 * 1000;
-
-    if (!wasUpdated) {
-      await sendInviteEmail(data.email, token);
-    } else if (Date.now() - createdAt.getTime() >= THREE_DAYS_MS) {
-      await sendInviteExtendedEmail(data.email, token);
-    }
+    await sendInviteEmail(data.email, token);
+    // const THREE_DAYS_MS = 72 * 60 * 60 * 1000;
+    // if (!wasUpdated) {
+    //   await sendInviteEmail(data.email, token);
+    // } else if (Date.now() - createdAt.getTime() >= THREE_DAYS_MS) {
+    //   await sendInviteExtendedEmail(data.email, token);
+    // }
 
     return NextResponse.json({ message: 'Invite sent' }, { status: 201 });
   } catch (error) {

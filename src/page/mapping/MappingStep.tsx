@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useForm, FormProvider, type Resolver } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
@@ -13,11 +13,14 @@ import type {
 } from '@/models/mapping.models';
 import type { ArtFormButtonProps } from '@/components/ui/ArtForm';
 import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox';
-import { autoDetectLayout, extractRowNames, applyMappingMultiSheet } from './applyMapping';
+import { autoDetectLayout, extractRowNames } from './applyMapping';
 import RowMappingsSection, { type RowMappingRow, type RowMappingsSectionRef } from './RowMappingsSection';
 import SourceLayoutSection from './SourceLayoutSection';
-import MappingMetaSection from './MappingMetaSection';
+import MappingMetaSection, { REPORT_TYPE_OPTIONS } from './MappingMetaSection';
 import ArtForm from '@/components/ui/ArtForm';
+import ArtComboBox from '@/components/ui/ArtComboBox';
+import { ArtFormSelect } from '@/components/form';
+import FormSection from '@/components/FormSection';
 import { useSaveMappingDialog } from './SaveMappingDialog';
 
 // ==== Schema ====
@@ -59,7 +62,7 @@ function mergeRowMappings(prev: RowMappingRow[], newNames: string[]): RowMapping
 
 export default function MappingStep({ reportId }: { reportId?: string }) {
   const router = useRouter();
-  const { reports, updateReport, removeReport } = useReports();
+  const { reports, setMapping, removeReport } = useReports();
   const { data: mappings = [] } = useGetLightMappings();
 
   const createMapping = useCreateMapping();
@@ -87,6 +90,8 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [rowMappingsOpen, setRowMappingsOpen] = useState(false);
   const rowMappingsSectionRef = useRef<RowMappingsSectionRef>(null);
+  const queryClient = useQueryClient();
+  const [selectedMapping, setSelectedMapping] = useState<MappingModel | null>(null);
 
   // ==== Auto-detect when report changes (adjust-state-during-render pattern) ====
 
@@ -105,27 +110,17 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
     const primary = report.workbook.SheetNames[0];
     const names = extractRowNames(report.workbook, primary, layouts[primary]);
     setRowMappings(names.map((sourceName, i) => ({ sourceName, _index: i })));
+
+    // Restore previously-applied mapping when re-editing an uploaded report.
+    // Actual fetch happens in the effect below — refs must not be read during render.
+    if (report.mapping?.id && report.mapping.id !== '__local__') setSelectedMappingId(report.mapping.id);
   }
 
-  // ==== Hooks unconditional ====
+  // ==== Mapping apply (declared before conditional return so hooks remain stable) ====
+  // Memoised so the fetch effect below has a stable identity per relevant inputs.
 
-  const queryClient = useQueryClient();
-  const [selectedMapping, setSelectedMapping] = useState<MappingModel | null>(null);
-  // ==== Redirect if no report ====
-
-  if (!report) {
-    router.push('/upload');
-    return null;
-  }
-
-  // ==== Derived ====
-
-  const isGlobalSelected = selectedMapping?.isGlobal === true;
-  const isUserOwned = !!selectedMapping && !selectedMapping.isGlobal;
-
-  // ==== Mapping apply ====
-
-  function applyMappingToForm(mapping: MappingModel) {
+  const applyMappingToForm = useCallback((mapping: MappingModel) => {
+    if (!report) return;
     methods.setValue('reportType', mapping.reportType);
     if (mapping.config.fromCurrency) methods.setValue('fromCurrency', mapping.config.fromCurrency);
     methods.setValue('toCurrency', mapping.config.currency);
@@ -141,14 +136,14 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
       Object.assign(newLayouts, mapping.config.sheetLayouts);
     } else if (mapping.config.sourceLayout) {
       const layout = sanitizeLayout(mapping.config.sourceLayout);
-      for (const s of report!.workbook.SheetNames) newLayouts[s] = layout;
+      for (const s of report.workbook.SheetNames) newLayouts[s] = layout;
     }
     setSheetLayouts(newLayouts);
 
-    const primary = primarySheetOf(report!.workbook.SheetNames, newSheetConfigs);
+    const primary = primarySheetOf(report.workbook.SheetNames, newSheetConfigs);
     const primaryLayout = newLayouts[primary];
     if (primaryLayout) {
-      const names = extractRowNames(report!.workbook, primary, sanitizeLayout(primaryLayout));
+      const names = extractRowNames(report.workbook, primary, sanitizeLayout(primaryLayout));
       const namesSet = new Set(names);
       const existingBySource = new Map(mapping.config.rowMappings.map((r) => [r.sourceName, r]));
       const used: RowMappingRow[] = names.map((sourceName, i) => ({
@@ -161,9 +156,35 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
         .map((r, j) => ({ ...r, _index: names.length + j, _unused: true }));
       setRowMappings([...used, ...unused]);
     }
+  }, [report, methods, sheetsConfig, sheetLayouts]);
+
+  // ==== Fetch + apply selected mapping (side effect — runs outside render) ====
+
+  useEffect(() => {
+    if (!selectedMappingId || selectedMapping?.id === selectedMappingId) return;
+    let cancelled = false;
+    fetchMappingById(queryClient, selectedMappingId).then((mapping) => {
+      if (cancelled) return;
+      setSelectedMapping(mapping);
+      applyMappingToForm(mapping);
+    });
+    return () => { cancelled = true; };
+  }, [selectedMappingId, selectedMapping?.id, queryClient, applyMappingToForm]);
+
+  // ==== Redirect if no report ====
+
+  if (!report) {
+    router.push('/upload');
+    return null;
   }
 
+  // ==== Derived ====
+
+  const isUserOwned = !!selectedMapping && !selectedMapping.isGlobal;
+
   async function handleMappingChange(opt: ArtComboBoxOption | null) {
+    flushRowMappings();
+    setRowMappingsOpen(false);
     const id = opt?.value ?? null;
     setSelectedMappingId(id);
     if (!id) { setSelectedMapping(null); return; }
@@ -245,41 +266,49 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
   // ==== Apply and navigate ====
 
   function applyAndNavigate() {
+    const { reportType } = methods.getValues();
     const config = buildConfig();
-    const skippedSheets = report!.workbook.SheetNames.filter((s) => sheetsConfig[s]?.mode === 'skip');
-    const usedSheets = report!.workbook.SheetNames.filter((s) => sheetsConfig[s]?.mode !== 'skip');
-    const { headers, rows, rowColors, valueColors, totalColumns } = applyMappingMultiSheet(
-      report!.workbook,
-      usedSheets.length > 0 ? usedSheets : [report!.workbook.SheetNames[0]],
+    const linkedExportSetting = rowMappingsSectionRef.current?.getLinkedExportSetting() ?? null;
+
+    // Synthesise the MappingModel that's actually in effect — saved base + local edits.
+    // ReportProvider.setMapping recomputes report.mapped from this.
+    const effectiveMapping: MappingModel = {
+      id: selectedMapping?.id ?? '__local__',
+      name: selectedMapping?.name ?? '(unsaved)',
+      isGlobal: selectedMapping?.isGlobal ?? false,
+      reportType: (reportType as MappingModel['reportType']) ?? 'pnl',
       config,
-    );
-    updateReport(report!.id, {
-      mappingId: selectedMappingId ?? undefined,
-      processedHeaders: headers,
-      processedRows: rows,
-      rowColors,
-      valueColors,
-      totalColumns,
-      skippedSheets,
-      exportSetting: rowMappingsSectionRef.current?.getLinkedExportSetting() ?? null,
-    });
+      exportSetting: linkedExportSetting
+        ? {
+            id: linkedExportSetting.id,
+            name: linkedExportSetting.name,
+            mappedValues: linkedExportSetting.mappedValues,
+            hasTotalColumn: linkedExportSetting.hasTotalColumn,
+          }
+        : null,
+      createdAt: selectedMapping?.createdAt ?? new Date().toISOString(),
+      updatedAt: selectedMapping?.updatedAt ?? new Date().toISOString(),
+    };
+
+    setMapping(report!.id, effectiveMapping);
     router.push('/');
   }
 
   // ==== Save mapping dialog ====
 
-  function openSaveDialog() {
+  function openSaveDialog(mode: 'create' | 'update') {
     const { reportType } = methods.getValues();
     const esId = rowMappingsSectionRef.current?.getExportSettingId() ?? undefined;
+    const isUpdate = mode === 'update' && isUserOwned && !!selectedMappingId;
     saveMappingDialog.open({
-      defaultName: selectedMapping?.name ?? '',
-      isUserOwned,
-      isGlobalSelected,
+      defaultName: isUpdate ? (selectedMapping?.name ?? '') : '',
+      isUserOwned: isUpdate,
+      isGlobalSelected: false,
       onSave: async (name) => {
         const config = buildConfig();
-        if (isUserOwned && selectedMappingId) {
+        if (isUpdate) {
           await updateMappingMut.mutateAsync({
-            id: selectedMappingId,
+            id: selectedMappingId!,
             body: { name, reportType: reportType as ReportType, config, exportSettingId: esId },
           });
         } else {
@@ -305,13 +334,25 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
   const selectedMappingOption = mappingOptions.find((o) => o.value === selectedMappingId) ?? null;
 
   // ==== Form buttons ====
+  // Save logic:
+  //   - Always: "Save as new mapping" (creates a fresh personal mapping).
+  //   - When a personal mapping is selected: also "Update current mapping" (overwrites it).
+  //   - Global mappings can't be updated in place — saving always creates a copy.
+  // Apply (submit) waits for fetchMappingById to settle when a mapping was just picked.
 
-  const saveButtonLabel = isGlobalSelected ? 'Save as copy' : isUserOwned ? 'Update mapping' : 'Save mapping config';
+  const mappingFetchPending = !!selectedMappingId && selectedMapping?.id !== selectedMappingId;
 
   const handleFormSubmit = (e: React.BaseSyntheticEvent) => methods.handleSubmit(applyAndNavigate)(e);
 
   const formButtons: ArtFormButtonProps[] = [
-    { label: saveButtonLabel, variant: 'outlined', type: 'button', onClick: openSaveDialog, side: 'left' },
+    { label: 'Save as new mapping', variant: 'outlined', type: 'button', onClick: () => openSaveDialog('create'), side: 'left' },
+    ...(isUserOwned ? [{
+      label: 'Update current mapping',
+      variant: 'outlined' as const,
+      type: 'button' as const,
+      onClick: () => openSaveDialog('update'),
+      side: 'left' as const,
+    }] : []),
     {
       label: 'Cancel upload',
       color: 'danger',
@@ -319,7 +360,7 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
       type: 'button',
       onClick: () => { removeReport(report.id); router.push('/upload'); },
     },
-    { label: 'Apply Mapping', color: 'primary', type: 'submit' },
+    { label: 'Apply Mapping', color: 'primary', type: 'submit', loading: mappingFetchPending, disabled: mappingFetchPending },
   ];
 
   // ==== Render ====
@@ -332,20 +373,33 @@ export default function MappingStep({ reportId }: { reportId?: string }) {
 
       <FormProvider {...methods}>
         <ArtForm onSubmit={handleFormSubmit} buttons={formButtons}>
-          {/* ==== Mapping ==== */}
-          <MappingMetaSection
-            showMappingSelector
-            mappingOptions={mappingOptions}
-            selectedMappingOption={selectedMappingOption}
-            onMappingChange={handleMappingChange}
-            hint={
-              selectedMapping
-                ? selectedMapping.isGlobal
+          {/* ==== Unique top section: Mapping picker + Report Type ==== */}
+          <FormSection title="Upload">
+            <ArtComboBox
+              label="Mapping"
+              options={mappingOptions}
+              selected={selectedMappingOption}
+              onChange={handleMappingChange}
+              placeholder="Select or create mapping…"
+              clearable
+            />
+            <ArtFormSelect
+              name="reportType"
+              label="Report Type"
+              options={REPORT_TYPE_OPTIONS}
+              required
+            />
+            {selectedMapping && (
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                {selectedMapping.isGlobal
                   ? 'Global mapping — changes are not saved unless you save a copy.'
-                  : `Editing: ${selectedMapping.name}`
-                : undefined
-            }
-          />
+                  : `Editing: ${selectedMapping.name}`}
+              </p>
+            )}
+          </FormSection>
+
+          {/* ==== Currencies ==== */}
+          <MappingMetaSection />
 
           {/* ==== Source Layout ==== */}
           {Object.keys(sheetLayouts).length > 0 && (

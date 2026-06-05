@@ -57,7 +57,7 @@ export function useGetExportSettingById(id: string | undefined) {
 export function useCreateExportSetting() {
   const queryClient = useQueryClient();
   const createLogo = useCreateLogo();
-  return useMutation<{ setting: ExportSettingModel; logoId?: string; logoBytes?: LogoBytesModel }, ApiError, { body: CreateExportSettingModel; logo?: File | string }>({
+  return useMutation<{ setting: ExportSettingModel; logoId?: string | null; logoBytes?: LogoBytesModel }, ApiError, { body: CreateExportSettingModel; logo?: File | string }>({
     mutationFn: async ({ body, logo }) => {
       let logoId = body.logoId;
       let logoBytes: LogoBytesModel | undefined;
@@ -88,7 +88,7 @@ export function useCreateExportSetting() {
 export function useUpdateExportSetting() {
   const queryClient = useQueryClient();
   const createLogo = useCreateLogo();
-  return useMutation<{ setting: ExportSettingModel; logoId?: string; logoBytes?: LogoBytesModel }, ApiError, { id: string; body: Omit<UpdateExportSettingModel, 'id'>; logo?: File | string }>({
+  return useMutation<{ setting: ExportSettingModel; logoId?: string | null; logoBytes?: LogoBytesModel }, ApiError, { id: string; body: Omit<UpdateExportSettingModel, 'id'>; logo?: File | string }>({
     mutationFn: async ({ id, body, logo }) => {
       let logoId = body.logoId;
       let logoBytes: LogoBytesModel | undefined;

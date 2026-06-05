@@ -7,15 +7,20 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { useGetMappingById, useCreateMapping, useUpdateMapping } from '@/hooks/mapping.hooks';
 import { DEFAULT_MAPPING_CONFIG, type MappingModel, type RowMapping } from '@/models/mapping.models';
-import { ArtForm, ArtFormInput } from '@/components/form';
+import { ArtForm, ArtFormInput, ArtFormSelect } from '@/components/form';
+import type { ArtSelectOption } from '@/components/ui/ArtSelect';
+import { useAuth } from '@/providers/AuthProvider';
+import { Permission } from '@/lib/permissions';
 import RowMappingsSection, {
   type RowMappingRow,
   type RowMappingsSectionRef,
 } from '@/page/mapping/RowMappingsSection';
-import MappingMetaSection from '@/page/mapping/MappingMetaSection';
+import MappingMetaSection, { REPORT_TYPE_OPTIONS } from '@/page/mapping/MappingMetaSection';
+import FormSection from '@/components/FormSection';
 import SourceLayoutFormSection, {
   type SourceLayoutFormSectionRef,
 } from '@/page/mapping/SourceLayoutFormSection';
+import PermissionGuard from '@/components/PermissionGuard';
 
 // ==== Schema ====
 // Only scalar fields are owned by RHF. Row mappings + export setting are
@@ -29,6 +34,7 @@ const schema = yup.object({
     .required('Report type is required'),
   fromCurrency: yup.string().default('EUR'),
   toCurrency: yup.string().default('EUR'),
+  visibility: yup.string().oneOf(['personal', 'global']).default('personal'),
 });
 
 type FormValues = {
@@ -36,13 +42,20 @@ type FormValues = {
   reportType: 'pnl' | 'financial_position';
   fromCurrency: string;
   toCurrency: string;
+  visibility: 'personal' | 'global';
 };
+
+const VISIBILITY_OPTIONS: ArtSelectOption[] = [
+  { label: 'Personal',                  value: 'personal' },
+  { label: 'Global (visible to all)',   value: 'global' },
+];
 
 const emptyDefaults: FormValues = {
   name: '',
   reportType: 'pnl',
   fromCurrency: 'EUR',
   toCurrency: 'EUR',
+  visibility: 'personal',
 };
 
 function mappingToDefaults(mapping: MappingModel): FormValues {
@@ -51,6 +64,7 @@ function mappingToDefaults(mapping: MappingModel): FormValues {
     reportType: mapping.reportType,
     fromCurrency: mapping.config.fromCurrency ?? 'EUR',
     toCurrency: mapping.config.currency ?? 'EUR',
+    visibility: mapping.isGlobal ? 'global' : 'personal',
   };
 }
 
@@ -65,6 +79,8 @@ function MappingFormInner({ id, mapping }: { id?: string; mapping?: MappingModel
   const isCreating = !id;
   const createMutation = useCreateMapping();
   const updateMutation = useUpdateMapping();
+  const { hasPermission } = useAuth();
+  const canModifyGlobal = hasPermission(Permission.CAN_MODIFY_GLOBAL);
 
   const rowsSectionRef = useRef<RowMappingsSectionRef>(null);
   const layoutSectionRef = useRef<SourceLayoutFormSectionRef>(null);
@@ -111,12 +127,15 @@ function MappingFormInner({ id, mapping }: { id?: string; mapping?: MappingModel
       rowMappings: cleanRows,
     };
 
+    const isGlobal = canModifyGlobal ? data.visibility === 'global' : undefined;
+
     if (isCreating) {
       await createMutation.mutateAsync({
         name: data.name,
         reportType: data.reportType,
         config,
         exportSettingId: exportSettingId ?? undefined,
+        isGlobal,
       });
     } else {
       await updateMutation.mutateAsync({
@@ -126,6 +145,7 @@ function MappingFormInner({ id, mapping }: { id?: string; mapping?: MappingModel
           reportType: data.reportType,
           config,
           exportSettingId: exportSettingId ?? undefined,
+          isGlobal,
         },
       });
     }
@@ -146,7 +166,22 @@ function MappingFormInner({ id, mapping }: { id?: string; mapping?: MappingModel
         },
       ]}
     >
-      <ArtFormInput name="name" label="Name" required />
+      <FormSection title={isCreating ? 'New Mapping' : 'Edit Mapping'}>
+        <ArtFormInput name="name" label="Name" required />
+        <PermissionGuard permission={Permission.CAN_MODIFY_GLOBAL}>
+          <ArtFormSelect
+            name="visibility"
+            label="Visibility"
+            options={VISIBILITY_OPTIONS}
+          />
+        </PermissionGuard>
+        <ArtFormSelect
+          name="reportType"
+          label="Report Type"
+          options={REPORT_TYPE_OPTIONS}
+          required
+        />
+      </FormSection>
       <MappingMetaSection />
       <SourceLayoutFormSection
         ref={layoutSectionRef}

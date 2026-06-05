@@ -5,8 +5,10 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { useRouter } from 'next/navigation';
 import { useSendInvite } from '@/hooks/invite.hooks';
+import InviteLimitsSection from './InviteLimitsSection';
 import { useAuth } from '@/providers/AuthProvider';
 import { Permission } from '@/lib/permissions';
+import PermissionGuard from '@/components/PermissionGuard';
 import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
 import { ArtForm, ArtFormInput, ArtFormListbox } from '@/components/form';
 import ArtLabel from '@/components/ui/ArtLabel';
@@ -77,6 +79,7 @@ export default function InvitePage() {
   }
 
   return (
+    <div className="flex flex-col gap-6">
     <ArtForm
       methods={methods}
       onSubmit={onSubmit}
@@ -121,5 +124,9 @@ export default function InvitePage() {
         </p>
       )}
     </ArtForm>
+    <PermissionGuard permission={Permission.CAN_ACCESS_STATS}>
+      <InviteLimitsSection />
+    </PermissionGuard>
+    </div>
   );
 }

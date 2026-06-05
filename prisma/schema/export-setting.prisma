@@ -1,0 +1,33 @@
+// ─────────────────────────────────────────────────────────────────
+//  ExportSetting — reusable export template
+//  Stores named value categories, sheet options, and report layout.
+//  FieldMapping optionally links to one ExportSetting to populate
+//  the Display Name ComboBox in Row Mappings with mappedValueNames.
+// ─────────────────────────────────────────────────────────────────
+
+model ExportSetting {
+  id     String @id @default(uuid())
+  name   String
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Header layout: logo position, arbitrary text/placeholder cells, where the DataTable starts
+  headerLayout           Json?
+  applyHeaderToAllSheets Boolean @default(false)
+
+  // Logo linked by reference — bytes live in the Logo model
+  logoId String? @unique
+  logo   Logo?   @relation(fields: [logoId], references: [id], onDelete: SetNull)
+
+  includeOriginalSheets Boolean  @default(false)
+  hasTotalColumn        Boolean  @default(false)
+  mappedValues          Json     @default("[]")
+
+  // Back-reference required by Prisma — never selected in queries; ExportSetting does not expose FieldMappings
+  fieldMappings FieldMapping[]
+
+  search_vector Unsupported("tsvector")? // managed by fts.sql trigger
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

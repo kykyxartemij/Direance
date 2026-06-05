@@ -1,0 +1,26 @@
+// ─────────────────────────────────────────────────────────────────
+//  User — central entity; owns all auth + integration credentials
+// ─────────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  password      String?   // null for OAuth-only users
+
+  // IS_ADMIN overrides all permission checks
+  permissions String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Auth.js relations (needed for OAuth + session adapter)
+  accounts Account[]
+  sessions Session[]
+
+  mappings        FieldMapping[]
+  exportSettings  ExportSetting[]
+  sentInvites     Invite[]
+  logos           Logo[]
+}

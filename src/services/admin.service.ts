@@ -58,7 +58,7 @@ async function fetchProject(): Promise<NeonProject | null> {
 
 export async function getDbStats(): Promise<NextResponse> {
   try {
-    await requireAuth(Permission.CAN_ACCESS_DB_STATS);
+    await requireAuth(Permission.CAN_ACCESS_STATS);
 
     const TTL = 1 * 30 * 60; // 1,5 hours — monitoring data
 

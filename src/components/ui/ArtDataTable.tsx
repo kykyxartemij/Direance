@@ -70,6 +70,14 @@ interface ArtDataTableProps<T> {
    * Loading and empty states still managed by ArtDataTable.
    */
   renderRow?: (row: T, index: number) => ReactNode;
+  /**
+   * When true (default): filler col inserted before the last column so the
+   * last column sits flush against the right edge (e.g. action columns).
+   * When false: columns flow left-to-right, filler appended at the end —
+   * use this for data tables where the natural last column shouldn't be
+   * forced to the right edge.
+   */
+  lastColRightAlign?: boolean;
 }
 
 // ==== Internal row (memoised) ====
@@ -170,6 +178,7 @@ function ArtDataTable<T>({
   rowHeight,
   className,
   renderRow,
+  lastColRightAlign = true,
 }: ArtDataTableProps<T>) {
   const processedColumns = useMemo((): ProcessedColumn<T>[] => {
     const [withLeft] = columns.reduce<[ProcessedColumn<T>[], number]>(
@@ -204,10 +213,11 @@ function ArtDataTable<T>({
     const filler: ProcessedColumn<T> = { key: FILLER_KEY, label: '', _stickyLeft: 0, _isFiller: true, sizing: {} } as ProcessedColumn<T>;
 
     if (rightCols.length > 0) return [...nonRight, filler, ...rightCols];
+    if (!lastColRightAlign) return [...nonRight, filler];
     const last = nonRight[nonRight.length - 1];
     const body = nonRight.slice(0, -1);
     return last ? [...body, filler, last] : [...body, filler];
-  }, [columns]);
+  }, [columns, lastColRightAlign]);
 
   const { tableMinWidth, colPercents } = useMemo(() => {
     const usingPct = columns.some(col => typeof col.sizing.width === 'number');
@@ -217,14 +227,28 @@ function ArtDataTable<T>({
       const percents = new Map<string, number>();
       const nonLastSum = nonLast.reduce((s, col) => {
         const pct = colWidthAsPct(col.sizing.width);
-        if (pct > 0) percents.set(col.key, pct); // skip 0 — column stays flexible
+        if (pct > 0) percents.set(col.key, pct);
         return s + pct;
       }, 0);
-      if (last) {
+
+      const allOthersConstrained = nonLast.every(col => typeof col.sizing.width === 'number' && col.sizing.width > 0);
+      const lastExplicit = typeof last?.sizing.width === 'number' && last.sizing.width > 0;
+
+      if (last && allOthersConstrained && !lastExplicit) {
         const lastPct = Math.max(0, 100 - nonLastSum);
         percents.set(last.key, lastPct);
+      } else if (last && lastExplicit) {
+        percents.set(last.key, colWidthAsPct(last.sizing.width));
       }
-      const totalPct = Math.max(100, nonLastSum + Math.max(0, 100 - nonLastSum));
+
+      const fullyExplicit = allOthersConstrained && lastExplicit;
+      const explicitSum = nonLastSum + (lastExplicit ? colWidthAsPct(last.sizing.width) : 0);
+      if (fullyExplicit && explicitSum > 0 && explicitSum < 100) {
+        const scale = 100 / explicitSum;
+        for (const [key, pct] of percents) percents.set(key, pct * scale);
+      }
+
+      const totalPct = explicitSum;
       return {
         tableMinWidth: totalPct > 100 ? `${totalPct}%` : undefined,
         colPercents: percents,
@@ -249,7 +273,13 @@ function ArtDataTable<T>({
         >
           <colgroup>
             {processedColumns.map((col) => {
-              if (col._isFiller) return <col key={col.key} />;
+              if (col._isFiller) {
+                // Pin to 0 when pct widths already fill 100% so the filler
+                // doesn't render as a visible empty cell on the right.
+                const pctSum = [...colPercents.values()].reduce((s, p) => s + p, 0);
+                const fillerW = pctSum >= 99.99 ? 0 : undefined;
+                return <col key={col.key} style={fillerW !== undefined ? { width: fillerW } : undefined} />;
+              }
               const pct = colPercents.get(col.key);
               const w = pct !== undefined ? `${pct}%` : col.sizing.width;
               return <col key={col.key} style={w ? { width: w } : undefined} />;

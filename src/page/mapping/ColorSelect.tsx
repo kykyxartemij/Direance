@@ -20,9 +20,10 @@ interface ColorSelectProps {
   onChange: (color: ArtColor | undefined) => void;
   placeholder?: string;
   size?: 'sm' | 'md' | 'lg';
+  disabled?: boolean;
 }
 
-export default function ColorSelect({ value, onChange, placeholder = 'Color', size = 'sm' }: ColorSelectProps) {
+export default function ColorSelect({ value, onChange, placeholder = 'Color', size = 'sm', disabled }: ColorSelectProps) {
   const selected = COLOR_OPTIONS.find((o) => o.value === value) ?? null;
 
   return (
@@ -35,6 +36,7 @@ export default function ColorSelect({ value, onChange, placeholder = 'Color', si
       }}
       placeholder={placeholder}
       size={size}
+      disabled={disabled}
       clearable
     />
   );

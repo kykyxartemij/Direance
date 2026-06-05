@@ -55,7 +55,6 @@ export type ExportSettings = {
   templateDescription?: string;
   includeOriginalSheets?: boolean;
   useLogoOnAllSheets?: boolean;
-  mappedValueNames?: string[];
 };
 
 export type MappingConfig = {
@@ -83,8 +82,13 @@ export type MappingModel = {
   isGlobal: boolean;
   reportType: ReportType;
   config: MappingConfig;
-  /** Populated via Prisma relation — id, name, and mappedValueNames only */
-  exportSetting?: { id: string; name: string; mappedValueNames: string[] } | null;
+  /** Populated via Prisma relation — minimal fields for RowMappings + Dashboard color rule */
+  exportSetting?: {
+    id: string;
+    name: string;
+    mappedValues: import('@/models/export-settings.models').MappedValueModel[];
+    hasTotalColumn: boolean;
+  } | null;
   createdAt: string;
   updatedAt: string;
 };

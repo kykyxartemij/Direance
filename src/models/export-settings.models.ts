@@ -1,4 +1,24 @@
 import * as yup from 'yup';
+import type { ArtColor } from '@/components/ui/art.types';
+
+// ==== Value category ====
+
+/**
+ * Named value category with a color. Stored as JSON array on ExportSetting.
+ * When a Mapping row's display name matches a category name (case-insensitive),
+ * the category color overrides any row-level color and the picker is locked.
+ */
+export type MappedValueModel = {
+  name: string;
+  color: ArtColor;
+};
+
+const ART_COLORS: ArtColor[] = ['primary', 'warning', 'success', 'danger', 'neutral'];
+
+const MappedValueValidator = yup.object({
+  name: yup.string().trim().min(1, 'Name is required').required('Name is required'),
+  color: yup.string().oneOf(ART_COLORS, 'Invalid color').required('Color is required'),
+});
 
 // ==== Header layout types ====
 
@@ -30,8 +50,10 @@ export type ExportSettingModel = {
   headerLayout?: HeaderLayoutModel | null;
   applyHeaderToAllSheets: boolean;
   includeOriginalSheets: boolean;
-  /** Named value categories — shown as Display Name options in Row Mappings */
-  mappedValueNames: string[];
+  /** Named value categories (name + color) — shown as Display Name options in Row Mappings */
+  mappedValues: MappedValueModel[];
+  /** When true, exported workbook gets a Σ Total column summing all value columns. */
+  hasTotalColumn: boolean;
   /** Logo metadata — bytes served separately via GET /api/export-settings/:id/logo */
   logo?: { id: string; mime: string; name: string } | null;
 };
@@ -61,8 +83,9 @@ export const CreateExportSettingValidator = yup.object({
   headerLayout: HeaderLayoutValidator.nullable().optional(),
   applyHeaderToAllSheets: yup.boolean().default(false),
   includeOriginalSheets: yup.boolean().default(false),
-  mappedValueNames: yup.array().of(yup.string().required()).default([]),
-  logoId: yup.string().optional(),
+  hasTotalColumn: yup.boolean().default(false),
+  mappedValues: yup.array().of(MappedValueValidator).default([]),
+  logoId: yup.string().nullable().optional(),
 });
 
 export const UpdateExportSettingValidator = yup.object({
@@ -70,8 +93,9 @@ export const UpdateExportSettingValidator = yup.object({
   headerLayout: HeaderLayoutValidator.nullable().optional(),
   applyHeaderToAllSheets: yup.boolean().optional(),
   includeOriginalSheets: yup.boolean().optional(),
-  mappedValueNames: yup.array().of(yup.string().required()).optional(),
-  logoId: yup.string().optional(),
+  hasTotalColumn: yup.boolean().optional(),
+  mappedValues: yup.array().of(MappedValueValidator).optional(),
+  logoId: yup.string().nullable().optional(),
 });
 
 // ==== Input models ====

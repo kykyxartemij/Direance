@@ -137,7 +137,7 @@ function writeDataTable(
   rows: Row[],
   rowIndents: number[],
   rowColors: (ArtColor | undefined)[],
-  valueColors: (ArtColor | undefined)[],
+  valueColorByHeader: Record<string, ArtColor | undefined>[],
   startRow: number,
   startCol: number,
   totalColumns?: TotalColumnInfo[],
@@ -186,7 +186,7 @@ function writeDataTable(
     const isTopLevel = indent === 0 && (isSection || isTotal);
 
     const nameArgb = rowColors[rowIdx] ? FONT_COLOR[rowColors[rowIdx]!] : undefined;
-    const valArgb = valueColors[rowIdx] ? FONT_COLOR[valueColors[rowIdx]!] : undefined;
+    const rowValueColors = valueColorByHeader[rowIdx] ?? {};
 
     const xlRow = ws.getRow(excelRowNum);
 
@@ -212,6 +212,8 @@ function writeDataTable(
       const cell = xlRow.getCell(absCol);
       cell.border = CELL_BORDER;
       cell.alignment = { horizontal: 'right' };
+      const valColor = rowValueColors[h];
+      const valArgb = valColor ? FONT_COLOR[valColor] : undefined;
       cell.font = { bold: isTopLevel, color: valArgb ? { argb: valArgb } : undefined };
 
       if (isTopLevel && isSection) {
@@ -259,7 +261,7 @@ export async function exportToExcel(
   rows: Row[],
   rowIndents: number[],
   rowColors: (ArtColor | undefined)[] = [],
-  valueColors: (ArtColor | undefined)[] = [],
+  valueColorByHeader: Record<string, ArtColor | undefined>[] = [],
   exportSettings?: ExportSettingResolvedModel | null,
   originalWorkbooks?: { name: string; workbook: XLSX.WorkBook; skippedSheets?: string[] }[],
   placeholders?: Record<string, string>,
@@ -278,7 +280,7 @@ export async function exportToExcel(
   if (exportSettings) await applyHeaderLayout(wb, ws, exportSettings, placeholders);
 
   // ==== Write data table ====
-  writeDataTable(ws, headers, rows, rowIndents, rowColors, valueColors, dataStart.row, dataStart.col, totalColumns);
+  writeDataTable(ws, headers, rows, rowIndents, rowColors, valueColorByHeader, dataStart.row, dataStart.col, totalColumns);
 
   // ==== Include original uploaded sheets ====
   const usedSheetNames = new Set<string>();

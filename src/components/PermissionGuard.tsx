@@ -1,15 +1,18 @@
-import { auth } from '@/auth';
-import { checkPermission, type PermissionCheck } from '@/lib/permissions';
+'use client';
+
+import { useAuth } from '@/providers/AuthProvider';
+import { type PermissionCheck } from '@/lib/permissions';
 import type { ReactNode } from 'react';
 
-export default async function PermissionGuard({
+export default function PermissionGuard({
   permission,
   children,
 }: {
   permission: PermissionCheck;
   children: ReactNode;
 }) {
-  const session = await auth();
-  if (!checkPermission(session?.user, permission)) return null;
+  const { isLoading, hasPermission } = useAuth();
+  if (isLoading) return null;
+  if (!hasPermission(permission)) return null;
   return <>{children}</>;
 }

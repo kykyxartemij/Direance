@@ -54,7 +54,7 @@ export default function ReportSidebar() {
               onClick={() => removeReport(r.id)}
             />
           </div>
-          {!r.processedHeaders && (
+          {!r.mapped && (
             <ArtBadge color="warning" size="sm">
               unmapped
             </ArtBadge>

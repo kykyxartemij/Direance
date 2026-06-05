@@ -2,7 +2,7 @@ import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { ApiError } from '@/models/api-error';
 import { Permission, hasPermission } from '@/lib/permissions';
-import { cached, invalidateCache } from '@/lib/serverCache';
+import { cached, invalidateCache, populateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 
 // ==== Limits ====
@@ -39,9 +39,10 @@ export async function computeUserDbConsumption(userId: string): Promise<DbConsum
  */
 export async function checkUserDbLimits(userId: string, permissions: string[]): Promise<void> {
   if (hasPermission({ permissions }, Permission.NO_DB_SIZE_LIMITS)) return;
-  const consumption = await computeUserDbConsumption(userId);
-  invalidateCache(...CACHE_KEYS.user.dbConsumption(userId));
-  await cached(() => Promise.resolve(consumption), CACHE_KEYS.user.dbConsumption(userId));
+  const consumption = await populateCache(
+    () => computeUserDbConsumption(userId),
+    CACHE_KEYS.user.dbConsumption(userId)
+  )
   if (consumption.used > USER_DB_INTERNAL_LIMIT) {
     throw new ApiError('Storage limit reached: 1 MB per account', 403);
   }

@@ -39,7 +39,7 @@ const MAPPING_SELECT = {
   isGlobal: true,
   reportType: true,
   config: true,
-  exportSetting: { select: { id: true, name: true, mappedValueNames: true } },
+  exportSetting: { select: { id: true, name: true, mappedValues: true, hasTotalColumn: true } },
 } as const;
 
 // ==== HTTP handlers ====

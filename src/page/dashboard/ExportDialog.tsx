@@ -78,9 +78,9 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
         const logo = await logoQuery.refetch();
         resolved = {
           ...fullSetting,
-          logoData: logo.data?.logoData ?? null,
-          logoMime: logo.data?.logoMime ?? null,
-          logoName: logo.data?.logoName ?? null,
+          logoData: logo.data?.data ?? null,
+          logoMime: logo.data?.mime ?? null,
+          logoName: logo.data?.name ?? null,
           includeOriginalSheets: includeOriginalRef.current?.checked ?? fullSetting.includeOriginalSheets,
           applyHeaderToAllSheets: applyHeaderAllRef.current?.checked ?? fullSetting.applyHeaderToAllSheets,
         } satisfies ExportSettingResolvedModel;
