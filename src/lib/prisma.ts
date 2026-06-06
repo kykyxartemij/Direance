@@ -22,7 +22,7 @@ function makePrisma() {
       invite: {
         ...withCrud<InviteModel>(base, '"Invite"'),
         ...withLazyCleanup<InviteModel>(base, '"Invite"', {
-          ttl:                  { field: 'createdAt', ms: 14 * 24 * 60 * 60 * 1000 },
+          ttl:                  { field: 'createdAt', days: 14 },
           limit:                50,
           limitExceededMessage: 'Too many invites sent. Please try again later, after some invitations expire.',
         }),

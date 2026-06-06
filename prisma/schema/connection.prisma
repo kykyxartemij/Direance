@@ -19,10 +19,10 @@ model Connection {
   userId String
   user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  /** Auto-load into the Dashboard report list on session start when true. */
+  // Auto-load into the Dashboard report list on session start when true.
   isDefault  Boolean @default(false)
 
-  /** Which report this connection produces — drives mapping selector filtering. */
+  // Which report this connection produces — drives mapping selector filtering.
   reportType String  @default("pnl")
 
   config Json   @default("{}")

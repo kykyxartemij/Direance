@@ -5,8 +5,6 @@ import { buildWhere, buildReturning, type SimpleWhere } from './prismaCrud';
 import { ApiError } from '@/models/api-error';
 
 // ==== Cron registry ====
-// withLazyCleanup pushes to this array on registration.
-// The Vercel Cron route imports runAllCleanups() and prisma (which triggers registration).
 
 type CronEntry = { table: string; fn: () => Promise<number> };
 const cronRegistry: CronEntry[] = [];
@@ -17,63 +15,25 @@ export function runAllCleanups(): Promise<{ table: string; deleted: number }[]> 
   );
 }
 
-// ==== Config ====
+// ==== Config + factory ====
 
 type LazyCleanupConfig = {
-  /** TTL: which field to check + how long in milliseconds before a record is considered expired. */
-  ttl: { field: string; ms: number };
-  /** Optional max total active records. assertLimit() throws 429 if exceeded after cleanup. */
+  ttl: { field: string; days: number };
+  /** 0 or omit = no limit. assertLimit() throws 429 when count >= limit. */
   limit?: number;
-  /** Message for the 429 error thrown by assertLimit(). */
   limitExceededMessage?: string;
 };
 
-// ==== Factory ====
-
 /**
- * Returns { findFirstWithCleanup, findManyWithCleanup, cleanupExpired, assertLimit }
- * to register on a Prisma $extends model block.
- *
- * TTL and limit are configured once at registration — not repeated at call sites.
- * Also registers a cleanup function in the cron registry (see runAllCleanups).
- *
- * findFirstWithCleanup / findManyWithCleanup:
- *   Single CTE statement — delete expired rows AND select valid ones in one DB call.
- *   Expired rows are excluded from results automatically via NOT (expiredWhere).
- *
- * assertLimit:
- *   Cleans up expired records, then counts remaining, throws 429 if >= limit.
- *   Call before insert/upsert to enforce a soft cap.
- *
- * cleanupExpired:
- *   Standalone delete of expired records. Returns count deleted.
- *   Available for manual use; also called by assertLimit and the cron registry.
- *
- * where and cleanup conditions use SimpleWhere (equality, null, lt/lte/gt/gte/not/in, OR, AND) —
- * same operator names as Prisma's native WHERE.
- * Caching is intentionally omitted — handle it at the service layer.
- *
- * @param client  Base PrismaClient (same instance as the one being extended)
- * @param table   Quoted PostgreSQL table name, e.g. '"Invite"'
- * @param config  TTL config + optional limit
- *
  * @example
- * // prisma.ts — register alongside withCrud:
  * invite: {
  *   ...withCrud<InviteModel>(base, '"Invite"'),
  *   ...withLazyCleanup<InviteModel>(base, '"Invite"', {
- *     ttl:                  { field: 'createdAt', ms: 14 * 24 * 60 * 60 * 1000 },
- *     limit:                50,
- *     limitExceededMessage: 'Too many invites sent. Please try again later.',
+ *     ttl:   { field: 'createdAt', days: 14 },
+ *     limit: 50,
+ *     limitExceededMessage: 'Too many invites. Try again after some expire.',
  *   }),
  * }
- *
- * // service — no manual cleanup or count needed:
- * await prisma.invite.assertLimit();
- * const invite = await prisma.invite.findFirstWithCleanup({
- *   where:  { token },
- *   select: { id: true, email: true, permissions: true },
- * });
  */
 export function withLazyCleanup<TModel extends object>(
   client: PrismaClient,
@@ -83,10 +43,10 @@ export function withLazyCleanup<TModel extends object>(
   const t = Prisma.raw(table);
 
   const expiredWhere = (): SimpleWhere => ({
-    [config.ttl.field]: { lt: new Date(Date.now() - config.ttl.ms) },
+    [config.ttl.field]: { lt: new Date(Date.now() - config.ttl.days * 86_400_000) },
   });
 
-  // CTE that counts deleted rows — one statement, correct count (reads from RETURNING, not table snapshot)
+  // RETURNING-based count: COUNT(*) on the table snapshot gives wrong result after DELETE.
   async function cleanupExpired(): Promise<number> {
     const [row] = await client.$queryRaw<[{ count: bigint }]>`
       WITH deleted AS (DELETE FROM ${t} WHERE ${buildWhere(expiredWhere())} RETURNING 1)
@@ -100,11 +60,15 @@ export function withLazyCleanup<TModel extends object>(
   return {
     cleanupExpired,
 
-    async assertLimit(): Promise<void> {
-      if (config.limit === undefined) return;
-      await cleanupExpired();
+    async assertLimit(where?: SimpleWhere): Promise<void> {
+      if (!config.limit) return;
+      const expired  = buildWhere(expiredWhere());
+      const scopeSql = where ? Prisma.sql` AND ${buildWhere(where)}` : Prisma.sql``;
       const [row] = await client.$queryRaw<[{ count: bigint }]>`
-        SELECT COUNT(*)::int AS count FROM ${t}
+        WITH
+          _cleanup   AS (DELETE FROM ${t} WHERE ${expired}),
+          _remaining AS (SELECT COUNT(*)::int AS count FROM ${t} WHERE NOT (${expired}) ${scopeSql})
+        SELECT count FROM _remaining
       `;
       if (Number(row?.count ?? 0) >= config.limit) {
         throw new ApiError(
@@ -120,7 +84,7 @@ export function withLazyCleanup<TModel extends object>(
     >(args: {
       where:   SimpleWhere;
       select?: TSelect;
-    }): Prisma.PrismaPromise<
+    }): Promise<
       (TSelect extends undefined
         ? TModel
         : Pick<TModel, Extract<keyof NonNullable<TSelect>, keyof TModel>>) | null
@@ -129,6 +93,7 @@ export function withLazyCleanup<TModel extends object>(
       const findSql   = buildWhere(args.where);
       const selectSql = buildReturning(args.select as Record<string, boolean> | undefined);
 
+      // NOT (expired): CTE executes on a pre-DELETE snapshot — deleted rows remain visible without this guard.
       return client.$queryRaw<any[]>`
         WITH _cleanup AS (DELETE FROM ${t} WHERE ${expired})
         SELECT ${selectSql} FROM ${t}
