@@ -22,27 +22,16 @@ import { buildSendInviteValidator, AcceptInviteValidator, InviteModel } from '@/
 
 const INVITE_CACHE_TTL = 300;
 
-// ==== Internal helpers ====
-
-async function fetchValidInvite(token: string): Promise<InviteModel> {
-  const invite = await cached(
-    () => prisma.invite.findFirstWithCleanup({
-      where:  { token },
-      select: { id: true, email: true, invitedBy: true, permissions: true },
-    }),
-    CACHE_KEYS.invite.byToken(token),
-    INVITE_CACHE_TTL,
-  );
-  if (!invite) throw new ApiError('Invite link is invalid, expired, or already used', 400);
-  return invite as InviteModel;
-}
-
 // ==== HTTP handlers ====
 
 export async function getInviteLimits(): Promise<NextResponse> {
   try {
     await requireAuth(Permission.CAN_ACCESS_STATS);
-    const limits = await cached(fetchInviteLimits, CACHE_KEYS.invite.limits(), 60 * 60);
+    const limits = await cached(
+      fetchInviteLimits, 
+      CACHE_KEYS.invite.limits(), 
+      60 * 60
+    );
     if (!limits) throw new ApiError('Invite limits unavailable — RESEND_API_KEY not configured', 503);
     return NextResponse.json(limits);
   } catch (error) {
@@ -89,7 +78,15 @@ export async function acceptInvite(req: NextRequest): Promise<NextResponse> {
     const body = await req.json();
     const data = await AcceptInviteValidator.validate(body, { abortEarly: false });
 
-    const invite = await fetchValidInvite(data.token);
+    const invite = await cached(
+      () => prisma.invite.findFirstWithCleanup({
+        where:  { token: data.token },
+        select: { id: true, email: true, invitedBy: true, permissions: true },
+      }),
+      CACHE_KEYS.invite.byToken(data.token),
+      INVITE_CACHE_TTL,
+    );
+    if (!invite) throw new ApiError('Invite link is invalid, expired, or already used', 400);
 
     const existing = await populateCache(
       () => prisma.user.findUnique({ where: { email: invite.email }, select: { id: true } }),
@@ -125,7 +122,17 @@ export async function lookupInvite(req: NextRequest): Promise<NextResponse> {
     await checkPublicRequestLimit(req);
     const token = req.nextUrl.searchParams.get('token') ?? '';
     if (!token) throw new ApiError('Token is required', 400);
-    const invite = await fetchValidInvite(token);
+    
+    const invite = await cached(
+      () => prisma.invite.findFirstWithCleanup({
+        where:  { token },
+        select: { id: true, email: true, invitedBy: true, permissions: true },
+      }),
+      CACHE_KEYS.invite.byToken(token),
+      INVITE_CACHE_TTL,
+    );
+    if (!invite) throw new ApiError('Invite link is invalid, expired, or already used', 400);
+
     return NextResponse.json({ email: invite.email });
   } catch (error) {
     return handleApiError(error, 'GET', API.invite.lookup(':token'));

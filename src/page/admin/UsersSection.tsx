@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useGetPagedUsers } from '@/hooks/user.hooks';
-import ArtData, { createPaginatedProps } from '@/components/ui/ArtData';
+import ArtData from '@/components/ui/ArtData';
+import { createPaginatedProps } from '@/components/ui/artData.utils';
 import ArtBadge from '@/components/ui/ArtBadge';
 import ArtPopover from '@/components/ui/ArtPopover';
 import PermissionBadge from '@/components/PermissionBadge';

@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import ArtButton from './ArtButton';
+import ArtIconButton from './ArtIconButton';
 import ArtCollapse from './ArtCollapse';
 import ArtInput from './ArtInput';
 import { cn } from './art.utils';
@@ -21,6 +22,12 @@ interface ArtDataFiltersProps {
   advancedFilters?: ReactNode;
   /** Badge count shown on the Filters button to indicate active filters */
   activeFilterCount?: number;
+  /**
+   * Wire to clear every advanced filter at once (e.g. useUrlFilters().clearFilters).
+   * When provided, a square clear button appears next to the Filters toggle.
+   * Disabled — but still tooltipped — when activeFilterCount is 0.
+   */
+  onClearFilters?: () => void;
   /** Controlled open state for the filters panel */
   filtersOpen?: boolean;
   defaultFiltersOpen?: boolean;
@@ -37,6 +44,7 @@ const ArtDataFilters = ({
   onSearch,
   advancedFilters,
   activeFilterCount = 0,
+  onClearFilters,
   filtersOpen,
   defaultFiltersOpen = false,
   onFiltersOpenChange,
@@ -79,6 +87,17 @@ const ArtDataFilters = ({
               <span className="art-data-filters-count">{activeFilterCount}</span>
             )}
           </ArtButton>
+        )}
+
+        {advancedFilters && onClearFilters && (
+          <ArtIconButton
+            icon="Close"
+            variant="outlined"
+            tooltip="Clear all filters"
+            aria-label="Clear all filters"
+            onClick={onClearFilters}
+            disabled={activeFilterCount === 0}
+          />
         )}
       </div>
 

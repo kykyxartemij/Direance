@@ -2,9 +2,10 @@
 
 import {
   createContext,
+  use,
   useCallback,
-  useContext,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -14,7 +15,9 @@ import { type ApiError } from '@/models/api-error';
 import { type ArtIconName } from './ArtIcon';
 import ArtTitle from './ArtTitle';
 import ArtIconButton from './ArtIconButton';
+import ArtLoadingBar from './ArtLoadingBar';
 import { type ArtColor, ART_COLOR_CLASS } from './art.types';
+import { useLazyRef } from './art.hooks';
 import { cn } from './art.utils';
 
 export interface SnackOptions {
@@ -113,9 +116,7 @@ function SnackItemUI({
         onClick={() => onClose(item.id)}
       />
       {item.duration > 0 && (
-        <div key={item.version} className="art-progress art-snackbar-progress">
-          <div className="art-progress-fill" />
-        </div>
+        <ArtLoadingBar key={item.version} className="art-snackbar-progress" />
       )}
     </div>
   );
@@ -182,17 +183,15 @@ export function ArtSnackbarProvider({
   const itemsRef = useRef(items);
   useLayoutEffect(() => { itemsRef.current = items; });
 
-  const timersRef = useRef(new Map<string, TimerEntry>());
+  const timersRef = useLazyRef(() => new Map<string, TimerEntry>());
 
   const closeSnack = useCallback((id: string) => {
     const t = timersRef.current.get(id);
     if (t) { clearTimeout(t.handle); timersRef.current.delete(id); }
     setItems((prev) => prev.map((s) => s.id === id ? { ...s, removing: true } : s));
     setTimeout(() => setItems((prev) => prev.filter((s) => s.id !== id)), EXIT_MS);
-  }, []);
+  }, [timersRef]);
 
-  // useCallback memoizes the function reference so dependent useCallbacks don't recreate
-  // on every render, which would cascade re-renders through all consumers.
   const startEntry = useCallback((id: string, entry: TimerEntry) => {
     if (entry.remaining <= 0) return;
     clearTimeout(entry.handle);
@@ -205,25 +204,25 @@ export function ArtSnackbarProvider({
     if (!t) return;
     clearTimeout(t.handle);
     t.remaining = Math.max(0, t.remaining - (Date.now() - t.startedAt));
-  }, []);
+  }, [timersRef]);
 
   const resumeTimer = useCallback((id: string) => {
     const t = timersRef.current.get(id);
     if (t) startEntry(id, t);
-  }, [startEntry]);
+  }, [startEntry, timersRef]);
 
   const initTimer = useCallback((id: string, duration: number) => {
     if (duration === 0) return;
     const entry: TimerEntry = { remaining: duration, startedAt: 0, handle: undefined };
     timersRef.current.set(id, entry);
     startEntry(id, entry);
-  }, [startEntry]);
+  }, [startEntry, timersRef]);
 
   const resetTimer = useCallback((id: string, duration: number) => {
     const t = timersRef.current.get(id);
     if (t) { t.remaining = duration; startEntry(id, t); }
     else initTimer(id, duration);
-  }, [startEntry, initTimer]);
+  }, [startEntry, initTimer, timersRef]);
 
   const enqueue = useCallback((title: string, opts: SnackOptions = {}): string => {
     const { color, duration = defaultDuration, description, icon } = opts;
@@ -272,8 +271,13 @@ export function ArtSnackbarProvider({
     else itemsRef.current.forEach((s) => closeSnack(s.id));
   }, [closeSnack]);
 
+  const value = useMemo(
+    () => ({ enqueue, enqueueError, enqueueSuccess, close }),
+    [enqueue, enqueueError, enqueueSuccess, close],
+  );
+
   return (
-    <ArtSnackbarContext.Provider value={{ enqueue, enqueueError, enqueueSuccess, close }}>
+    <ArtSnackbarContext.Provider value={value}>
       {children}
       {items.length > 0 && (
         <SnackStack
@@ -289,7 +293,7 @@ export function ArtSnackbarProvider({
 }
 
 export function useArtSnackbar(): ArtSnackbarContextValue {
-  const ctx = useContext(ArtSnackbarContext);
+  const ctx = use(ArtSnackbarContext);
   if (!ctx) throw new Error('useArtSnackbar must be used inside <ArtSnackbarProvider>');
   return ctx;
 }

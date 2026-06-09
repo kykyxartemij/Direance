@@ -67,9 +67,7 @@ function ArtMenu({ children, items, onSelect, placement = 'bottom', className }:
           <ul role="menu" className="art-menu-list art-scrollable">
             {items.map((item) => (
               <li key={item.value} role="presentation">
-                {item.separator && (
-                  <div className="art-listbox-section-divider" role="separator" />
-                )}
+                {item.separator && <hr className="art-listbox-section-divider" />}
                 <button
                   type="button"
                   role="menuitem"

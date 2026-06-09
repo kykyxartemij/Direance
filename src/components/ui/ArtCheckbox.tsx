@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef, useId, useState } from 'react';
+import { useId, useState, type Ref } from 'react';
 import ArtIcon from './ArtIcon';
 import { type ArtColor, ART_COLOR_CLASS } from './art.types';
 import { cn } from './art.utils';
@@ -8,6 +8,7 @@ import { cn } from './art.utils';
 // ==== Types ====
 
 interface ArtCheckboxProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size' | 'type'> {
+  ref?: Ref<HTMLInputElement>;
   label?: string;
   helperText?: string;
   size?: 'sm' | 'md' | 'lg';
@@ -22,10 +23,9 @@ const SIZE_CLASS: Record<NonNullable<ArtCheckboxProps['size']>, string> = {
 
 // ==== Component ====
 
-const ArtCheckbox = forwardRef<HTMLInputElement, ArtCheckboxProps>((
-  { label, helperText, size = 'md', color, id: idProp, className, checked, defaultChecked, onChange, disabled, readOnly, required, ...rest },
-  ref,
-) => {
+function ArtCheckbox({
+  label, helperText, size = 'md', color, id: idProp, className, checked, defaultChecked, onChange, disabled, readOnly, required, ref, ...rest
+}: ArtCheckboxProps) {
   const generatedId = useId();
   const id = idProp ?? generatedId;
 
@@ -80,7 +80,7 @@ const ArtCheckbox = forwardRef<HTMLInputElement, ArtCheckboxProps>((
     {helperText && <p className="art-field-helper">{helperText}</p>}
     </>
   );
-});
+}
 
 ArtCheckbox.displayName = 'ArtCheckbox';
 export default ArtCheckbox;

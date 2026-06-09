@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useReducer, type ReactNode } from 'react';
 import ArtDataFilters from './ArtDataFilters';
 import ArtDataTable, { type ArtColumn } from './ArtDataTable';
 import ArtPagination from './ArtPagination';
@@ -21,6 +21,8 @@ interface ArtDataProps<T> {
   // ==== Advanced filters ====
   advancedFilters?: ReactNode;
   activeFilterCount?: number;
+  /** Wire to clear all advanced filters (e.g. useUrlFilters().clearFilters). Shows a clear button in the filter bar. */
+  onClearFilters?: () => void;
 
   // ==== Pagination ====
   /** Enables pagination. Omit for no pagination (show all rows). */
@@ -50,6 +52,33 @@ interface ArtDataProps<T> {
   className?: string;
 }
 
+// ==== Client-side state reducer ====
+// One reducer instead of five useState calls — each dispatch is a single render,
+// and page resets that pair with another change happen atomically.
+
+interface ClientState {
+  search: string;
+  page: number;
+  pageSize: number;
+  sortKey?: string;
+  sortDir: 'asc' | 'desc';
+}
+
+type ClientAction =
+  | { type: 'search'; value: string }
+  | { type: 'page'; value: number }
+  | { type: 'pageSize'; value: number }
+  | { type: 'sort'; key: string; dir: 'asc' | 'desc' };
+
+function clientReducer(state: ClientState, action: ClientAction): ClientState {
+  switch (action.type) {
+    case 'search':   return { ...state, search: action.value, page: 1 };
+    case 'page':     return { ...state, page: action.value };
+    case 'pageSize': return { ...state, pageSize: action.value, page: 1 };
+    case 'sort':     return { ...state, sortKey: action.key, sortDir: action.dir, page: 1 };
+  }
+}
+
 // ==== Component ====
 
 function ArtData<T>({
@@ -60,6 +89,7 @@ function ArtData<T>({
   searchFilter,
   advancedFilters,
   activeFilterCount,
+  onClearFilters,
   pageSize,
   pageSizeOptions,
   onPageSizeChange,
@@ -84,34 +114,36 @@ function ArtData<T>({
 
   // ==== Client-side state ====
 
-  const [internalSearch, setInternalSearch] = useState('');
-  const [internalPage, setInternalPage] = useState(1);
-  const [internalPageSize, setInternalPageSize] = useState(pageSize ?? 10);
-  const [internalSortKey, setInternalSortKey] = useState<string | undefined>(sortKey);
-  const [internalSortDir, setInternalSortDir] = useState<'asc' | 'desc'>(sortDir ?? 'asc');
+  const [client, dispatch] = useReducer(clientReducer, undefined, () => ({
+    search: '',
+    page: 1,
+    pageSize: pageSize ?? 10,
+    sortKey: undefined,
+    sortDir: 'asc' as const,
+  }));
 
   // ==== Effective values ====
 
-  const effectivePage     = serverSide ? (page ?? 1) : internalPage;
-  const effectivePageSize = serverSide ? (pageSize ?? 10) : internalPageSize;
-  const effectiveSortKey = serverSide ? sortKey : internalSortKey;
-  const effectiveSortDir = serverSide ? (sortDir ?? 'asc') : internalSortDir;
+  const effectivePage     = serverSide ? (page ?? 1) : client.page;
+  const effectivePageSize = serverSide ? (pageSize ?? 10) : client.pageSize;
+  const effectiveSortKey = serverSide ? sortKey : client.sortKey;
+  const effectiveSortDir = serverSide ? (sortDir ?? 'asc') : client.sortDir;
 
   // ==== Client-side pipeline: filter → sort → paginate ====
 
   const filteredData = useMemo(() => {
-    if (serverSide || !internalSearch) return data;
-    const q = internalSearch.toLowerCase();
+    if (serverSide || !client.search) return data;
+    const q = client.search.toLowerCase();
     return data.filter((row) =>
       searchFilter
         ? searchFilter(row, q)
         : Object.values(row as object).some((v) => String(v).toLowerCase().includes(q)),
     );
-  }, [data, internalSearch, searchFilter, serverSide]);
+  }, [data, client.search, searchFilter, serverSide]);
 
   const sortedData = useMemo(() => {
     if (serverSide || !effectiveSortKey) return filteredData;
-    return [...filteredData].sort((a, b) => {
+    return filteredData.toSorted((a, b) => {
       const av = (a as Record<string, unknown>)[effectiveSortKey];
       const bv = (b as Record<string, unknown>)[effectiveSortKey];
       const cmp = String(av ?? '').localeCompare(String(bv ?? ''), undefined, { numeric: true });
@@ -119,62 +151,54 @@ function ArtData<T>({
     });
   }, [filteredData, effectiveSortKey, effectiveSortDir, serverSide]);
 
-  const pagedData = useMemo(() => {
-    if (serverSide || !effectivePageSize) return sortedData;
-    const start = (effectivePage - 1) * effectivePageSize;
-    return sortedData.slice(start, start + effectivePageSize);
-  }, [sortedData, effectivePage, effectivePageSize, serverSide]);
-
   // Server-side: pass total as-is (undefined hides pagination until BE confirms total).
   // Client-side: always known (sortedData.length).
   const effectiveTotal = serverSide ? total : sortedData.length;
+
+  // Clamp the page during render so a shrinking dataset never leaves us on an
+  // out-of-range page. Derived (not synced via effect) — the parent's stored page
+  // self-heals on the next navigation.
+  const totalPages = effectivePageSize > 0 && effectiveTotal !== undefined
+    ? Math.max(1, Math.ceil(effectiveTotal / effectivePageSize))
+    : 1;
+  const clampedPage = Math.min(Math.max(1, effectivePage), totalPages);
+
+  const pagedData = useMemo(() => {
+    if (serverSide || !effectivePageSize) return sortedData;
+    const start = (clampedPage - 1) * effectivePageSize;
+    return sortedData.slice(start, start + effectivePageSize);
+  }, [sortedData, clampedPage, effectivePageSize, serverSide]);
 
   // ==== Callbacks ====
 
   const handleSearch = useCallback(
     (q: string) => {
-      if (serverSide) {
-        onSearch?.(q);
-      } else {
-        setInternalSearch(q);
-        setInternalPage(1);
-      }
+      if (serverSide) onSearch?.(q);
+      else dispatch({ type: 'search', value: q });
     },
     [serverSide, onSearch],
   );
 
   const handlePageChange = useCallback(
     (p: number) => {
-      if (serverSide) {
-        onPageChange?.(p);
-      } else {
-        setInternalPage(p);
-      }
+      if (serverSide) onPageChange?.(p);
+      else dispatch({ type: 'page', value: p });
     },
     [serverSide, onPageChange],
   );
 
   const handlePageSizeChange = useCallback(
     (size: number) => {
-      if (serverSide) {
-        onPageSizeChange?.(size);
-      } else {
-        setInternalPageSize(size);
-        setInternalPage(1);
-      }
+      if (serverSide) onPageSizeChange?.(size);
+      else dispatch({ type: 'pageSize', value: size });
     },
     [serverSide, onPageSizeChange],
   );
 
   const handleSort = useCallback(
     (key: string, dir: 'asc' | 'desc') => {
-      if (serverSide) {
-        onSort?.(key, dir);
-      } else {
-        setInternalSortKey(key);
-        setInternalSortDir(dir);
-        setInternalPage(1);
-      }
+      if (serverSide) onSort?.(key, dir);
+      else dispatch({ type: 'sort', key, dir });
     },
     [serverSide, onSort],
   );
@@ -191,6 +215,7 @@ function ArtData<T>({
           onSearch={handleSearch}
           advancedFilters={advancedFilters}
           activeFilterCount={activeFilterCount}
+          onClearFilters={onClearFilters}
         />
       )}
 
@@ -210,7 +235,7 @@ function ArtData<T>({
 
       {pageSize !== undefined && (
         <ArtPagination
-          page={effectivePage}
+          page={clampedPage}
           pageSize={effectivePageSize}
           total={effectiveTotal}
           onChange={handlePageChange}
@@ -226,19 +251,3 @@ ArtData.displayName = 'ArtData';
 export default ArtData;
 export { ArtData };
 export type { ArtDataProps };
-
-// ==== Paginated response helpers ====
-
-import { type PaginatedResponse } from '@/models/paginated-response.model';
-export type { PaginatedResponse };
-
-/**
- * FE adapter — maps a PaginatedResponse from the BE model onto ArtData props.
- * `total` is always a number (ArtData server-side mode). Use without `total` spread for client-side mode.
- *
- * Usage:
- *   <ArtData columns={...} {...createPaginatedProps(response)} onPageChange={...} />
- */
-export function createPaginatedProps<T>(response: PaginatedResponse<T>) {
-  return { data: response.data, total: response.total, page: response.page };
-}

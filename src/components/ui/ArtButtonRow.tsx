@@ -24,9 +24,9 @@ export interface ArtButtonRowProps {
 
 // ==== Helpers ====
 
-function renderBtn({ label, type = 'button', side: _side, ...btnProps }: ArtButtonRowItem, i: number) {
+function renderBtn({ label, type = 'button', side: _side, ...btnProps }: ArtButtonRowItem) {
   return (
-    <ArtButton key={i} type={type} size="lg" {...btnProps}>
+    <ArtButton key={label} type={type} size="lg" {...btnProps}>
       {label}
     </ArtButton>
   );

@@ -1,11 +1,12 @@
 'use client';
 
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { type ButtonHTMLAttributes, type ReactNode, type Ref } from 'react';
 import ArtIcon, { type ArtIconName } from './ArtIcon';
 import { type ArtColor, ART_COLOR_CLASS } from './art.types';
 import { cn } from './art.utils';
 
 interface ArtButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  ref?: Ref<HTMLButtonElement>;
   /** default = filled, outlined = border, ghost = transparent */
   variant?: 'default' | 'outlined' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
@@ -27,24 +28,23 @@ const ICON_SIZE: Record<NonNullable<ArtButtonProps['size']>, number> = {
   lg: 20,
 };
 
-const ArtButton = forwardRef<HTMLButtonElement, ArtButtonProps>(
-  ({ variant = 'outlined', size = 'md', icon, loading = false, color, className = '', children, disabled, ...rest }, ref) => {
-    const baseClass = variant === 'default' ? 'btn-primary' : variant === 'ghost' ? 'btn-ghost' : 'btn';
-    return (
-      <button
-        ref={ref}
-        className={cn(baseClass, SIZE_CLASS[size], color && ART_COLOR_CLASS[color], className)}
-        disabled={loading || disabled}
-        {...rest}
-      >
-        {loading
-          ? <ArtIcon name='Loading' size={ICON_SIZE[size]} />
-          : icon && <ArtIcon name={icon} size={ICON_SIZE[size]} />}
-        {children}
-      </button>
-    );
-  },
-);
+function ArtButton({ variant = 'outlined', size = 'md', icon, loading = false, color, className = '', children, disabled, type = 'button', ref, ...rest }: ArtButtonProps) {
+  const baseClass = variant === 'default' ? 'btn-primary' : variant === 'ghost' ? 'btn-ghost' : 'btn';
+  return (
+    <button
+      ref={ref}
+      type={type}
+      className={cn(baseClass, SIZE_CLASS[size], color && ART_COLOR_CLASS[color], className)}
+      disabled={loading || disabled}
+      {...rest}
+    >
+      {loading
+        ? <ArtIcon name='Loading' size={ICON_SIZE[size]} />
+        : icon && <ArtIcon name={icon} size={ICON_SIZE[size]} />}
+      {children}
+    </button>
+  );
+}
 
 ArtButton.displayName = 'ArtButton';
 export default ArtButton;

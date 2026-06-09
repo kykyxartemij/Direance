@@ -92,3 +92,9 @@ export async function requireAuth(checkPermission?: Permission): Promise<{ userI
     throw new ApiError('Forbidden', 403);
   return { userId: session.user.id, permissions: session.user.permissions ?? [] };
 }
+
+export async function tryAuth(): Promise<{ userId: string; permissions: string[] } | null> {
+  const session = await auth();
+  if (!session?.user?.id) return null;
+  return { userId: session.user.id, permissions: session.user.permissions ?? [] };
+}

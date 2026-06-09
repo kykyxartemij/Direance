@@ -1,10 +1,11 @@
 'use client';
 
-import { forwardRef, useId, useState } from 'react';
+import { useId, useState, type Ref } from 'react';
 import { type ArtColor, ART_COLOR_CLASS } from './art.types';
 import { cn } from './art.utils';
 
 interface ArtSwitchProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size' | 'type'> {
+  ref?: Ref<HTMLInputElement>;
   label?: string;
   helperText?: string;
   size?: 'sm' | 'md' | 'lg';
@@ -17,10 +18,9 @@ const SIZE_CLASS: Record<NonNullable<ArtSwitchProps['size']>, string> = {
   lg: 'art-switch--lg',
 };
 
-const ArtSwitch = forwardRef<HTMLInputElement, ArtSwitchProps>((
-  { label, helperText, size = 'md', color, id: idProp, className, checked, defaultChecked, onChange, disabled, readOnly, required, ...rest },
-  ref,
-) => {
+function ArtSwitch({
+  label, helperText, size = 'md', color, id: idProp, className, checked, defaultChecked, onChange, disabled, readOnly, required, ref, ...rest
+}: ArtSwitchProps) {
   const generatedId = useId();
   const id = idProp ?? generatedId;
 
@@ -74,7 +74,7 @@ const ArtSwitch = forwardRef<HTMLInputElement, ArtSwitchProps>((
     {helperText && <p className="art-field-helper">{helperText}</p>}
     </>
   );
-});
+}
 
 ArtSwitch.displayName = 'ArtSwitch';
 export default ArtSwitch;

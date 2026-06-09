@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import ArtIcon from './ArtIcon';
 import ArtIconButton from './ArtIconButton';
 import ArtPopover from './ArtPopover';
@@ -43,11 +43,6 @@ const ArtPagination = ({
   const [draft, setDraft]     = useState('');
   const [focused, setFocused] = useState(false);
   const inputRef              = useRef<HTMLInputElement>(null);
-
-  // Snap to valid range when total shrinks
-  useEffect(() => {
-    if (clampedPage !== page) onChange(clampedPage);
-  }, [clampedPage, page, onChange]);
 
   if (total === undefined) return null;
 

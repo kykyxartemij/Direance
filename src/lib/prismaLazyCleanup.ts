@@ -1,7 +1,7 @@
 import 'server-only';
 import { Prisma } from '../../generated/prisma/client';
 import type { PrismaClient } from '../../generated/prisma/client';
-import { buildWhere, buildReturning, type SimpleWhere } from './prismaCrud';
+import { buildWhere, buildReturning, type SimpleWhere } from './prisma/simpleWhere';
 import { ApiError } from '@/models/api-error';
 
 // ==== Cron registry ====
@@ -60,10 +60,10 @@ export function withLazyCleanup<TModel extends object>(
   return {
     cleanupExpired,
 
-    async assertLimit(where?: SimpleWhere): Promise<void> {
+    async assertLimit(where?: SimpleWhere<TModel>): Promise<void> {
       if (!config.limit) return;
       const expired  = buildWhere(expiredWhere());
-      const scopeSql = where ? Prisma.sql` AND ${buildWhere(where)}` : Prisma.sql``;
+      const scopeSql = where ? Prisma.sql` AND ${buildWhere(where as SimpleWhere)}` : Prisma.sql``;
       const [row] = await client.$queryRaw<[{ count: bigint }]>`
         WITH
           _cleanup   AS (DELETE FROM ${t} WHERE ${expired}),
@@ -82,7 +82,7 @@ export function withLazyCleanup<TModel extends object>(
     findFirstWithCleanup<
       TSelect extends Partial<Record<keyof TModel, boolean>> | undefined = undefined,
     >(args: {
-      where:   SimpleWhere;
+      where:   SimpleWhere<TModel>;
       select?: TSelect;
     }): Promise<
       (TSelect extends undefined
@@ -90,7 +90,7 @@ export function withLazyCleanup<TModel extends object>(
         : Pick<TModel, Extract<keyof NonNullable<TSelect>, keyof TModel>>) | null
     > {
       const expired   = buildWhere(expiredWhere());
-      const findSql   = buildWhere(args.where);
+      const findSql   = buildWhere(args.where as SimpleWhere);
       const selectSql = buildReturning(args.select as Record<string, boolean> | undefined);
 
       // NOT (expired): CTE executes on a pre-DELETE snapshot — deleted rows remain visible without this guard.
@@ -105,7 +105,7 @@ export function withLazyCleanup<TModel extends object>(
     findManyWithCleanup<
       TSelect extends Partial<Record<keyof TModel, boolean>> | undefined = undefined,
     >(args: {
-      where:    SimpleWhere;
+      where:    SimpleWhere<TModel>;
       select?:  TSelect;
       orderBy?: { field: string; direction?: 'asc' | 'desc' };
       take?:    number;
@@ -116,7 +116,7 @@ export function withLazyCleanup<TModel extends object>(
         : Pick<TModel, Extract<keyof NonNullable<TSelect>, keyof TModel>>)[]
     > {
       const expired   = buildWhere(expiredWhere());
-      const findSql   = buildWhere(args.where);
+      const findSql   = buildWhere(args.where as SimpleWhere);
       const selectSql = buildReturning(args.select as Record<string, boolean> | undefined);
       const orderSql  = args.orderBy
         ? Prisma.sql`ORDER BY ${Prisma.raw(`"${args.orderBy.field}"`)} ${Prisma.raw(args.orderBy.direction === 'desc' ? 'DESC' : 'ASC')}`

@@ -7,6 +7,7 @@ This project is about **architecture and rules**, not shipping fast. Every decis
 - **React re-renders** — uncontrolled inputs, memoization in Art lib only, no inline objects as props
 - **Network transfer** — minimal select projections, bytes on dedicated endpoints, no over-fetching
 - **Storage space** — compress images before store, per-user DB limits, lazy cleanup instead of accumulation
+- **Reusability & extendability** — design everything as if it will grow infinitely. It won't, but the assumption forces shared helpers/extensions over one-offs, generic over special-cased, and a new model/route to drop into existing patterns with no rewrite
 
 **No dev/prod separation.** There is one environment — treat every change as production. No "fix it later", no hardcoded test data, no skipped validation.
 
@@ -20,12 +21,35 @@ When working in an area, read the relevant guide first:
 
 | Area | Guide |
 |------|-------|
-| Backend services, Prisma, caching, auth | `BackendGuide.md` |
-| Images, binary storage, BytesResponse | `ImagesGuide.md` |
-| Forms, uncontrolled inputs, RHF | `UncontrolledInputsGuide.md` |
-| TanStack Query mutations, optimistic updates | `TanStackMutationGuide.md` |
-| Navigation, loading states, page structure | `InstantNavigationAndLoadingState.md` |
-| Layout, ArtTitle, page conventions | `LayoutGuide.md` |
+| Backend services, withHandler, Prisma, caching, auth | `docs/BackendGuide.md` |
+| Images, binary storage, BytesResponse | `docs/ImagesGuide.md` |
+| Forms, uncontrolled inputs, RHF | `docs/UncontrolledInputsGuide.md` |
+| TanStack Query mutations, optimistic updates | `docs/TanStackMutationGuide.md` |
+| Navigation, links, loading states, page structure (page/layout/loading.tsx), ArtTitle | `docs/InstantNavigationAndLoadingState.md` |
+| Tailwind CSS reference — width/height, flex, grid, positioning, overflow, breakpoints, z-index | `docs/LayoutGuide.md` |
+
+---
+
+## ==== Backend Handler Rule ====
+
+Every API handler is wrapped in `withHandler` (or `withPublicHandler` for public routes) —
+never a hand-written `try/catch`. The wrapper owns auth, the permission gate, error
+handling and the ambient request context. The body is a standard Next.js handler
+`(req, { params })`. Inside, work in order: **auth (done by wrapper) → validate request →
+checks (rate limit, DB limit, `assertLimit`) → work**. Validation runs before the
+DB-hitting checks so malformed requests fail cheap. See `docs/BackendGuide.md`.
+
+### `requireAuth()` vs `getAuth()` — same data, different usage
+
+Both return `{ userId, permissions }`:
+
+- **`requireAuth(permission?)`** — runs once at the edge, *inside the wrapper*. Resolves the
+  session and **throws** (401 anonymous / 403 missing permission). You never call it in a
+  handler body.
+- **`getAuth()`** — reads the identity the wrapper already seeded into the request context.
+  Call this in the handler body and any downstream service. No session hit. Throws only if
+  used outside a request.
+- **`getAuthOptional()`** — `AuthCtx | null`, for `withPublicHandler` bodies (never throws).
 
 ---
 
@@ -38,6 +62,63 @@ Section headers inside files use exactly this format:
 ```
 
 No other decoration (`─`, `*`, `-`, etc.). This applies to all `.ts`, `.tsx`, `.js`, `.jsx` files.
+
+Comments (`//`) must be short and explanatory. Write **why it's here**, not **what it is** —
+the code already says what it is. Skip comments that restate an obvious type or name.
+
+`// NOTE:` is reserved for genuinely unusual things the code can't show on its own:
+- A deliberate deviation from a guide rule (e.g. a file using a different extension/approach
+  than the convention, for a specific reason).
+- Why a lint rule is left **unfixed because it is a false positive** — the code is already
+  correct and the linter misunderstands (e.g. `useUrlFilters` Suspense; `ArtListbox` custom
+  ARIA widget with no native equivalent).
+
+Do **not** use `// NOTE:` to excuse a rule that actually has a fix. If a fix exists — even one
+that needs a small refactor or splitting a component — do the fix instead.
+
+---
+
+## ==== Working With Claude ====
+
+- **Use caveman mode** (`/caveman`). Be short. Don't over-complicate a task. When real
+  complexity appears, validate the approach with the developer before building.
+  - **Drop:** articles (a/an/the), filler (just/really/basically/actually/simply),
+    pleasantries (sure/certainly/happy to), hedging.
+  - **Keep:** technical terms exact, error text quoted exact, code blocks unchanged.
+  - **Style:** fragments OK, short synonyms (big > extensive, fix > implement a solution for).
+    Pattern: `[thing] [action] [reason]. [next step].`
+  - **Levels:** `lite` (light trim), `full` (default), `ultra` (maximum compression).
+  - **Drop caveman (write normal) for:** code / commits / PRs, security warnings,
+    irreversible-action confirmations, and any multi-step sequence where clipped wording
+    risks a misread. Resume after.
+- **Never disable eslint rules.** A blocked rule should be **fixed** — even if the fix means
+  a small refactor or separating concerns into a new component. Only when there is genuinely
+  no fix (a true false positive, or no native/clean alternative) do you validate with the
+  developer and, if agreed, leave it visible with a `// NOTE:`. Config-level scoping is a
+  developer decision, never a silent inline `// eslint-disable`.
+- **Answer format:** start with a short answer that explains your thinking, using real
+  code for the explanation. After the short summary, describe whatever else needs detail.
+
+---
+
+## ==== How to Validate Your Code ====
+
+After **every** change:
+- **Types:** `npx tsc --noEmit` — no new errors (ignore pre-existing unrelated ones).
+- **Lint:** `npx eslint <changed files>` — real-time, per-file. Runs the React Doctor *lint
+  rules*, so a clean eslint pass covers those for normal edits.
+- **Security:** run the `vibe-security` skill on any backend or Vercel/deployment work —
+  always, regardless of which files changed — and on anything touching auth, payments, DB
+  access, API keys, secrets, or user data.
+
+Only after a **big change** (new feature, cross-file refactor, multiple files):
+- **React Doctor (full codebase):** `npx react-doctor` or `npx react-doctor@latest --verbose`. This is **not** the same as eslint —
+  the CLI analyses the whole codebase: lint + dead code (unused files/exports/deps, circular
+  imports) + a health score. eslint is the per-file helper; this is the full diagnosis.
+- **Build:** `npm run build` — also a full-codebase analysis (types + bundle).
+
+Both are expensive — don't run them on every small edit. For local changes, per-file eslint +
+tsc is enough.
 
 ---
 
@@ -97,7 +178,7 @@ selected: background: color-mix(in srgb, var(--art-accent) 14%, transparent)
 
 Every `page.tsx` that fetches data must have a sibling `loading.tsx` that exports `GlobalPageLoader`. Components own their loading state via a `loading?: boolean` prop — they render their own skeleton rather than relying on a parent loader.
 
-See `InstantNavigationAndLoadingState.md` for full pattern.
+See `docs/InstantNavigationAndLoadingState.md` for full pattern.
 
 ---
 

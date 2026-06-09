@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { cached, invalidateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { handleApiError } from '@/lib/errorHandler';
+import { withHandler } from '@/lib/withHandler';
+import { getAuth } from '@/lib/requestContext';
 import { API } from '@/lib/apiUrl';
 import { requireAuth } from '@/auth';
 import { ApiError } from '@/models/api-error';
@@ -198,6 +200,36 @@ export async function updateMapping(
     return handleApiError(error, 'PATCH', API.mapping.byId(':id'));
   }
 }
+
+export const updateMappingCopy = withHandler<{ id: string }>(async (req, { params }) => {
+  const { userId, permissions } = getAuth();
+  const id = parseIdFromRoute(await params);
+
+  const data = await UpdateMappingValidator.validate(await req.json(), { abortEarly: false });
+
+  await checkUserRequestLimit(req, userId, permissions);
+  await checkUserDbLimits(userId, permissions);
+
+  const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
+  if (!canModifyGlobal && data.isGlobal) throw new ApiError('Only users with permission CAN_MODIFY_GLOBAL can modify global mappings.', 403);
+  const where = canModifyGlobal
+    ? { id, OR: [{ userId }, { isGlobal: true }] }
+    : { id, userId, isGlobal: false };
+
+  const results = await prisma.fieldMapping.updateManyAndReturn({
+    where,
+    data,
+    select: MAPPING_SELECT,
+  });
+  if (results.length === 0) throw new ApiError('Mapping not found', 404);
+  const mapping = results[0];
+
+  invalidateCache(...CACHE_KEYS.mapping.invalidate(userId));
+  if (mapping.isGlobal) invalidateCache(...CACHE_KEYS.mapping.invalidateAll());
+  await cached(() => Promise.resolve(mapping), CACHE_KEYS.mapping.byId(userId, id));
+
+  return NextResponse.json(mapping);
+});
 
 export async function deleteMapping(
   req: NextRequest,
