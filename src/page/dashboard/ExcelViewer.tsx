@@ -129,7 +129,7 @@ export default function ExcelViewer({ workbook, layout, fixedSheet }: ExcelViewe
         <table>
           <thead>
             <tr>
-              <th className="art-excel-corner" />
+              <th className="art-excel-corner" aria-label="Row" />
               {Array.from({ length: totalCols }, (_, c) => {
                 const role = colRole.get(c);
                 const av = role ? regionAccentVar(role.regionIdx) : null;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useReducer } from 'react';
 import { useReports, type ConnectionSheet, type UploadedReport } from '@/providers/ReportProvider';
 import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
 import ArtInput from '@/components/ui/ArtInput';
@@ -8,17 +8,10 @@ import ArtSelect, { type ArtSelectOption } from '@/components/ui/ArtSelect';
 import ArtButton from '@/components/ui/ArtButton';
 import fetchClient from '@/lib/fetchClient';
 import { API } from '@/lib/apiUrl';
-import type { ConnectionType, FetchFiltersModel } from '@/models/connection.models';
+import type { FetchFiltersModel } from '@/models/connection.models';
 import { REPORT_TYPES, REPORT_TYPE_LABELS } from '@/models/mapping.models';
 
 // ==== Per-driver filter rows ====
-// Each row owns its filter state. Refresh fans out to every connection-sourced
-// report whose Connection is that driver type. File reports never touch this —
-// `source === 'connection'` is the prerequisite.
-//
-// Common fields (reportType, dateFrom, dateTo) sit on FetchFiltersModel directly.
-// Driver-specific fields go in `extras` and are interpreted by the driver
-// server-side (see src/lib/connections/*.ts).
 
 interface FilterRowProps {
   reports: UploadedReport[];
@@ -46,80 +39,108 @@ function FilterRow({ reports, onRefresh, loading, children, label }: FilterRowPr
 
 const MERIT_REPORT_OPTIONS: ArtSelectOption[] = REPORT_TYPES.map((r) => ({ label: REPORT_TYPE_LABELS[r], value: r }));
 
+type MeritState = { reportType: string; dateFrom: string; dateTo: string; loading: boolean };
+type MeritAction =
+  | { type: 'SET_REPORT_TYPE'; value: string }
+  | { type: 'SET_DATE_FROM'; value: string }
+  | { type: 'SET_DATE_TO'; value: string }
+  | { type: 'SET_LOADING'; value: boolean };
+
+function meritReducer(state: MeritState, action: MeritAction): MeritState {
+  switch (action.type) {
+    case 'SET_REPORT_TYPE': return { ...state, reportType: action.value };
+    case 'SET_DATE_FROM':   return { ...state, dateFrom: action.value };
+    case 'SET_DATE_TO':     return { ...state, dateTo: action.value };
+    case 'SET_LOADING':     return { ...state, loading: action.value };
+  }
+}
+
 function MeritFilterRow({ reports, runRefresh }: { reports: UploadedReport[]; runRefresh: (reports: UploadedReport[], filters: FetchFiltersModel) => Promise<void> }) {
-  const [reportType, setReportType] = useState('pnl');
-  const [dateFrom, setDateFrom]     = useState('');
-  const [dateTo, setDateTo]         = useState('');
-  const [loading, setLoading]       = useState(false);
+  const [state, dispatch] = useReducer(meritReducer, { reportType: 'pnl', dateFrom: '', dateTo: '', loading: false });
 
   async function handle() {
-    setLoading(true);
+    dispatch({ type: 'SET_LOADING', value: true });
     await runRefresh(reports, {
-      reportType,
-      ...(dateFrom ? { dateFrom } : {}),
-      ...(dateTo   ? { dateTo }   : {}),
+      reportType: state.reportType,
+      ...(state.dateFrom ? { dateFrom: state.dateFrom } : {}),
+      ...(state.dateTo   ? { dateTo: state.dateTo }   : {}),
     });
-    setLoading(false);
+    dispatch({ type: 'SET_LOADING', value: false });
   }
 
   return (
-    <FilterRow reports={reports} onRefresh={handle} loading={loading} label="Merit">
-      <ArtSelect
-        label="Report"
-        options={MERIT_REPORT_OPTIONS}
-        selected={MERIT_REPORT_OPTIONS.find((o) => o.value === reportType) ?? null}
-        onChange={(opt) => setReportType(opt?.value ?? 'pnl')}
-        style={{ width: 160 }}
-      />
-      <ArtInput label="Date from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} style={{ width: 160 }} />
-      <ArtInput label="Date to"   type="date" value={dateTo}   onChange={(e) => setDateTo(e.target.value)}   style={{ width: 160 }} />
+    <FilterRow reports={reports} onRefresh={handle} loading={state.loading} label="Merit">
+      <div style={{ width: 160 }}>
+        <ArtSelect
+          label="Report"
+          options={MERIT_REPORT_OPTIONS}
+          selected={MERIT_REPORT_OPTIONS.find((o) => o.value === state.reportType) ?? null}
+          onChange={(opt) => dispatch({ type: 'SET_REPORT_TYPE', value: opt?.value ?? 'pnl' })}
+        />
+      </div>
+      <ArtInput label="Date from" type="date" value={state.dateFrom} onChange={(e) => dispatch({ type: 'SET_DATE_FROM', value: e.target.value })} style={{ width: 160 }} />
+      <ArtInput label="Date to"   type="date" value={state.dateTo}   onChange={(e) => dispatch({ type: 'SET_DATE_TO',   value: e.target.value })} style={{ width: 160 }} />
     </FilterRow>
   );
 }
 
 // ==== Odoo filter row ====
 
+type OdooState = { dateFrom: string; dateTo: string; journalIds: string; accountPrefix: string; loading: boolean };
+type OdooAction =
+  | { type: 'SET_DATE_FROM'; value: string }
+  | { type: 'SET_DATE_TO'; value: string }
+  | { type: 'SET_JOURNAL_IDS'; value: string }
+  | { type: 'SET_ACCOUNT_PREFIX'; value: string }
+  | { type: 'SET_LOADING'; value: boolean };
+
+function odooReducer(state: OdooState, action: OdooAction): OdooState {
+  switch (action.type) {
+    case 'SET_DATE_FROM':       return { ...state, dateFrom: action.value };
+    case 'SET_DATE_TO':         return { ...state, dateTo: action.value };
+    case 'SET_JOURNAL_IDS':     return { ...state, journalIds: action.value };
+    case 'SET_ACCOUNT_PREFIX':  return { ...state, accountPrefix: action.value };
+    case 'SET_LOADING':         return { ...state, loading: action.value };
+  }
+}
+
 function OdooFilterRow({ reports, runRefresh }: { reports: UploadedReport[]; runRefresh: (reports: UploadedReport[], filters: FetchFiltersModel) => Promise<void> }) {
-  const [dateFrom, setDateFrom]         = useState('');
-  const [dateTo, setDateTo]             = useState('');
-  const [journalIds, setJournalIds]     = useState('');
-  const [accountPrefix, setAccountPrefix] = useState('');
-  const [loading, setLoading]           = useState(false);
+  const [state, dispatch] = useReducer(odooReducer, { dateFrom: '', dateTo: '', journalIds: '', accountPrefix: '', loading: false });
 
   async function handle() {
-    setLoading(true);
-    const parsedJournals = journalIds
+    dispatch({ type: 'SET_LOADING', value: true });
+    const parsedJournals = state.journalIds
       .split(',')
       .map((s) => Number(s.trim()))
       .filter((n) => Number.isFinite(n));
     const extras: Record<string, unknown> = {};
     if (parsedJournals.length > 0) extras.journalIds = parsedJournals;
-    if (accountPrefix)             extras.accountPrefix = accountPrefix;
+    if (state.accountPrefix)    extras.accountPrefix = state.accountPrefix;
 
     await runRefresh(reports, {
-      ...(dateFrom ? { dateFrom } : {}),
-      ...(dateTo   ? { dateTo }   : {}),
+      ...(state.dateFrom ? { dateFrom: state.dateFrom } : {}),
+      ...(state.dateTo   ? { dateTo: state.dateTo }   : {}),
       ...(Object.keys(extras).length > 0 ? { extras } : {}),
     });
-    setLoading(false);
+    dispatch({ type: 'SET_LOADING', value: false });
   }
 
   return (
-    <FilterRow reports={reports} onRefresh={handle} loading={loading} label="Odoo">
-      <ArtInput label="Date from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} style={{ width: 160 }} />
-      <ArtInput label="Date to"   type="date" value={dateTo}   onChange={(e) => setDateTo(e.target.value)}   style={{ width: 160 }} />
+    <FilterRow reports={reports} onRefresh={handle} loading={state.loading} label="Odoo">
+      <ArtInput label="Date from" type="date" value={state.dateFrom} onChange={(e) => dispatch({ type: 'SET_DATE_FROM', value: e.target.value })} style={{ width: 160 }} />
+      <ArtInput label="Date to"   type="date" value={state.dateTo}   onChange={(e) => dispatch({ type: 'SET_DATE_TO',   value: e.target.value })} style={{ width: 160 }} />
       <ArtInput
         label="Journal IDs"
         placeholder="1,2,5"
-        value={journalIds}
-        onChange={(e) => setJournalIds(e.target.value)}
+        value={state.journalIds}
+        onChange={(e) => dispatch({ type: 'SET_JOURNAL_IDS', value: e.target.value })}
         style={{ width: 160 }}
       />
       <ArtInput
         label="Account prefix"
         placeholder="411"
-        value={accountPrefix}
-        onChange={(e) => setAccountPrefix(e.target.value)}
+        value={state.accountPrefix}
+        onChange={(e) => dispatch({ type: 'SET_ACCOUNT_PREFIX', value: e.target.value })}
         style={{ width: 140 }}
       />
     </FilterRow>
@@ -127,8 +148,6 @@ function OdooFilterRow({ reports, runRefresh }: { reports: UploadedReport[]; run
 }
 
 // ==== Main filter panel ====
-// Groups connection-sourced reports by their driver type and renders the
-// matching per-driver filter row. Hidden when no connection-sourced reports.
 
 export default function ConnectionFilters() {
   const { reports, replaceReportSheets } = useReports();
@@ -137,24 +156,18 @@ export default function ConnectionFilters() {
   const connectionReports = reports.filter((r) => r.source === 'connection' && r.connectionId);
   if (connectionReports.length === 0) return null;
 
-  // Bucket by driver type — `connectionType` is copied onto the report at
-  // addReportFromSheets time so we don't need a side-channel lookup here.
-  const byType: Record<ConnectionType, UploadedReport[]> = { merit: [], odoo: [] };
-  for (const r of connectionReports) {
-    if (r.connectionType === 'merit') byType.merit.push(r);
-    else if (r.connectionType === 'odoo') byType.odoo.push(r);
-  }
+  const meritReports = connectionReports.filter((r) => r.connectionType === 'merit');
+  const odooReports  = connectionReports.filter((r) => r.connectionType === 'odoo');
 
   async function runRefresh(targetReports: UploadedReport[], filters: FetchFiltersModel) {
     try {
-      // Sequential — bound Neon CU pressure with multiple connections.
-      for (const r of targetReports) {
+      await Promise.all(targetReports.map(async (r) => {
         const { data } = await fetchClient.post<{ sheets: ConnectionSheet[]; fetchedAt: string }>(
           API.connection.fetch(r.connectionId!),
           filters,
         );
         replaceReportSheets(r.id, data.sheets, data.fetchedAt);
-      }
+      }));
       enqueueSuccess(`Refreshed ${targetReports.length} report${targetReports.length > 1 ? 's' : ''}`);
     } catch (err) {
       enqueueError(err as Error, 'Failed to refresh');
@@ -166,8 +179,8 @@ export default function ConnectionFilters() {
       className="flex flex-col gap-3 rounded p-3"
       style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
     >
-      {byType.merit.length > 0 && <MeritFilterRow reports={byType.merit} runRefresh={runRefresh} />}
-      {byType.odoo.length  > 0 && <OdooFilterRow  reports={byType.odoo}  runRefresh={runRefresh} />}
+      {meritReports.length > 0 && <MeritFilterRow reports={meritReports} runRefresh={runRefresh} />}
+      {odooReports.length  > 0 && <OdooFilterRow  reports={odooReports}  runRefresh={runRefresh} />}
       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
         Filters apply only to connection-sourced reports. File uploads stay as-is.
       </p>

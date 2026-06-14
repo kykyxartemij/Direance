@@ -31,17 +31,19 @@ export function combineReports(reports: UploadedReport[]): CombinedReports {
 
   // Only consider reports that have been mapped AND are active. Unmapped or
   // deactivated reports stay in the sidebar but don't contribute rows.
-  const mapped = reports
-    .filter((r) => r.mapped && r.active)
-    .map((r) => ({
-      label: r.fileName.replace(/\.(xlsx|xls)$/i, '').slice(0, 10),
-      rowIndents: r.rowIndents,
-      headers:     r.mapped!.headers,
-      rows:        r.mapped!.rows,
-      rowColors:   r.mapped!.rowColors,
-      valueColors: r.mapped!.valueColors,
-      totalColumns: r.mapped!.totalColumns,
-    }));
+  const mapped = reports.flatMap((r) =>
+    r.mapped && r.active
+      ? [{
+          label: r.fileName.replace(/\.(xlsx|xls)$/i, '').slice(0, 10),
+          rowIndents: r.rowIndents,
+          headers:     r.mapped.headers,
+          rows:        r.mapped.rows,
+          rowColors:   r.mapped.rowColors,
+          valueColors: r.mapped.valueColors,
+          totalColumns: r.mapped.totalColumns,
+        }]
+      : []
+  );
   if (mapped.length === 0) return empty;
 
   if (mapped.length === 1) {

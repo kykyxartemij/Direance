@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef, useImperativeHandle, useState } from 'react';
+import { useImperativeHandle, useReducer } from 'react';
 import * as XLSX from 'xlsx';
 import type { SourceLayout, SheetConfig, TotalColumnMode } from '@/models/mapping.models';
 import ArtCollapse from '@/components/ui/ArtCollapse';
@@ -68,7 +68,7 @@ function ReadonlySummary({
           {layout.regions.length > 0 && (
             <ul className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
               {layout.regions.map((r, i) => (
-                <li key={i}>Region {i + 1}: {describeRegion(r)}</li>
+                <li key={r.descriptionColumn}>Region {i + 1}: {describeRegion(r)}</li>
               ))}
             </ul>
           )}
@@ -102,19 +102,52 @@ function ReadonlySummary({
   );
 }
 
+// ==== Reducer ====
+
+type LayoutState = {
+  workbook: XLSX.WorkBook | null;
+  sheetLayouts: Record<string, SourceLayout>;
+  autoDetectedLayouts: Record<string, SourceLayout>;
+  sheetsConfig: Record<string, SheetConfig>;
+  warning: string | null;
+};
+
+type LayoutAction =
+  | { type: 'LOAD_WORKBOOK'; workbook: XLSX.WorkBook; sheetLayouts: Record<string, SourceLayout>; autoDetectedLayouts: Record<string, SourceLayout>; sheetsConfig: Record<string, SheetConfig>; warning: string | null }
+  | { type: 'CLEAR_WORKBOOK' }
+  | { type: 'SET_WARNING'; warning: string | null }
+  | { type: 'SET_SHEET_LAYOUT'; sheetName: string; layout: SourceLayout }
+  | { type: 'SET_SHEET_MODE'; sheetName: string; mode: 'combine' | 'skip' }
+  | { type: 'SET_SHEET_TOTAL_COLUMN_MODE'; sheetName: string; mode: TotalColumnMode };
+
+function layoutReducer(state: LayoutState, action: LayoutAction): LayoutState {
+  switch (action.type) {
+    case 'LOAD_WORKBOOK':
+      return { ...state, workbook: action.workbook, sheetLayouts: action.sheetLayouts, autoDetectedLayouts: action.autoDetectedLayouts, sheetsConfig: action.sheetsConfig, warning: action.warning };
+    case 'CLEAR_WORKBOOK':
+      return { ...state, workbook: null, warning: null };
+    case 'SET_WARNING':
+      return { ...state, warning: action.warning };
+    case 'SET_SHEET_LAYOUT':
+      return { ...state, sheetLayouts: { ...state.sheetLayouts, [action.sheetName]: action.layout } };
+    case 'SET_SHEET_MODE':
+      return { ...state, sheetsConfig: { ...state.sheetsConfig, [action.sheetName]: { ...(state.sheetsConfig[action.sheetName] ?? { mode: 'combine' }), mode: action.mode } } };
+    case 'SET_SHEET_TOTAL_COLUMN_MODE':
+      return { ...state, sheetsConfig: { ...state.sheetsConfig, [action.sheetName]: { ...(state.sheetsConfig[action.sheetName] ?? { mode: 'combine' }), totalColumnMode: action.mode } } };
+  }
+}
+
 // ==== Section ====
 
-const SourceLayoutFormSection = forwardRef<SourceLayoutFormSectionRef, SourceLayoutFormSectionProps>(
-  ({ initialLayout, initialSheetLayouts, initialSheetsConfig }, ref) => {
-    const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
-    const [sheetLayouts, setSheetLayouts] = useState<Record<string, SourceLayout>>(
-      initialSheetLayouts ?? {},
-    );
-    const [autoDetectedLayouts, setAutoDetectedLayouts] = useState<Record<string, SourceLayout>>({});
-    const [sheetsConfig, setSheetsConfig] = useState<Record<string, SheetConfig>>(
-      initialSheetsConfig ?? {},
-    );
-    const [warning, setWarning] = useState<string | null>(null);
+function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSheetsConfig, ref }: SourceLayoutFormSectionProps & { ref?: React.Ref<SourceLayoutFormSectionRef> }) {
+    const [state, dispatch] = useReducer(layoutReducer, {
+      workbook: null,
+      sheetLayouts: initialSheetLayouts ?? {},
+      autoDetectedLayouts: {},
+      sheetsConfig: initialSheetsConfig ?? {},
+      warning: null,
+    });
+    const { workbook, sheetLayouts, autoDetectedLayouts, sheetsConfig, warning } = state;
 
     useImperativeHandle(
       ref,
@@ -136,26 +169,23 @@ const SourceLayoutFormSection = forwardRef<SourceLayoutFormSectionRef, SourceLay
     async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
       const file = e.target.files?.[0];
       if (!file) {
-        setWorkbook(null);
-        setWarning(null);
+        dispatch({ type: 'CLEAR_WORKBOOK' });
         return;
       }
       try {
-        const buffer = await file.arrayBuffer();
-        const wb = XLSX.read(buffer, { type: 'array', cellStyles: true });
+        const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellStyles: true });
 
         const expected = Object.keys(sheetLayouts);
         const incoming = new Set(wb.SheetNames);
         const missing = expected.filter((n) => !incoming.has(n));
         const extra = wb.SheetNames.filter((n) => expected.length > 0 && !expected.includes(n));
 
+        let nextWarning: string | null = null;
         if (missing.length || extra.length) {
           const parts: string[] = [];
           if (missing.length) parts.push(`missing sheets: ${missing.join(', ')}`);
           if (extra.length) parts.push(`extra sheets: ${extra.join(', ')}`);
-          setWarning(`Uploaded file does not match stored layout — ${parts.join('; ')}`);
-        } else {
-          setWarning(null);
+          nextWarning = `Uploaded file does not match stored layout — ${parts.join('; ')}`;
         }
 
         const nextLayouts: Record<string, SourceLayout> = { ...sheetLayouts };
@@ -167,36 +197,26 @@ const SourceLayoutFormSection = forwardRef<SourceLayoutFormSectionRef, SourceLay
           if (!nextLayouts[name]) nextLayouts[name] = auto;
           if (!nextConfig[name]) nextConfig[name] = { mode: 'combine' };
         }
-        setSheetLayouts(nextLayouts);
-        setAutoDetectedLayouts(nextAuto);
-        setSheetsConfig(nextConfig);
-        setWorkbook(wb);
+        dispatch({ type: 'LOAD_WORKBOOK', workbook: wb, sheetLayouts: nextLayouts, autoDetectedLayouts: nextAuto, sheetsConfig: nextConfig, warning: nextWarning });
       } catch (err) {
-        setWarning(`Failed to parse Excel file: ${(err as Error).message}`);
+        dispatch({ type: 'SET_WARNING', warning: `Failed to parse Excel file: ${(err as Error).message}` });
       }
     }
 
     function clearWorkbook() {
-      setWorkbook(null);
-      setWarning(null);
+      dispatch({ type: 'CLEAR_WORKBOOK' });
     }
 
     function handleSheetLayoutChange(sheetName: string, newLayout: SourceLayout) {
-      setSheetLayouts((prev) => ({ ...prev, [sheetName]: newLayout }));
+      dispatch({ type: 'SET_SHEET_LAYOUT', sheetName, layout: newLayout });
     }
 
     function handleSheetModeChange(sheetName: string, mode: 'combine' | 'skip') {
-      setSheetsConfig((prev) => ({
-        ...prev,
-        [sheetName]: { ...(prev[sheetName] ?? { mode: 'combine' }), mode },
-      }));
+      dispatch({ type: 'SET_SHEET_MODE', sheetName, mode });
     }
 
     function handleSheetTotalColumnModeChange(sheetName: string, mode: TotalColumnMode) {
-      setSheetsConfig((prev) => ({
-        ...prev,
-        [sheetName]: { ...(prev[sheetName] ?? { mode: 'combine' }), totalColumnMode: mode },
-      }));
+      dispatch({ type: 'SET_SHEET_TOTAL_COLUMN_MODE', sheetName, mode });
     }
 
     return (
@@ -249,8 +269,6 @@ const SourceLayoutFormSection = forwardRef<SourceLayoutFormSectionRef, SourceLay
         </div>
       </ArtCollapse>
     );
-  },
-);
+}
 
-SourceLayoutFormSection.displayName = 'SourceLayoutFormSection';
 export default SourceLayoutFormSection;

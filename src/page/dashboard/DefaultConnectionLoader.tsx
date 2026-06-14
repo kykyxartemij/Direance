@@ -34,30 +34,27 @@ export default function DefaultConnectionLoader() {
     if (defaults.length === 0) { didRun.current = true; return; }
 
     didRun.current = true;
-    void (async () => {
-      const filters: FetchFiltersModel = {};
-      for (const c of defaults) {
-        try {
-          const { data: full } = await fetchClient.get<ConnectionModel>(API.connection.byId(c.id));
-          const { data } = await fetchClient.post<{ sheets: ConnectionSheet[]; fetchedAt: string }>(
-            API.connection.fetch(c.id),
-            filters,
-          );
-          const fileName = `${c.name}-${new Date(data.fetchedAt).toISOString().slice(0, 10)}`;
-          const id = addReportFromSheets(fileName, data.sheets, {
-            connectionId: c.id,
-            connectionType: c.type,
-            fetchedAt: data.fetchedAt,
-          });
-          if (full.mapping?.id) {
-            const mapping = await fetchMappingById(queryClient, full.mapping.id);
-            setMapping(id, mapping);
-          }
-        } catch {
-          // Silent — auto-load failures shouldn't block the Dashboard. User can manually import.
+    const filters: FetchFiltersModel = {};
+    void Promise.all(defaults.map(async (c) => {
+      try {
+        const [{ data: full }, { data }] = await Promise.all([
+          fetchClient.get<ConnectionModel>(API.connection.byId(c.id)),
+          fetchClient.post<{ sheets: ConnectionSheet[]; fetchedAt: string }>(API.connection.fetch(c.id), filters),
+        ]);
+        const fileName = `${c.name}-${new Date(data.fetchedAt).toISOString().slice(0, 10)}`;
+        const id = addReportFromSheets(fileName, data.sheets, {
+          connectionId: c.id,
+          connectionType: c.type,
+          fetchedAt: data.fetchedAt,
+        });
+        if (full.mapping?.id) {
+          const mapping = await fetchMappingById(queryClient, full.mapping.id);
+          setMapping(id, mapping);
         }
+      } catch {
+        // Silent — auto-load failures shouldn't block the Dashboard. User can manually import.
       }
-    })();
+    }));
   }, [connections, reports.length, addReportFromSheets, setMapping, queryClient]);
 
   return null;

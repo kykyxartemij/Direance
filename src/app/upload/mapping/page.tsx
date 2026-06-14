@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
-import MappingStepPage from '@/page/mapping/MappingStepPage';
+import MappingStep from '@/page/mapping/MappingStep';
 
 export const metadata: Metadata = { title: 'Configure Mapping' };
 
 export default function Page() {
-  return <MappingStepPage />;
+  return <MappingStep />;
 }

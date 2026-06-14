@@ -1,9 +1,7 @@
 import 'server-only';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
-import { requireAuth } from '@/auth';
-import { handleApiError } from '@/lib/errorHandler';
-import { API } from '@/lib/apiUrl';
+import { withHandler } from '@/lib/withHandler';
 import { ExcelUploadValidator, type ParsedReportModel } from '@/models/report.models';
 
 // ==== Private helpers ====
@@ -26,19 +24,13 @@ async function parseExcelFile(file: File): Promise<ParsedReportModel> {
 
 // ==== HTTP handlers ====
 
-export async function uploadReport(req: NextRequest): Promise<NextResponse> {
-  try {
-    await requireAuth();
+export const uploadReport = withHandler(async (req) => {
+  const formData = await req.formData();
+  const { file } = await ExcelUploadValidator.validate(
+    { file: formData.get('file') },
+    { abortEarly: false },
+  );
 
-    const formData = await req.formData();
-    const { file } = await ExcelUploadValidator.validate(
-      { file: formData.get('file') },
-      { abortEarly: false }
-    );
-
-    const report = await parseExcelFile(file!);
-    return NextResponse.json(report);
-  } catch (error) {
-    return handleApiError(error, 'POST', API.report.upload());
-  }
-}
+  const report = await parseExcelFile(file!);
+  return NextResponse.json(report);
+});

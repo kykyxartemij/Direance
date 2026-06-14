@@ -15,13 +15,13 @@ function getKey(): string {
 }
 
 /** Encrypt a JSON-serializable value into bytea for storage in Connection.secret. */
-export async function encryptSecret(value: unknown): Promise<Buffer> {
+export async function encryptSecret(value: unknown): Promise<Buffer<ArrayBuffer>> {
   const plaintext = JSON.stringify(value ?? {});
   const key = getKey();
   const [row] = await prisma.$queryRaw<[{ ciphertext: Buffer }]>`
     SELECT pgp_sym_encrypt(${plaintext}::text, ${key}::text) AS ciphertext
   `;
-  return Buffer.from(row.ciphertext);
+  return Buffer.from(row.ciphertext) as Buffer<ArrayBuffer>;
 }
 
 /** Decrypt a Connection.secret bytea back into its original JSON value. */

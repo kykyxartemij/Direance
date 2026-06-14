@@ -2,16 +2,8 @@
 
 import { useFormContext } from 'react-hook-form';
 import { useCurrencyOptions } from '@/hooks/currencies.hooks';
-import type { ArtSelectOption } from '@/components/ui/ArtSelect';
 import FormSection from '@/components/FormSection';
 import { ArtFormComboBox } from '@/components/form';
-
-// ==== Constants ====
-
-export const REPORT_TYPE_OPTIONS: ArtSelectOption[] = [
-  { label: 'Profit & Loss', value: 'pnl' },
-  { label: 'Financial Position', value: 'financial_position' },
-];
 
 // ==== Section ====
 // Mapping-side meta: currencies only. Identity fields (Name/Mapping picker,

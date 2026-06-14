@@ -39,5 +39,3 @@ export function ArtFormListbox({ name, helperText, ...props }: ArtFormListboxPro
     />
   );
 }
-
-export default ArtFormListbox;

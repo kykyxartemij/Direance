@@ -1,5 +1,6 @@
 'use client';
 
+// NOTE: nextjs-no-use-search-params-without-suspense is a false positive — this page renders under loading.tsx which provides the Suspense boundary
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useForm, FormProvider } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';

@@ -3,6 +3,30 @@
 How mutations are wired in Direance. Centralises error reporting in the hook,
 keeps the call site focused on success behaviour.
 
+## Rule: all BE calls go through hooks
+
+`fetchClient` must only be imported inside `src/hooks/`. Components, pages, and
+providers must never call `fetchClient` directly — they call a `useQuery` or
+`useMutation` hook instead. Enforced by the `local/hooks-only-fetch-client` lint rule.
+
+```ts
+// ❌ Bad — fetchClient in a component/page/provider
+import fetchClient from '@/lib/fetchClient';
+const { data } = await fetchClient.get(API.connection.byId(id));
+
+// ✅ Good — hook in src/hooks/, component imports the hook
+// src/hooks/connection.hooks.ts:
+export function useGetConnection(id: string) {
+  return useQuery({ queryKey: queryKeys.connection.byId(id), queryFn: () => fetchClient.get(API.connection.byId(id)) });
+}
+// src/page/dashboard/MyPage.tsx:
+const { data } = useGetConnection(id);
+```
+
+This rule exists because raw `fetchClient` calls in components bypass TanStack
+Query's caching, deduplication, loading/error state, and cache invalidation.
+Every BE roundtrip that skips the query layer is invisible to the rest of the app.
+
 ## Hook owns error reporting
 
 Every mutation hook calls `useArtSnackbar()` and wires `onError` to

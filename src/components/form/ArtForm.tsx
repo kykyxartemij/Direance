@@ -18,7 +18,9 @@ export interface ArtFormProps<T extends FieldValues> {
 
 // ==== Component ====
 
-export function ArtForm<T extends FieldValues>({ methods, onSubmit, buttons = [], children, className }: ArtFormProps<T>) {
+const EMPTY_BUTTONS: ArtFormButtonProps[] = [];
+
+export function ArtForm<T extends FieldValues>({ methods, onSubmit, buttons = EMPTY_BUTTONS, children, className }: ArtFormProps<T>) {
   return (
     <FormProvider {...methods}>
       <form onSubmit={methods.handleSubmit(onSubmit)} className={className}>
@@ -32,4 +34,3 @@ export function ArtForm<T extends FieldValues>({ methods, onSubmit, buttons = []
 }
 
 ArtForm.displayName = 'ArtForm';
-export default ArtForm;

@@ -12,8 +12,10 @@ interface ArtFormComboBoxProps extends Omit<ArtComboBoxSingleProps, 'name' | 'se
 
 // ==== Component ====
 
+const EMPTY_OPTIONS: ArtComboBoxOption[] = [];
+
 // field.value is the option's .value string (or null) — not the full ArtComboBoxOption object.
-export function ArtFormComboBox({ name, helperText, options = [], ...props }: ArtFormComboBoxProps) {
+export function ArtFormComboBox({ name, helperText, options = EMPTY_OPTIONS, ...props }: ArtFormComboBoxProps) {
   const { control } = useFormContext();
   return (
     <Controller
@@ -32,5 +34,3 @@ export function ArtFormComboBox({ name, helperText, options = [], ...props }: Ar
     />
   );
 }
-
-export default ArtFormComboBox;

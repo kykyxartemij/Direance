@@ -145,24 +145,22 @@ export default function ReportSidebar() {
     if (!defaults.length) { didAutoLoad.current = true; return; }
 
     didAutoLoad.current = true;
-    void (async () => {
-      for (const c of defaults) {
-        try {
-          const { data } = await fetchClient.post<{ sheets: ConnectionSheet[]; fetchedAt: string }>(
-            API.connection.fetch(c.id), {},
-          );
-          const id = addReportFromSheets(`${c.name}-${data.fetchedAt.slice(0, 10)}`, data.sheets, {
-            connectionId: c.id,
-            connectionType: c.type,
-            fetchedAt: data.fetchedAt,
-          });
-          if (c.mapping?.id) {
-            const mapping = await fetchMappingById(queryClient, c.mapping.id);
-            setMapping(id, mapping);
-          }
-        } catch { /* silent — auto-load failure doesn't block */ }
-      }
-    })();
+    void Promise.all(defaults.map(async (c) => {
+      try {
+        const { data } = await fetchClient.post<{ sheets: ConnectionSheet[]; fetchedAt: string }>(
+          API.connection.fetch(c.id), {},
+        );
+        const id = addReportFromSheets(`${c.name}-${data.fetchedAt.slice(0, 10)}`, data.sheets, {
+          connectionId: c.id,
+          connectionType: c.type,
+          fetchedAt: data.fetchedAt,
+        });
+        if (c.mapping?.id) {
+          const mapping = await fetchMappingById(queryClient, c.mapping.id);
+          setMapping(id, mapping);
+        }
+      } catch { /* silent — auto-load failure doesn't block */ }
+    }));
   }, [connections, reports, addReportFromSheets, setMapping, queryClient]);
 
   async function toggleConnection(connection: ConnectionLightModel, load: boolean) {

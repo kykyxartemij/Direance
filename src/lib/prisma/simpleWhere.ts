@@ -68,8 +68,6 @@ export function buildWhere(where: SimpleWhere): Prisma.Sql {
 
 export function buildReturning(select?: Record<string, boolean>): Prisma.Sql {
   if (!select) return Prisma.sql`*`;
-  const cols = Object.entries(select)
-    .filter(([, v]) => v)
-    .map(([k]) => Prisma.raw(`"${k}"`));
+  const cols = Object.entries(select).flatMap(([k, v]) => v ? [Prisma.raw(`"${k}"`)] : []);
   return cols.length > 0 ? Prisma.join(cols, ', ') : Prisma.sql`*`;
 }

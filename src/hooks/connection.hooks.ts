@@ -99,9 +99,8 @@ export function useDeleteConnection() {
 // session thing" expectation. User must explicitly refetch to bust.
 
 export function useFetchFromConnection(id: string | undefined, filters: FetchFiltersModel, enabled: boolean) {
-  const filtersKey = JSON.stringify(filters);
   return useQuery({
-    queryKey: queryKeys.connection.fetch(id ?? '', filtersKey),
+    queryKey: queryKeys.connection.fetch(id ?? '', filters),
     queryFn: async () => {
       const { data } = await fetchClient.post(API.connection.fetch(id!), filters);
       return data;
@@ -120,24 +119,25 @@ type RefreshTarget = { reportId: string; connectionId: string; filters: FetchFil
 type RefreshResult = { reportId: string; sheets: ConnectionSheet[]; fetchedAt: string };
 
 export function useRefreshConnectionReports() {
+  const queryClient = useQueryClient();
   const { replaceReportSheets } = useReports();
   const { enqueueError, enqueueSuccess } = useArtSnackbar();
 
   return useMutation<RefreshResult[], ApiError, RefreshTarget[]>({
-    mutationFn: async (targets) => {
-      const results: RefreshResult[] = [];
-      for (const t of targets) {
-        const { data } = await fetchClient.post<{ sheets: ConnectionSheet[]; fetchedAt: string }>(
-          API.connection.fetch(t.connectionId),
-          t.filters,
-        );
-        results.push({ reportId: t.reportId, sheets: data.sheets, fetchedAt: data.fetchedAt });
-      }
-      return results;
-    },
+    mutationFn: async (targets) =>
+      Promise.all(
+        targets.map(async (t) => {
+          const { data } = await fetchClient.post<{ sheets: ConnectionSheet[]; fetchedAt: string }>(
+            API.connection.fetch(t.connectionId),
+            t.filters,
+          );
+          return { reportId: t.reportId, sheets: data.sheets, fetchedAt: data.fetchedAt };
+        }),
+      ),
     onSuccess: (results) => {
       for (const r of results) replaceReportSheets(r.reportId, r.sheets, r.fetchedAt);
       enqueueSuccess(`Refreshed ${results.length} report${results.length > 1 ? 's' : ''}`);
+      queryClient.invalidateQueries({ queryKey: ['placeholder'] })
     },
     onError: (err) => {
       enqueueError(err as Error, 'Failed to refresh');

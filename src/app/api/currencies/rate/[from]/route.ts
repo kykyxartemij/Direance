@@ -1,9 +1,8 @@
-import { NextRequest } from 'next/server';
+import { type NextRequest } from 'next/server';
 import { getCurrencyRate } from '@/services/currency.service';
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ from: string }> },
-) {
-  return getCurrencyRate((await params).from);
+type Ctx = { params: Promise<{ from: string }> };
+
+export async function GET(req: NextRequest, ctx: Ctx) {
+  return getCurrencyRate(req, ctx);
 }

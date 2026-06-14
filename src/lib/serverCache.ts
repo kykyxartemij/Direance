@@ -1,6 +1,6 @@
 import { unstable_cache, revalidateTag } from 'next/cache';
 
-export const DEFAULT_TTL = 90; // 90 seconds
+const DEFAULT_TTL = 90; // 90 seconds
 
 export async function cached<T>(
   queryFn: () => Promise<T>,

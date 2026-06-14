@@ -7,9 +7,7 @@ export { buildWhere, buildReturning } from './prisma/simpleWhere';
 
 // ==== Value → Prisma.Sql ====
 // Maps a JS value to a parameterized SQL fragment with the correct Postgres type cast.
-// Exported so custom $queryRaw helpers outside withCrud can reuse the same mapping.
-
-export const toSql = (v: unknown): Prisma.Sql => {
+const toSql = (v: unknown): Prisma.Sql => {
   if (Buffer.isBuffer(v) || v instanceof Uint8Array) return Prisma.sql`${v}::bytea`;
   if (!Array.isArray(v)) return Prisma.sql`${v as Prisma.Sql}`;
   if (typeof v[0] === 'number')  return Prisma.sql`${v}::float8[]`;

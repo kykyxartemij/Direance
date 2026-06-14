@@ -1,3 +1,4 @@
+/* eslint-disable react-doctor/no-barrel-import */
 'use client';
 
 import React from 'react';

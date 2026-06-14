@@ -7,7 +7,7 @@ export interface PaginatedResponse<T> {
   pageSize: number;
 }
 
-export const PaginatedResponseValidator = yup.object({
+const PaginatedResponseValidator = yup.object({
   page: yup
     .number()
     .integer('Page must be an integer')
@@ -33,7 +33,7 @@ export function createPaginatedResponse<T>(
 }
 
 /* Used for Infinite Tanstack Query */
-export function getNextPage(lastPage: PaginatedResponse<unknown>): number | undefined {
+function getNextPage(lastPage: PaginatedResponse<unknown>): number | undefined {
   const nextPage = lastPage.page + 1;
   if (lastPage.total != null) {
     return nextPage * lastPage.pageSize < lastPage.total ? nextPage : undefined;

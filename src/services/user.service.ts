@@ -1,11 +1,10 @@
 import 'server-only';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cached, invalidateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
-import { handleApiError } from '@/lib/errorHandler';
-import { API } from '@/lib/apiUrl';
-import { requireAuth } from '@/auth';
+import { withHandler } from '@/lib/withHandler';
+import { getAuth } from '@/lib/requestContext';
 import { UpdateUserValidator } from '@/models/user.models';
 import { checkUserRequestLimit } from '@/lib/rateLimiter';
 import { checkUserDbLimits, computeUserDbConsumption } from '@/lib/userLimits';
@@ -35,79 +34,62 @@ const USER_SELECT = {
 
 // ==== HTTP handlers ====
 
-export async function getMe(req: NextRequest): Promise<NextResponse> {
-  try {
-    const { userId, permissions } = await requireAuth();
-    await checkUserRequestLimit(req, userId, permissions);
+export const getMe = withHandler(async (req) => {
+  const { userId, permissions } = getAuth();
+  await checkUserRequestLimit(req, userId, permissions);
 
-    const user = await cached(
-      () => prisma.user.findUniqueOrThrow({ where: { id: userId }, select: USER_SELECT }),
-      CACHE_KEYS.user.byId(userId),
-    );
+  const user = await cached(
+    () => prisma.user.findUniqueOrThrow({ where: { id: userId }, select: USER_SELECT }),
+    CACHE_KEYS.user.byId(userId),
+  );
 
-    return NextResponse.json(maskUser(user));
-  } catch (error) {
-    return handleApiError(error, 'GET', API.user.me());
-  }
-}
+  return NextResponse.json(maskUser(user));
+});
 
-export async function patchMe(req: NextRequest): Promise<NextResponse> {
-  try {
-    const { userId, permissions } = await requireAuth();
-    await checkUserRequestLimit(req, userId, permissions);
-    await checkUserDbLimits(userId, permissions);
+export const patchMe = withHandler(async (req) => {
+  const { userId, permissions } = getAuth();
+  const data = await UpdateUserValidator.validate(await req.json(), { abortEarly: false });
 
-    const body = await req.json();
-    const data = await UpdateUserValidator.validate(body, { abortEarly: false });
+  await checkUserRequestLimit(req, userId, permissions);
+  await checkUserDbLimits(userId, permissions);
 
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data,
-      select: USER_SELECT,
-    });
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data,
+    select: USER_SELECT,
+  });
 
-    invalidateCache(...CACHE_KEYS.user.invalidate());
-    await cached(() => Promise.resolve(user), CACHE_KEYS.user.byId(userId));
+  invalidateCache(...CACHE_KEYS.user.invalidate());
+  await cached(() => Promise.resolve(user), CACHE_KEYS.user.byId(userId));
 
-    return NextResponse.json(maskUser(user));
-  } catch (error) {
-    return handleApiError(error, 'PATCH', API.user.update());
-  }
-}
+  return NextResponse.json(maskUser(user));
+});
 
-export async function getDbConsumption(req: NextRequest): Promise<NextResponse> {
-  try {
-    const { userId, permissions } = await requireAuth();
-    await checkUserRequestLimit(req, userId, permissions);
+export const getDbConsumption = withHandler(async (req) => {
+  const { userId, permissions } = getAuth();
+  await checkUserRequestLimit(req, userId, permissions);
 
-    const data = await cached(
-      () => computeUserDbConsumption(userId),
-      CACHE_KEYS.user.dbConsumption(userId),
-    );
+  const data = await cached(
+    () => computeUserDbConsumption(userId),
+    CACHE_KEYS.user.dbConsumption(userId),
+  );
 
-    return NextResponse.json(data);
-  } catch (error) {
-    return handleApiError(error, 'GET', API.user.dbConsumption());
-  }
-}
+  return NextResponse.json(data);
+});
 
-export async function deleteMe(req: NextRequest): Promise<NextResponse> {
-  try {
-    const { userId, permissions } = await requireAuth();
-    await checkUserRequestLimit(req, userId, permissions);
+export const deleteMe = withHandler(async (req) => {
+  const { userId, permissions } = getAuth();
+  await checkUserRequestLimit(req, userId, permissions);
 
-    await prisma.user.delete({ where: { id: userId } });
-    invalidateCache(...CACHE_KEYS.user.invalidate());
+  await prisma.user.delete({ where: { id: userId } });
+  invalidateCache(...CACHE_KEYS.user.invalidate());
 
-    return new NextResponse(null, { status: 204 });
-  } catch (error) {
-    return handleApiError(error, 'DELETE', API.user.delete());
-  }
-}
+  return new NextResponse(null, { status: 204 });
+});
 
-export async function getPagedUsers(req: NextRequest): Promise<NextResponse> {
-  try {
-    const { userId, permissions } = await requireAuth(Permission.CAN_ACCESS_USERS);
+export const getPagedUsers = withHandler(
+  async (req) => {
+    const { userId, permissions } = getAuth();
     await checkUserRequestLimit(req, userId, permissions);
 
     const searchParams = new URL(req.url).searchParams;
@@ -133,7 +115,6 @@ export async function getPagedUsers(req: NextRequest): Promise<NextResponse> {
     ]);
 
     return NextResponse.json(createPaginatedResponse(data.map(maskUser), page, pageSize, total));
-  } catch (error) {
-    return handleApiError(error, 'GET', API.users.paged(0, 0));
-  }
-}
+  },
+  { permission: Permission.CAN_ACCESS_USERS },
+);

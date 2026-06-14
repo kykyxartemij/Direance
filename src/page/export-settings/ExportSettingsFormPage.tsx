@@ -1,6 +1,7 @@
 'use client';
 
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState } from 'react';
+import Image from 'next/image';
 import { useRouter, useParams } from 'next/navigation';
 import { useForm, type Resolver } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -11,7 +12,6 @@ import {
   useUpdateExportSetting,
 } from '@/hooks/export-settings.hooks';
 import {
-  useGetLogoByExportSettingId,
   useGetLogoById,
   useGetLightLogos,
 } from '@/hooks/logo.hooks';
@@ -59,28 +59,24 @@ type FormValues = {
 // and switching a color only re-renders this single row.
 
 interface MappedValueRowRef {
-  getData(): MappedValueModel;
+  getName(): string;
 }
 
-const MappedValueRow = forwardRef<MappedValueRowRef, { item: MappedValueModel; onRemove: () => void }>(
-  ({ item, onRemove }, ref) => {
+function MappedValueRow({ item, color, onColorChange, onRemove, ref }: { item: MappedValueModel; color: ArtColor; onColorChange: (c: ArtColor) => void; onRemove: () => void; ref?: React.Ref<MappedValueRowRef> }) {
     const nameRef = useRef<HTMLInputElement>(null);
-    const [color, setColor] = useState<ArtColor>(item.color);
 
     useImperativeHandle(ref, () => ({
-      getData: () => ({ name: nameRef.current?.value.trim() ?? '', color }),
-    }), [color]);
+      getName: () => nameRef.current?.value.trim() ?? '',
+    }), []);
 
     return (
       <div className="grid gap-2 items-center" style={{ gridTemplateColumns: '1fr 160px 32px' }}>
         <ArtInput ref={nameRef} placeholder="e.g. Revenue" defaultValue={item.name} />
-        <ColorSelect value={color} onChange={(c) => setColor(c ?? 'neutral')} />
+        <ColorSelect value={color} onChange={(c) => onColorChange(c ?? 'neutral')} />
         <ArtButton type="button" variant="ghost" color="danger" size="sm" onClick={onRemove}>×</ArtButton>
       </div>
     );
-  }
-);
-MappedValueRow.displayName = 'MappedValueRow';
+}
 
 // ==== Header item row (uncontrolled — many rows, read on submit via ref) ====
 
@@ -88,8 +84,7 @@ interface HeaderItemRowRef {
   getData(): HeaderItemModel;
 }
 
-const HeaderItemRow = forwardRef<HeaderItemRowRef, { item: HeaderItemModel; onRemove: () => void }>(
-  ({ item, onRemove }, ref) => {
+function HeaderItemRow({ item, onRemove, ref }: { item: HeaderItemModel; onRemove: () => void; ref?: React.Ref<HeaderItemRowRef> }) {
     const cellRef = useRef<HTMLInputElement>(null);
     const contentRef = useRef<HTMLInputElement>(null);
 
@@ -107,9 +102,7 @@ const HeaderItemRow = forwardRef<HeaderItemRowRef, { item: HeaderItemModel; onRe
         <ArtButton type="button" variant="ghost" color="danger" size="sm" onClick={onRemove}>×</ArtButton>
       </div>
     );
-  }
-);
-HeaderItemRow.displayName = 'HeaderItemRow';
+}
 
 // ==== Logo section (unified) ====
 // Nothing is uploaded or linked until the parent form's Save runs. The section
@@ -132,6 +125,15 @@ interface LogoSectionProps {
 function LogoSection({ existingLogoId, existingLogoName, staged, onChange }: LogoSectionProps) {
   const { data: logos = [] } = useGetLightLogos();
 
+  const stagedUrlRef = useRef<string | null>(null);
+  const [stagedFileUrl, setStagedFileUrl] = useState<string | null>(null);
+  useEffect(() => () => { if (stagedUrlRef.current) URL.revokeObjectURL(stagedUrlRef.current); }, []);
+
+  function revokeUrl() {
+    if (stagedUrlRef.current) { URL.revokeObjectURL(stagedUrlRef.current); stagedUrlRef.current = null; }
+    setStagedFileUrl(null);
+  }
+
   // Combo reflects the staged choice. Falls back to the existing linked logo
   // when nothing is staged yet.
   const selectedId =
@@ -150,9 +152,6 @@ function LogoSection({ existingLogoId, existingLogoName, staged, onChange }: Log
     ? `data:${previewLogo.data.mime ?? 'image/webp'};base64,${previewLogo.data.data}`
     : null;
 
-  const stagedFile = staged.kind === 'file' ? staged.file : null;
-  const stagedFileUrl = useStagedFileUrl(stagedFile);
-
   const options: ArtComboBoxOption[] = logos.map((l) => ({ label: l.name ?? '(unnamed)', value: l.id }));
   const selected = options.find((o) => o.value === selectedId) ?? null;
 
@@ -165,6 +164,7 @@ function LogoSection({ existingLogoId, existingLogoName, staged, onChange }: Log
         placeholder={logos.length === 0 ? 'No logos uploaded — upload one below' : 'Select from your logos…'}
         clearable
         onChange={(opt) => {
+          revokeUrl();
           if (!opt) {
             onChange(existingLogoId ? { kind: 'unlink' } : { kind: 'unchanged' });
             return;
@@ -180,22 +180,28 @@ function LogoSection({ existingLogoId, existingLogoName, staged, onChange }: Log
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (!file) {
-            // ArtUpload's clear button fires a synthetic change with no files.
+            revokeUrl();
             if (staged.kind === 'file') {
               onChange(existingLogoId ? { kind: 'unchanged' } : { kind: 'unlink' });
             }
             return;
           }
+          revokeUrl();
+          const url = URL.createObjectURL(file);
+          stagedUrlRef.current = url;
+          setStagedFileUrl(url);
           onChange({ kind: 'file', file });
         }}
       />
 
       {(stagedFileUrl || previewSrc) && (
         <div className="flex items-center gap-4">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <Image
             src={stagedFileUrl ?? previewSrc!}
             alt="Logo preview"
+            width={200}
+            height={64}
+            unoptimized
             className="rounded"
             style={{ maxHeight: 64, maxWidth: 200, objectFit: 'contain', background: 'var(--border)', padding: 6 }}
           />
@@ -232,14 +238,6 @@ function LogoSection({ existingLogoId, existingLogoName, staged, onChange }: Log
       )}
     </div>
   );
-}
-
-// Stable object URL for staged file previews. Revoked when the file changes
-// or the component unmounts to avoid leaking blob URLs.
-function useStagedFileUrl(file: File | null): string | null {
-  const url = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
-  useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
-  return url;
 }
 
 // ==== Page ====
@@ -303,10 +301,16 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
   const [logoStaged, setLogoStaged] = useState<LogoStaged>({ kind: 'unchanged' });
 
   // ==== Refs — header item rows + category rows (many rows, read on submit) ====
-  const [items, setItems] = useState<HeaderItemModel[]>(existing?.headerLayout?.items ?? []);
+  type HeaderItemEntry = HeaderItemModel & { _id: number };
+  type CategoryEntry = MappedValueModel & { _id: number };
+  const [items, setItems] = useState<HeaderItemEntry[]>(() =>
+    (existing?.headerLayout?.items ?? []).map((item, i) => ({ ...item, _id: i }))
+  );
   const itemRefs = useRef<(HeaderItemRowRef | null)[]>([]);
 
-  const [categories, setCategories] = useState<MappedValueModel[]>(existing?.mappedValues ?? []);
+  const [categories, setCategories] = useState<CategoryEntry[]>(() =>
+    (existing?.mappedValues ?? []).map((cat, i) => ({ ...cat, _id: i }))
+  );
   const categoryRefs = useRef<(MappedValueRowRef | null)[]>([]);
 
   const createMutation = useCreateExportSetting();
@@ -324,9 +328,9 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
     if (data.headerDataStartCell) headerLayout.dataStartCell = data.headerDataStartCell;
     if (itemValues.length > 0) headerLayout.items = itemValues;
 
-    const categoryValues = categoryRefs.current
-      .map((r) => r?.getData())
-      .filter((c): c is MappedValueModel => !!c && !!c.name);
+    const categoryValues = categories
+      .map((cat, i) => ({ name: categoryRefs.current[i]?.getName() ?? '', color: cat.color }))
+      .filter((c): c is MappedValueModel => !!c.name);
 
     const body = {
       name: data.name,
@@ -411,7 +415,7 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
               </div>
               {items.map((item, i) => (
                 <HeaderItemRow
-                  key={i}
+                  key={item._id}
                   ref={(el) => { itemRefs.current[i] = el; }}
                   item={item}
                   onRemove={() => {
@@ -427,7 +431,7 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
             type="button"
             variant="outlined"
             size="sm"
-            onClick={() => setItems((prev) => [...prev, { cell: '', content: '' }])}
+            onClick={() => setItems((prev) => [...prev, { cell: '', content: '', _id: Math.max(-1, ...prev.map((e) => e._id)) + 1 }])}
             style={{ alignSelf: 'flex-start' }}
           >
             + Add header cell
@@ -449,9 +453,11 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
               </div>
               {categories.map((item, i) => (
                 <MappedValueRow
-                  key={i}
+                  key={item._id}
                   ref={(el) => { categoryRefs.current[i] = el; }}
                   item={item}
+                  color={item.color}
+                  onColorChange={(c) => setCategories((prev) => prev.map((cat, idx) => idx === i ? { ...cat, color: c } : cat))}
                   onRemove={() => {
                     setCategories((prev) => prev.filter((_, idx) => idx !== i));
                     categoryRefs.current.splice(i, 1);
@@ -465,7 +471,7 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
             type="button"
             variant="outlined"
             size="sm"
-            onClick={() => setCategories((prev) => [...prev, { name: '', color: 'neutral' }])}
+            onClick={() => setCategories((prev) => [...prev, { name: '', color: 'neutral', _id: Math.max(-1, ...prev.map((e) => e._id)) + 1 }])}
             style={{ alignSelf: 'flex-start' }}
           >
             + Add category

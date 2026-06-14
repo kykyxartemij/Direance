@@ -3,7 +3,7 @@
  * Trims whitespace, lowercases, and caps at 100 chars to prevent
  * unbounded FTS queries from untrusted input.
  */
-export function normalizeText(value: string): string {
+function normalizeText(value: string): string {
   return value
     .trim()
     .replace(/\s+/g, ' ')

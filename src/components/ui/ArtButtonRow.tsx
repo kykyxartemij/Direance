@@ -64,4 +64,3 @@ export function ArtButtonRow({ buttons, className }: ArtButtonRowProps) {
 }
 
 ArtButtonRow.displayName = 'ArtButtonRow';
-export default ArtButtonRow;

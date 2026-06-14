@@ -1,13 +1,10 @@
 import 'server-only';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cached, invalidateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
-import { handleApiError } from '@/lib/errorHandler';
 import { withHandler } from '@/lib/withHandler';
 import { getAuth } from '@/lib/requestContext';
-import { API } from '@/lib/apiUrl';
-import { requireAuth } from '@/auth';
 import { ApiError } from '@/models/api-error';
 import { checkUserDbLimits } from '@/lib/userLimits';
 import { parseIdFromRoute } from '@/models';
@@ -47,164 +44,105 @@ const MAPPING_SELECT = {
 
 // ==== HTTP handlers ====
 
-export async function getLightMappings(req: NextRequest): Promise<NextResponse> {
-  try {
-    const { userId, permissions } = await requireAuth();
-    await checkUserRequestLimit(req, userId, permissions);
+export const getLightMappings = withHandler(async (req) => {
+  const { userId, permissions } = getAuth();
+  await checkUserRequestLimit(req, userId, permissions);
 
-    const reportType = new URL(req.url).searchParams.get('reportType') ?? undefined;
+  const reportType = new URL(req.url).searchParams.get('reportType') ?? undefined;
 
-    const mappings = await cached(
+  const mappings = await cached(
+    () =>
+      prisma.fieldMapping.findMany({
+        where: {
+          OR: [{ userId }, { isGlobal: true }],
+          ...(reportType ? { reportType } : {}),
+        },
+        select: MAPPING_SELECT_LIGHT,
+        orderBy: { name: 'asc' },
+      }),
+    CACHE_KEYS.mapping.light(userId, reportType),
+  );
+
+  return NextResponse.json(mappings);
+});
+
+export const getPagedMappings = withHandler(async (req) => {
+  const { userId, permissions } = getAuth();
+  await checkUserRequestLimit(req, userId, permissions);
+
+  const searchParams = new URL(req.url).searchParams;
+  const { page, pageSize } = await parsePaginationFromUrl(searchParams);
+  const freeText = parseFreeTextFromUrl(searchParams);
+
+  const where = { OR: [{ userId }, { isGlobal: true }] };
+  const [data, total] = await Promise.all([
+    cached(
       () =>
-        prisma.fieldMapping.findMany({
-          where: {
-            OR: [{ userId }, { isGlobal: true }],
-            ...(reportType ? { reportType } : {}),
-          },
-          select: MAPPING_SELECT_LIGHT,
+        prisma.fieldMapping.findManyFts({
+          freeText,
+          userId,
+          where,
+          select: MAPPING_SELECT_PAGED,
           orderBy: { name: 'asc' },
+          skip: page * pageSize,
+          take: pageSize,
         }),
-      CACHE_KEYS.mapping.light(userId, reportType),
-    );
+      CACHE_KEYS.mapping.paged(userId, page, pageSize, freeText),
+    ),
+    cached(
+      () => prisma.fieldMapping.countFts({ freeText, userId, where }),
+      CACHE_KEYS.mapping.count(userId, freeText),
+    ),
+  ]);
 
-    return NextResponse.json(mappings);
-  } catch (error) {
-    return handleApiError(error, 'GET', API.mapping.light());
-  }
-}
+  return NextResponse.json(createPaginatedResponse(data, page, pageSize, total));
+});
 
-export async function getPagedMappings(req: NextRequest): Promise<NextResponse> {
-  try {
-    const { userId, permissions } = await requireAuth();
-    await checkUserRequestLimit(req, userId, permissions);
+export const getMappingById = withHandler<{ id: string }>(async (req, { params }) => {
+  const { userId, permissions } = getAuth();
+  await checkUserRequestLimit(req, userId, permissions);
 
-    const searchParams = new URL(req.url).searchParams;
-    const { page, pageSize } = await parsePaginationFromUrl(searchParams);
-    const freeText = parseFreeTextFromUrl(searchParams);
+  const id = parseIdFromRoute(await params);
 
-    const where = { OR: [{ userId }, { isGlobal: true }] };
-    const [data, total] = await Promise.all([
-      cached(
-        () =>
-          prisma.fieldMapping.findManyFts({
-            freeText,
-            userId,
-            where,
-            select: MAPPING_SELECT_PAGED,
-            orderBy: { name: 'asc' },
-            skip: page * pageSize,
-            take: pageSize,
-          }),
-        CACHE_KEYS.mapping.paged(userId, page, pageSize, freeText),
-      ),
-      cached(
-        () => prisma.fieldMapping.countFts({ freeText, userId, where }),
-        CACHE_KEYS.mapping.count(userId, freeText),
-      ),
-    ]);
+  const mapping = await cached(
+    () =>
+      prisma.fieldMapping.findFirstOrThrow({
+        where: { id, OR: [{ userId }, { isGlobal: true }] },
+        select: MAPPING_SELECT,
+      }),
+    CACHE_KEYS.mapping.byId(userId, id),
+  );
 
-    return NextResponse.json(createPaginatedResponse(data, page, pageSize, total));
-  } catch (error) {
-    return handleApiError(error, 'GET', API.mapping.paged(0, 0));
-  }
-}
-
-export async function getMappingById(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-): Promise<NextResponse> {
-  try {
-    const { userId, permissions } = await requireAuth();
-    await checkUserRequestLimit(req, userId, permissions);
-
-    const id = parseIdFromRoute(await params);
-
-    const mapping = await cached(
-      () =>
-        prisma.fieldMapping.findFirstOrThrow({
-          where: { id, OR: [{ userId }, { isGlobal: true }] },
-          select: MAPPING_SELECT,
-        }),
-      CACHE_KEYS.mapping.byId(userId, id),
-    );
-
-    return NextResponse.json(mapping);
-  } catch (error) {
-    return handleApiError(error, 'GET', API.mapping.byId(':id'));
-  }
-}
+  return NextResponse.json(mapping);
+});
 
 // ==== CRUD ====
 
-export async function createMapping(req: NextRequest): Promise<NextResponse> {
-  try {
-    const { userId, permissions } = await requireAuth();
-    await checkUserRequestLimit(req, userId, permissions);
-    await checkUserDbLimits(userId, permissions);
-    
-    const body = await req.json();
-    const data = await CreateMappingValidator.validate(body, { abortEarly: false });
+export const createMapping = withHandler(async (req) => {
+  const { userId, permissions } = getAuth();
+  const data = await CreateMappingValidator.validate(await req.json(), { abortEarly: false });
 
-    const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
-    if (!canModifyGlobal && data.isGlobal) throw new ApiError('Only users with permission CAN_MODIFY_GLOBAL can create global mappings.', 403);
+  await checkUserRequestLimit(req, userId, permissions);
+  await checkUserDbLimits(userId, permissions);
 
-    const mapping = await prisma.fieldMapping.create({
-      data: { ...data, userId },
-      select: MAPPING_SELECT,
-    });
+  const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
+  if (!canModifyGlobal && data.isGlobal) throw new ApiError('Only users with permission CAN_MODIFY_GLOBAL can create global mappings.', 403);
 
-    invalidateCache(...CACHE_KEYS.mapping.invalidate(userId));
-    if (data.isGlobal) invalidateCache(...CACHE_KEYS.mapping.invalidateAll());
-    await cached(() => Promise.resolve(mapping), CACHE_KEYS.mapping.byId(userId, mapping.id));
+  const mapping = await prisma.fieldMapping.create({
+    data: { ...data, userId },
+    select: MAPPING_SELECT,
+  });
 
-    return NextResponse.json(mapping, { status: 201 });
-  } catch (error) {
-    return handleApiError(error, 'POST', API.mapping.list());
-  }
-}
+  invalidateCache(...CACHE_KEYS.mapping.invalidate(userId));
+  if (data.isGlobal) invalidateCache(...CACHE_KEYS.mapping.invalidateAll());
+  await cached(() => Promise.resolve(mapping), CACHE_KEYS.mapping.byId(userId, mapping.id));
 
-export async function updateMapping(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-): Promise<NextResponse> {
-  try {
-    const { userId, permissions } = await requireAuth();
-    await checkUserRequestLimit(req, userId, permissions);
-    await checkUserDbLimits(userId, permissions);
+  return NextResponse.json(mapping, { status: 201 });
+});
 
-    const id = parseIdFromRoute(await params);
-
-    const body = await req.json();
-    const data = await UpdateMappingValidator.validate(body, { abortEarly: false });
-
-    const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
-    if (!canModifyGlobal && data.isGlobal) throw new ApiError('Only users with permission CAN_MODIFY_GLOBAL can modify global mappings.', 403);
-    const where = canModifyGlobal
-        ? { id, OR: [{ userId }, { isGlobal: true }] }
-        : { id, userId, isGlobal: false };
-
-    const results = await prisma.fieldMapping.updateManyAndReturn({
-      where,
-      data,
-      select: MAPPING_SELECT,
-    });
-    if (results.length === 0) throw new ApiError('Mapping not found', 404);
-    const mapping = results[0];
-
-    invalidateCache(...CACHE_KEYS.mapping.invalidate(userId));
-    if (mapping.isGlobal) invalidateCache(...CACHE_KEYS.mapping.invalidateAll());
-    await cached(() => Promise.resolve(mapping), CACHE_KEYS.mapping.byId(userId, id));
-
-    return NextResponse.json(mapping);
-  } catch (error) {
-    return handleApiError(error, 'PATCH', API.mapping.byId(':id'));
-  }
-}
-
-export const updateMappingCopy = withHandler<{ id: string }>(async (req, { params }) => {
+export const updateMapping = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
   const id = parseIdFromRoute(await params);
-
   const data = await UpdateMappingValidator.validate(await req.json(), { abortEarly: false });
 
   await checkUserRequestLimit(req, userId, permissions);
@@ -231,31 +169,24 @@ export const updateMappingCopy = withHandler<{ id: string }>(async (req, { param
   return NextResponse.json(mapping);
 });
 
-export async function deleteMapping(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-): Promise<NextResponse> {
-  try {
-    const { userId, permissions } = await requireAuth();
-    await checkUserRequestLimit(req, userId, permissions);
+export const deleteMapping = withHandler<{ id: string }>(async (req, { params }) => {
+  const { userId, permissions } = getAuth();
+  await checkUserRequestLimit(req, userId, permissions);
 
-    const id = parseIdFromRoute(await params);
+  const id = parseIdFromRoute(await params);
 
-    const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
-    const where = canModifyGlobal
-        ? { id, OR: [{ userId }, { isGlobal: true }] }
-        : { id, userId, isGlobal: false };
+  const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
+  const where = canModifyGlobal
+    ? { id, OR: [{ userId }, { isGlobal: true }] }
+    : { id, userId, isGlobal: false };
 
-    const deleted = await prisma.fieldMapping.deleteManyAndReturn({
-      where,
-      select: { isGlobal: true },
-    });
-    if (deleted.length === 0) throw new ApiError('Mapping not found', 404);
+  const deleted = await prisma.fieldMapping.deleteManyAndReturn({
+    where,
+    select: { isGlobal: true },
+  });
+  if (deleted.length === 0) throw new ApiError('Mapping not found', 404);
 
-    invalidateCache(...CACHE_KEYS.mapping.invalidate(userId));
-    if (deleted[0].isGlobal) invalidateCache(...CACHE_KEYS.mapping.invalidateAll());
-    return new NextResponse(null, { status: 204 });
-  } catch (error) {
-    return handleApiError(error, 'DELETE', API.mapping.byId(':id'));
-  }
-}
+  invalidateCache(...CACHE_KEYS.mapping.invalidate(userId));
+  if (deleted[0].isGlobal) invalidateCache(...CACHE_KEYS.mapping.invalidateAll());
+  return new NextResponse(null, { status: 204 });
+});

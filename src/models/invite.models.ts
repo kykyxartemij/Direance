@@ -4,7 +4,7 @@ import { Permission } from '@/lib/permissions';
 // ==== Validators ====
 
 // Body-shape only — used for FE form validation and as the base for the BE factory.
-export const SendInviteValidator = yup.object({
+const SendInviteValidator = yup.object({
   email: yup.string().email('Invalid email').required('Email is required'),
   permissions: yup
     .array()

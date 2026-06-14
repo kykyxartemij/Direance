@@ -138,9 +138,9 @@ function ConnectionForm({ id, existing, isEdit, onSuccess, enqueueSuccess, enque
   const reportType = methods.watch('reportType');
 
   const { data: mappings = [] } = useGetLightMappings();
-  const mappingOptions = mappings
-    .filter((m) => !m.reportType || m.reportType === reportType)
-    .map((m) => ({ label: m.name, value: m.id }));
+  const mappingOptions = mappings.flatMap((m) =>
+    !m.reportType || m.reportType === reportType ? [{ label: m.name, value: m.id }] : []
+  );
 
   const createMutation = useCreateConnection();
   const updateMutation = useUpdateConnection();

@@ -12,6 +12,11 @@ export const REPORT_TYPE_LABELS: Record<ReportType, string> = {
   financial_position: 'Financial Position',
 };
 
+export const REPORT_TYPE_OPTIONS: { label: string; value: string }[] = REPORT_TYPES.map((r) => ({
+  label: REPORT_TYPE_LABELS[r],
+  value: r,
+}));
+
 // ==== Config sub-types ====
 
 export type TableRegion = {
@@ -23,6 +28,8 @@ export type TableRegion = {
 };
 
 export type TotalColumnDef = {
+  /** Stable client-side identity — set on creation, persisted in config JSON, used as React key. */
+  _id?: string;
   label: string;
   /** Value column indices (0-based, relative to output value headers) to sum. Empty = all */
   sourceValueIndices: number[];

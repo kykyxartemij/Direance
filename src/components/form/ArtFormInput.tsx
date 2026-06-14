@@ -29,5 +29,3 @@ export function ArtFormInput({ name, helperText, ...props }: ArtFormInputProps) 
     />
   );
 }
-
-export default ArtFormInput;

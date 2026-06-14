@@ -2,8 +2,7 @@ import 'server-only';
 import { NextResponse } from 'next/server';
 import { cached } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
-import { handleApiError } from '@/lib/errorHandler';
-import { API } from '@/lib/apiUrl';
+import { withHandler } from '@/lib/withHandler';
 
 // ==== Constants ====
 
@@ -33,25 +32,17 @@ async function fetchCurrencyRate(from: string): Promise<Record<string, Record<st
 
 // ==== HTTP handlers ====
 
-export async function getCurrencyList(): Promise<NextResponse> {
-  try {
-    const data = await cached(fetchCurrencyList, CACHE_KEYS.currency.list(), CUSTOM_TTL);
-    return NextResponse.json(data);
-  } catch (error) {
-    return handleApiError(error, 'GET', API.currency.list());
-  }
-}
+export const getCurrencyList = withHandler(async () => {
+  const data = await cached(fetchCurrencyList, CACHE_KEYS.currency.list(), CUSTOM_TTL);
+  return NextResponse.json(data);
+});
 
-export async function getCurrencyRate(from: string): Promise<NextResponse> {
-  try {
-    const key = from.toLowerCase();
-    const data = await cached(
-      () => fetchCurrencyRate(key),
-      CACHE_KEYS.currency.rate(key),
-      CUSTOM_TTL,
-    );
-    return NextResponse.json(data);
-  } catch (error) {
-    return handleApiError(error, 'GET', API.currency.rate(from));
-  }
-}
+export const getCurrencyRate = withHandler<{ from: string }>(async (_req, { params }) => {
+  const key = (await params).from.toLowerCase();
+  const data = await cached(
+    () => fetchCurrencyRate(key),
+    CACHE_KEYS.currency.rate(key),
+    CUSTOM_TTL,
+  );
+  return NextResponse.json(data);
+});

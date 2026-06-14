@@ -283,8 +283,10 @@ export async function exportToExcel(
   writeDataTable(ws, headers, rows, rowIndents, rowColors, valueColorByHeader, dataStart.row, dataStart.col, totalColumns);
 
   // ==== Include original uploaded sheets ====
-  const usedSheetNames = new Set<string>();
   if (exportSettings?.includeOriginalSheets && originalWorkbooks?.length) {
+    type SheetJob = { origWs: ExcelJS.Worksheet; aoa: unknown[][] };
+    const usedSheetNames = new Set<string>();
+    const sheetJobs: SheetJob[] = [];
     for (const { name, workbook, skippedSheets } of originalWorkbooks) {
       const skippedSet = new Set(skippedSheets ?? []);
       for (const sheetName of workbook.SheetNames.filter((s) => !skippedSet.has(s))) {
@@ -295,25 +297,23 @@ export async function exportToExcel(
           label = `${name} - ${sheetName}`.slice(0, 31 - tag.length) + tag;
         }
         usedSheetNames.add(label);
-        const ows = workbook.Sheets[sheetName];
-        const aoa = XLSX.utils.sheet_to_json<unknown[]>(ows, { header: 1 });
-        const origWs = wb.addWorksheet(label);
-
-        // Apply header layout to original sheets if configured
-        if (exportSettings.applyHeaderToAllSheets) {
-          await applyHeaderLayout(wb, origWs, exportSettings, placeholders);
-        }
-
-        // Offset original data when header layout is applied
-        const origDataStart = exportSettings.applyHeaderToAllSheets ? dataStart : { col: 0, row: 0 };
-
-        aoa.forEach((row, i) => {
-          const xlRow = origWs.getRow(origDataStart.row + i + 1);
-          (row as unknown[]).forEach((val, c) => {
-            xlRow.getCell(origDataStart.col + c + 1).value = val as ExcelJS.CellValue;
-          });
-        });
+        const aoa = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], { header: 1 });
+        sheetJobs.push({ origWs: wb.addWorksheet(label), aoa });
       }
+    }
+
+    if (exportSettings.applyHeaderToAllSheets) {
+      await Promise.all(sheetJobs.map(({ origWs }) => applyHeaderLayout(wb, origWs, exportSettings, placeholders)));
+    }
+
+    const origDataStart = exportSettings.applyHeaderToAllSheets ? dataStart : { col: 0, row: 0 };
+    for (const { origWs, aoa } of sheetJobs) {
+      aoa.forEach((row, i) => {
+        const xlRow = origWs.getRow(origDataStart.row + i + 1);
+        (row as unknown[]).forEach((val, c) => {
+          xlRow.getCell(origDataStart.col + c + 1).value = val as ExcelJS.CellValue;
+        });
+      });
     }
   }
 

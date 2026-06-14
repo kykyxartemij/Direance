@@ -39,6 +39,13 @@ handling and the ambient request context. The body is a standard Next.js handler
 checks (rate limit, DB limit, `assertLimit`) → work**. Validation runs before the
 DB-hitting checks so malformed requests fail cheap. See `docs/BackendGuide.md`.
 
+**Sequential awaits in handlers are intentional — do not parallelize them.**
+`react-doctor/async-parallel` and `react-doctor/server-sequential-independent-await` flag
+this pattern as a false positive. Both rules are disabled for BE files in `eslint.config.mjs`.
+The order is a gate chain: validate (no DB, fails cheap) → rate limit → DB limit → write.
+Each step must complete and not throw before the next runs. `Promise.all` would bypass the
+gates and hit the DB even when validation or rate-limiting should have stopped the request.
+
 ### `requireAuth()` vs `getAuth()` — same data, different usage
 
 Both return `{ userId, permissions }`:
@@ -66,15 +73,17 @@ No other decoration (`─`, `*`, `-`, etc.). This applies to all `.ts`, `.tsx`, 
 Comments (`//`) must be short and explanatory. Write **why it's here**, not **what it is** —
 the code already says what it is. Skip comments that restate an obvious type or name.
 
-`// NOTE:` is reserved for genuinely unusual things the code can't show on its own:
-- A deliberate deviation from a guide rule (e.g. a file using a different extension/approach
-  than the convention, for a specific reason).
-- Why a lint rule is left **unfixed because it is a false positive** — the code is already
-  correct and the linter misunderstands (e.g. `useUrlFilters` Suspense; `ArtListbox` custom
-  ARIA widget with no native equivalent).
+`// NOTE:` is for **one purpose only**: pointing out something a future developer would find surprising or confusing that the code itself cannot show. Examples that qualify:
+- `ArtListbox` uses `role="option"` on `<li>` instead of a native `<option>` — non-obvious because it's a custom multi-select widget with no native equivalent.
+- A ref lazy-init pattern that conflicts with another lint rule — genuine catch-22 with no clean fix. In this specific case `// eslint-disable-next-line` is also acceptable since there is truly no alternative.
 
-Do **not** use `// NOTE:` to excuse a rule that actually has a fix. If a fix exists — even one
-that needs a small refactor or splitting a component — do the fix instead.
+**`// NOTE:` is NOT a lint suppression tool.** Do not write a NOTE to explain "I didn't fix this lint rule because...". If a lint rule fires:
+- Fix exists → fix it, even if it needs a small refactor.
+- No fix and genuinely a false positive → leave the warning visible, flag it to the developer, move on. A broken lint rule in the open is better than one hidden behind a NOTE.
+
+Do **not** use `// NOTE:` to excuse a rule that has a fix. If no fix exists and you cannot ask the developer, leave the lint warning and continue — do not suppress it.
+
+If you encounter an existing `// eslint-disable` and know how to fix the underlying code, propose the fix to the developer instead of leaving the suppression.
 
 ---
 
@@ -96,6 +105,7 @@ that needs a small refactor or splitting a component — do the fix instead.
   no fix (a true false positive, or no native/clean alternative) do you validate with the
   developer and, if agreed, leave it visible with a `// NOTE:`. Config-level scoping is a
   developer decision, never a silent inline `// eslint-disable`.
+- **Never delete hooks or helpers because a linter flags them as "unused".** This project follows one-API-one-hook: every API route has a matching hook, and infrastructure helpers (`withPublicHandler`, `getAuthOptional`, etc.) exist before their callers do. "No current imports" is not a reason to delete. Only delete when you can confirm there is no corresponding API route AND no planned use — and even then, ask first.
 - **Answer format:** start with a short answer that explains your thinking, using real
   code for the explanation. After the short summary, describe whatever else needs detail.
 

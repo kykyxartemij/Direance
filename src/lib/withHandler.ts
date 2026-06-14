@@ -2,9 +2,9 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, tryAuth } from '@/auth';
 import { Permission } from '@/lib/permissions';
-import { checkPublicRequestLimit } from '@/lib/rateLimiter';
 import { handleApiError, type HttpMethod } from '@/lib/errorHandler';
 import { runWithAuth } from '@/lib/requestContext';
+import { assertInstanceCapacity } from '@/lib/rateLimiter';
 
 // ==== Types ====
 
@@ -23,7 +23,8 @@ export type Handler<TParams extends Record<string, string> = Record<string, stri
 
 // ==== withHandler ====
 
-// requireAuth → seed request context → body → try/catch. Pass { permission } to gate.
+// assertInstanceCapacity → requireAuth → seed request context → body → try/catch.
+// Pass { permission } to gate.
 export function withHandler<
   TParams extends Record<string, string> = Record<string, string>,
 >(
@@ -33,6 +34,7 @@ export function withHandler<
   return async (req, routeCtx) => {
     const ctx = (routeCtx ?? { params: Promise.resolve({}) }) as RouteCtx<TParams>;
     try {
+      assertInstanceCapacity();
       const auth = await requireAuth(opts.permission);
       return await runWithAuth(auth, () => body(req, ctx));
     } catch (error) {
@@ -43,7 +45,9 @@ export function withHandler<
 
 // ==== withPublicHandler ====
 
-// Like withHandler but auth is optional: seeds context if signed in, else runs anyway.
+// assertInstanceCapacity → optional auth seed → body → try/catch.
+// Runs instance capacity guard automatically (in-memory, no DB).
+// For IP-level protection on sensitive public endpoints, also call checkPublicRequestLimit in the body.
 // Read identity in the body with getAuthOptional() (null when anonymous).
 export function withPublicHandler<
   TParams extends Record<string, string> = Record<string, string>,
@@ -53,7 +57,7 @@ export function withPublicHandler<
   return async (req, routeCtx) => {
     const ctx = (routeCtx ?? { params: Promise.resolve({}) }) as RouteCtx<TParams>;
     try {
-      await checkPublicRequestLimit(req);
+      assertInstanceCapacity();
       const auth = await tryAuth(); // null if not signed in
       return auth
         ? await runWithAuth(auth, () => body(req, ctx))

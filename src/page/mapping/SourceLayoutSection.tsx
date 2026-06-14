@@ -70,6 +70,7 @@ function SheetTab({
 }: SheetTabProps) {
   const mode = config.mode;
   const totalColumnMode: TotalColumnMode = config.totalColumnMode ?? 'none';
+
   const ws = workbook.Sheets[sheetName];
   const totalCols = ws?.['!ref'] ? XLSX.utils.decode_range(ws['!ref']!).e.c + 1 : 0;
   const colOptions = columnLetterOptions(totalCols);
@@ -127,7 +128,7 @@ function SheetTab({
   }
 
   function addTotalColumn() {
-    const newTc: TotalColumnDef = { label: 'Total', sourceValueIndices: [] };
+    const newTc: TotalColumnDef = { _id: crypto.randomUUID(), label: 'Total', sourceValueIndices: [] };
     onLayoutChange({ ...layout, totalColumns: [...totalColumns, newTc] });
   }
 
@@ -198,7 +199,7 @@ function SheetTab({
               <span>
                 {' '}(
                 {autoDetectedLayout.regions.map((r, i) => (
-                  <span key={i}>
+                  <span key={r.descriptionColumn}>
                     {i > 0 && ', '}
                     <strong style={{ color: 'var(--text)' }}>{colLetter(r.descriptionColumn)}</strong>
                     {r.valueColumns.length > 0 && (
@@ -243,7 +244,7 @@ function SheetTab({
 
           return (
             <div
-              key={i}
+              key={region.descriptionColumn}
               className="flex-col gap-2 rounded p-3"
               style={{
                 background: `color-mix(in srgb, var(${accentVar}) 5%, var(--surface))`,
@@ -297,12 +298,11 @@ function SheetTab({
                 <div className="flex flex-col gap-1">
                   <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Value columns</span>
                   <div className="flex flex-wrap gap-1">
-                    {colOptions
-                      .filter((o) => Number(o.value) !== region.descriptionColumn)
-                      .map((o) => {
+                    {colOptions.flatMap((o) => {
                         const col = Number(o.value);
+                        if (col === region.descriptionColumn) return [];
                         const isSelected = region.valueColumns.includes(col);
-                        return (
+                        return [(
                           <ArtButton
                             key={col}
                             type="button"
@@ -319,7 +319,7 @@ function SheetTab({
                           >
                             {o.label}
                           </ArtButton>
-                        );
+                        )];
                       })}
                   </div>
                   {region.valueColumns.length === 0 && (
@@ -347,7 +347,7 @@ function SheetTab({
         const valueHeaders = getValueHeaders();
         return (
           <div
-            key={i}
+            key={tc._id ?? i}
             className="flex-col gap-2 rounded p-3"
             style={{
               background: 'color-mix(in srgb, var(--text-muted) 5%, var(--surface))',
@@ -374,7 +374,7 @@ function SheetTab({
             <div className="grid grid-cols-2 gap-4 items-start">
               <ArtInput
                 label="Label"
-                defaultValue={tc.label}
+                value={tc.label}
                 onChange={(e) => updateTotalColumn(i, { label: e.target.value })}
               />
 

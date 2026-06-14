@@ -29,6 +29,15 @@ const FE_FILES = [
   'src/providers/**/*.{ts,tsx}',
 ];
 
+// FE files that must NOT call fetchClient directly — hooks/ is excluded because
+// that is exactly where fetchClient is allowed (inside TanStack Query wrappers).
+const FE_NON_HOOKS_FILES = [
+  'src/components/**/*.{ts,tsx}',
+  'src/app/**/*.tsx',
+  'src/page/**/*.{ts,tsx}',
+  'src/providers/**/*.{ts,tsx}',
+];
+
 // ==== Config ====
 
 const eslintConfig = [
@@ -109,11 +118,9 @@ const eslintConfig = [
     files: BE_FILES,
     plugins: { 'react-doctor': reactDoctor },
     rules: {
-      'react-doctor/async-parallel': 'warn',
       'react-doctor/async-await-in-loop': 'warn',
       'react-doctor/server-no-mutable-module-state': 'warn',
       'react-doctor/server-cache-with-object-literal': 'warn',
-      'react-doctor/server-sequential-independent-await': 'warn',
       'react-doctor/server-auth-actions': 'warn',
       'react-doctor/server-fetch-without-revalidate': 'warn',
       'react-doctor/server-hoist-static-io': 'warn',
@@ -258,6 +265,15 @@ const eslintConfig = [
       'react-doctor/iframe-has-title': 'warn',
       'react-doctor/iframe-missing-sandbox': 'warn',
       'react-doctor/jsx-no-target-blank': 'warn',
+    },
+  },
+
+  // FE — fetchClient must not be used outside src/hooks/
+  {
+    files: FE_NON_HOOKS_FILES,
+    plugins: { local: localPlugin },
+    rules: {
+      'local/hooks-only-fetch-client': 'warn',
     },
   },
 

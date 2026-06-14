@@ -1,3 +1,4 @@
+/* eslint-disable react-doctor/prefer-tag-over-role */
 // NOTE: prefer-tag-over-role on role="listbox"/"option" — native <datalist>/<option> can't
 // render icons, action rows, skeletons, or portal. W3C APG combobox pattern. Left visible.
 'use client';

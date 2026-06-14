@@ -3,9 +3,7 @@ import 'server-only';
 import { NextResponse } from 'next/server';
 import { cached } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
-import { handleApiError } from '@/lib/errorHandler';
-import { API } from '@/lib/apiUrl';
-import { requireAuth } from '@/auth';
+import { withHandler } from '@/lib/withHandler';
 import { Permission } from '@/lib/permissions';
 import { ApiError } from '@/models/api-error';
 
@@ -56,11 +54,9 @@ async function fetchProject(): Promise<NeonProject | null> {
 
 // ==== HTTP handlers ====
 
-export async function getDbStats(): Promise<NextResponse> {
-  try {
-    await requireAuth(Permission.CAN_ACCESS_STATS);
-
-    const TTL = 1 * 30 * 60; // 1,5 hours — monitoring data
+export const getDbStats = withHandler(
+  async () => {
+    const TTL = 1 * 30 * 60; // 1.5 hours — monitoring data
 
     const [consumption, project] = await Promise.all([
       cached(fetchProjectConsumption, CACHE_KEYS.admin.neonConsumption(), TTL),
@@ -89,7 +85,6 @@ export async function getDbStats(): Promise<NextResponse> {
       },
       periodEnd: project.quota_reset_at,
     });
-  } catch (error) {
-    return handleApiError(error, 'GET', API.admin.dbStats());
-  }
-}
+  },
+  { permission: Permission.CAN_ACCESS_STATS },
+);

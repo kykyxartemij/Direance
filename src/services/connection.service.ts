@@ -1,11 +1,10 @@
 import 'server-only';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cached, invalidateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
-import { handleApiError } from '@/lib/errorHandler';
-import { API } from '@/lib/apiUrl';
-import { requireAuth } from '@/auth';
+import { withHandler } from '@/lib/withHandler';
+import { getAuth } from '@/lib/requestContext';
 import { ApiError } from '@/models/api-error';
 import { checkUserRequestLimit } from '@/lib/rateLimiter';
 import { checkUserDbLimits } from '@/lib/userLimits';
@@ -55,207 +54,166 @@ const CONNECTION_SELECT = {
 
 // ==== HTTP handlers ====
 
-export async function getLightConnections(req: NextRequest): Promise<NextResponse> {
-  try {
-    const { userId, permissions } = await requireAuth();
-    await checkUserRequestLimit(req, userId, permissions);
+export const getLightConnections = withHandler(async (req) => {
+  const { userId, permissions } = getAuth();
+  await checkUserRequestLimit(req, userId, permissions);
 
-    const list = await cached(
+  const list = await cached(
+    () =>
+      prisma.connection.findMany({
+        where: { userId },
+        select: CONNECTION_SELECT_LIGHT,
+        orderBy: { name: 'asc' },
+      }),
+    CACHE_KEYS.connection.light(userId),
+  );
+
+  return NextResponse.json(list);
+});
+
+export const getPagedConnections = withHandler(async (req) => {
+  const { userId, permissions } = getAuth();
+  await checkUserRequestLimit(req, userId, permissions);
+
+  const searchParams = new URL(req.url).searchParams;
+  const { page, pageSize } = await parsePaginationFromUrl(searchParams);
+  const freeText = parseFreeTextFromUrl(searchParams);
+
+  const where = { userId };
+  const [data, total] = await Promise.all([
+    cached(
       () =>
-        prisma.connection.findMany({
-          where: { userId },
-          select: CONNECTION_SELECT_LIGHT,
+        prisma.connection.findManyFts({
+          freeText,
+          userId,
+          where,
+          select: CONNECTION_SELECT_PAGED,
           orderBy: { name: 'asc' },
+          skip: page * pageSize,
+          take: pageSize,
         }),
-      CACHE_KEYS.connection.light(userId),
-    );
+      CACHE_KEYS.connection.paged(userId, page, pageSize, freeText),
+    ),
+    cached(
+      () => prisma.connection.countFts({ freeText, userId, where }),
+      CACHE_KEYS.connection.count(userId, freeText),
+    ),
+  ]);
 
-    return NextResponse.json(list);
-  } catch (error) {
-    return handleApiError(error, 'GET', API.connection.light());
-  }
-}
+  return NextResponse.json(createPaginatedResponse(data, page, pageSize, total));
+});
 
-export async function getPagedConnections(req: NextRequest): Promise<NextResponse> {
-  try {
-    const { userId, permissions } = await requireAuth();
-    await checkUserRequestLimit(req, userId, permissions);
+export const getConnectionById = withHandler<{ id: string }>(async (req, { params }) => {
+  const { userId, permissions } = getAuth();
+  await checkUserRequestLimit(req, userId, permissions);
 
-    const searchParams = new URL(req.url).searchParams;
-    const { page, pageSize } = await parsePaginationFromUrl(searchParams);
-    const freeText = parseFreeTextFromUrl(searchParams);
+  const id = parseIdFromRoute(await params);
 
-    const where = { userId };
-    const [data, total] = await Promise.all([
-      cached(
-        () =>
-          prisma.connection.findManyFts({
-            freeText,
-            userId,
-            where,
-            select: CONNECTION_SELECT_PAGED,
-            orderBy: { name: 'asc' },
-            skip: page * pageSize,
-            take: pageSize,
-          }),
-        CACHE_KEYS.connection.paged(userId, page, pageSize, freeText),
-      ),
-      cached(
-        () => prisma.connection.countFts({ freeText, userId, where }),
-        CACHE_KEYS.connection.count(userId, freeText),
-      ),
-    ]);
+  const connection = await cached(
+    () =>
+      prisma.connection.findFirstOrThrow({
+        where: { id, userId },
+        select: CONNECTION_SELECT,
+      }),
+    CACHE_KEYS.connection.byId(userId, id),
+  );
 
-    return NextResponse.json(createPaginatedResponse(data, page, pageSize, total));
-  } catch (error) {
-    return handleApiError(error, 'GET', API.connection.paged(0, 0));
-  }
-}
-
-export async function getConnectionById(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-): Promise<NextResponse> {
-  try {
-    const { userId, permissions } = await requireAuth();
-    await checkUserRequestLimit(req, userId, permissions);
-
-    const id = parseIdFromRoute(await params);
-
-    const connection = await cached(
-      () =>
-        prisma.connection.findFirstOrThrow({
-          where: { id, userId },
-          select: CONNECTION_SELECT,
-        }),
-      CACHE_KEYS.connection.byId(userId, id),
-    );
-
-    return NextResponse.json(connection);
-  } catch (error) {
-    return handleApiError(error, 'GET', API.connection.byId(':id'));
-  }
-}
+  return NextResponse.json(connection);
+});
 
 // ==== CRUD ====
 
-export async function createConnection(req: NextRequest): Promise<NextResponse> {
-  try {
-    const { userId, permissions } = await requireAuth();
-    await checkUserRequestLimit(req, userId, permissions);
-    await checkUserDbLimits(userId, permissions);
+export const createConnection = withHandler(async (req) => {
+  const { userId, permissions } = getAuth();
+  const { secret, mappingId, ...rest } = await CreateConnectionValidator.validate(await req.json(), { abortEarly: false });
 
-    const body = await req.json();
-    const { secret, mappingId, ...rest } = await CreateConnectionValidator.validate(body, { abortEarly: false });
+  await checkUserRequestLimit(req, userId, permissions);
+  await checkUserDbLimits(userId, permissions);
 
-    const encrypted = await encryptSecret(secret);
+  const encrypted = await encryptSecret(secret);
 
-    const connection = await prisma.connection.create({
-      data: {
-        ...rest,
-        userId,
-        secret: encrypted,
-        ...(mappingId ? { mappingId } : {}),
-      },
-      select: CONNECTION_SELECT,
-    });
+  const connection = await prisma.connection.create({
+    data: {
+      ...rest,
+      userId,
+      secret: encrypted,
+      ...(mappingId ? { mappingId } : {}),
+    },
+    select: CONNECTION_SELECT,
+  });
 
-    invalidateCache(...CACHE_KEYS.connection.invalidate(userId));
-    await cached(() => Promise.resolve(connection), CACHE_KEYS.connection.byId(userId, connection.id));
+  invalidateCache(...CACHE_KEYS.connection.invalidate(userId));
+  await cached(() => Promise.resolve(connection), CACHE_KEYS.connection.byId(userId, connection.id));
 
-    return NextResponse.json(connection, { status: 201 });
-  } catch (error) {
-    return handleApiError(error, 'POST', API.connection.list());
-  }
-}
+  return NextResponse.json(connection, { status: 201 });
+});
 
-export async function updateConnection(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-): Promise<NextResponse> {
-  try {
-    const { userId, permissions } = await requireAuth();
-    await checkUserRequestLimit(req, userId, permissions);
-    await checkUserDbLimits(userId, permissions);
+export const updateConnection = withHandler<{ id: string }>(async (req, { params }) => {
+  const { userId, permissions } = getAuth();
+  const id = parseIdFromRoute(await params);
+  const { secret, mappingId, ...rest } = await UpdateConnectionValidator.validate(await req.json(), { abortEarly: false });
 
-    const id = parseIdFromRoute(await params);
+  await checkUserRequestLimit(req, userId, permissions);
+  await checkUserDbLimits(userId, permissions);
 
-    const body = await req.json();
-    const { secret, mappingId, ...rest } = await UpdateConnectionValidator.validate(body, { abortEarly: false });
+  const data: Record<string, unknown> = { ...rest };
+  if (secret) data.secret = await encryptSecret(secret);
+  if (mappingId !== undefined) data.mappingId = mappingId;
 
-    const data: Record<string, unknown> = { ...rest };
-    if (secret) data.secret = await encryptSecret(secret);
-    if (mappingId !== undefined) data.mappingId = mappingId;
+  const results = await prisma.connection.updateManyAndReturn({
+    where: { id, userId },
+    data,
+    select: CONNECTION_SELECT,
+  });
+  if (results.length === 0) throw new ApiError('Connection not found', 404);
+  const connection = results[0];
 
-    const results = await prisma.connection.updateManyAndReturn({
-      where: { id, userId },
-      data,
-      select: CONNECTION_SELECT,
-    });
-    if (results.length === 0) throw new ApiError('Connection not found', 404);
-    const connection = results[0];
+  invalidateCache(...CACHE_KEYS.connection.invalidate(userId));
+  await cached(() => Promise.resolve(connection), CACHE_KEYS.connection.byId(userId, id));
 
-    invalidateCache(...CACHE_KEYS.connection.invalidate(userId));
-    await cached(() => Promise.resolve(connection), CACHE_KEYS.connection.byId(userId, id));
+  return NextResponse.json(connection);
+});
 
-    return NextResponse.json(connection);
-  } catch (error) {
-    return handleApiError(error, 'PATCH', API.connection.byId(':id'));
-  }
-}
+export const deleteConnection = withHandler<{ id: string }>(async (req, { params }) => {
+  const { userId, permissions } = getAuth();
+  await checkUserRequestLimit(req, userId, permissions);
 
-export async function deleteConnection(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-): Promise<NextResponse> {
-  try {
-    const { userId, permissions } = await requireAuth();
-    await checkUserRequestLimit(req, userId, permissions);
-    await checkUserDbLimits(userId, permissions);
+  const id = parseIdFromRoute(await params);
 
-    const id = parseIdFromRoute(await params);
+  const { count } = await prisma.connection.deleteMany({ where: { id, userId } });
+  if (count === 0) throw new ApiError('Connection not found', 404);
 
-    const { count } = await prisma.connection.deleteMany({ where: { id, userId } });
-    if (count === 0) throw new ApiError('Connection not found', 404);
-
-    invalidateCache(...CACHE_KEYS.connection.invalidate(userId));
-    return new NextResponse(null, { status: 204 });
-  } catch (error) {
-    return handleApiError(error, 'DELETE', API.connection.byId(':id'));
-  }
-}
+  invalidateCache(...CACHE_KEYS.connection.invalidate(userId));
+  return new NextResponse(null, { status: 204 });
+});
 
 // ==== Fetch (BE proxies external API call) ====
 
-export async function fetchFromConnection(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-): Promise<NextResponse> {
-  try {
-    const { userId, permissions } = await requireAuth();
-    await checkUserRequestLimit(req, userId, permissions);
+export const fetchFromConnection = withHandler<{ id: string }>(async (req, { params }) => {
+  const { userId, permissions } = getAuth();
+  const id = parseIdFromRoute(await params);
+  const body = await req.json().catch(() => ({}));
+  const filters = await FetchFiltersValidator.validate(body, { abortEarly: false });
 
-    const id = parseIdFromRoute(await params);
-    const body = await req.json().catch(() => ({}));
-    const filters = await FetchFiltersValidator.validate(body, { abortEarly: false });
+  await checkUserRequestLimit(req, userId, permissions);
 
-    // Owner-scoped lookup includes encrypted secret; never persists to FE cache.
-    const row = await prisma.connection.findFirstOrThrow({
-      where: { id, userId },
-      select: { id: true, type: true, reportType: true, config: true, secret: true },
-    });
-
-    const secret = await decryptSecret<ConnectionSecret>(row.secret);
-    const result = await runConnectionDriver({
-      type: row.type as ConnectionType,
-      reportType: row.reportType,
-      config: row.config as Record<string, unknown>,
-      secret,
-      filters,
-    });
-
-    return NextResponse.json(result);
-  } catch (error) {
-    return handleApiError(error, 'POST', API.connection.fetch(':id'));
-  }
-}
+  const result = await cached(
+    async () => {
+      const row = await prisma.connection.findFirstOrThrow({
+        where: { id, userId },
+        select: { id: true, type: true, reportType: true, config: true, secret: true },
+      });
+      const secret = await decryptSecret<ConnectionSecret>(row.secret);
+      return runConnectionDriver({
+        type: row.type as ConnectionType,
+        reportType: row.reportType,
+        config: row.config as Record<string, unknown>,
+        secret,
+        filters,
+      });
+    },
+    CACHE_KEYS.connection.fetch(userId, id, filters),
+  );
+  
+  return NextResponse.json(result);
+});
