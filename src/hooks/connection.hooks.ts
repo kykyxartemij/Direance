@@ -1,14 +1,17 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { useReports, type ConnectionSheet } from '@/providers/ReportProvider';
 import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
+import { fetchMappingById } from '@/hooks/mapping.hooks';
 import fetchClient from '@/lib/fetchClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
 import type {
   ConnectionModel,
   ConnectionLightModel,
+  ConnectionType,
   CreateConnectionModel,
   UpdateConnectionModel,
   FetchFiltersModel,
@@ -141,6 +144,51 @@ export function useRefreshConnectionReports() {
     },
     onError: (err) => {
       enqueueError(err as Error, 'Failed to refresh');
+    },
+  });
+}
+
+// ==== Import from connection ====
+
+type ConnectionImportInput = {
+  connectionId: string;
+  connectionName: string;
+  connectionType: ConnectionType | undefined;
+  mappingId: string | undefined;
+  filters: FetchFiltersModel;
+  skipMapping: boolean;
+};
+
+export function useImportFromConnection() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { addReportFromSheets, setMapping } = useReports();
+  const { enqueueError } = useArtSnackbar();
+
+  return useMutation({
+    mutationFn: async ({ connectionId, connectionName, connectionType, mappingId, filters, skipMapping }: ConnectionImportInput) => {
+      const { data } = await fetchClient.post<{ sheets: ConnectionSheet[]; fetchedAt: string }>(
+        API.connection.fetch(connectionId),
+        filters,
+      );
+      const fileName = `${connectionName}-${new Date(data.fetchedAt).toISOString().slice(0, 10)}`;
+      const id = addReportFromSheets(fileName, data.sheets, {
+        connectionId,
+        connectionType,
+        fetchedAt: data.fetchedAt,
+      });
+      if (!skipMapping && mappingId) {
+        const mapping = await fetchMappingById(queryClient, mappingId);
+        setMapping(id, mapping);
+      }
+      return { skipMapping, hasMappingId: !!mappingId };
+    },
+    onSuccess: ({ skipMapping, hasMappingId }) => {
+      queryClient.invalidateQueries({ queryKey: ['placeholder'] });
+      router.push(skipMapping || !hasMappingId ? '/' : '/upload/mapping');
+    },
+    onError: (err) => {
+      enqueueError(err as Error, 'Failed to import from connection');
     },
   });
 }

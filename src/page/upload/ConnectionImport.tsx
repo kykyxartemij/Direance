@@ -1,18 +1,11 @@
 'use client';
 
 import { useReducer } from 'react';
-import { useRouter } from 'next/navigation';
-import { useQueryClient } from '@tanstack/react-query';
-import { useGetLightConnections, useGetConnectionById } from '@/hooks/connection.hooks';
-import { fetchMappingById } from '@/hooks/mapping.hooks';
-import { useReports } from '@/providers/ReportProvider';
-import fetchClient from '@/lib/fetchClient';
-import { API } from '@/lib/apiUrl';
+import { useGetLightConnections, useGetConnectionById, useImportFromConnection } from '@/hooks/connection.hooks';
 import ArtComboBox, { type ArtComboBoxOption } from '@/components/ui/ArtComboBox';
 import ArtSelect, { type ArtSelectOption } from '@/components/ui/ArtSelect';
 import ArtInput from '@/components/ui/ArtInput';
 import ArtButton from '@/components/ui/ArtButton';
-import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
 import type { FetchFiltersModel } from '@/models/connection.models';
 import { REPORT_TYPES, REPORT_TYPE_LABELS } from '@/models/mapping.models';
 
@@ -28,7 +21,6 @@ type ImportState = {
   dateTo: string;
   journalIds: string;
   accountPrefix: string;
-  loading: boolean;
 };
 
 type ImportAction =
@@ -37,8 +29,7 @@ type ImportAction =
   | { type: 'SET_DATE_FROM'; value: string }
   | { type: 'SET_DATE_TO'; value: string }
   | { type: 'SET_JOURNAL_IDS'; value: string }
-  | { type: 'SET_ACCOUNT_PREFIX'; value: string }
-  | { type: 'SET_LOADING'; value: boolean };
+  | { type: 'SET_ACCOUNT_PREFIX'; value: string };
 
 function importReducer(state: ImportState, action: ImportAction): ImportState {
   switch (action.type) {
@@ -48,7 +39,6 @@ function importReducer(state: ImportState, action: ImportAction): ImportState {
     case 'SET_DATE_TO':         return { ...state, dateTo: action.value };
     case 'SET_JOURNAL_IDS':     return { ...state, journalIds: action.value };
     case 'SET_ACCOUNT_PREFIX':  return { ...state, accountPrefix: action.value };
-    case 'SET_LOADING':         return { ...state, loading: action.value };
   }
 }
 
@@ -59,7 +49,6 @@ const IMPORT_INITIAL: ImportState = {
   dateTo: '',
   journalIds: '',
   accountPrefix: '',
-  loading: false,
 };
 
 // ==== Component ====
@@ -67,14 +56,11 @@ const IMPORT_INITIAL: ImportState = {
 // If the Connection has a default mapping linked, auto-apply it on import.
 
 export default function ConnectionImport() {
-  const router = useRouter();
-  const { enqueueError } = useArtSnackbar();
-  const { addReportFromSheets, setMapping } = useReports();
+  const importMutation = useImportFromConnection();
 
   const [state, dispatch] = useReducer(importReducer, IMPORT_INITIAL);
-  const { connectionId, reportType, dateFrom, dateTo, journalIds, accountPrefix, loading } = state;
+  const { connectionId, reportType, dateFrom, dateTo, journalIds, accountPrefix } = state;
 
-  const queryClient = useQueryClient();
   const { data: connections = [] } = useGetLightConnections();
   const { data: selected }         = useGetConnectionById(connectionId ?? undefined);
 
@@ -106,35 +92,16 @@ export default function ConnectionImport() {
     };
   }
 
-  async function handleImport(skipMapping: boolean) {
+  function handleImport(skipMapping: boolean) {
     if (!connectionId) return;
-    dispatch({ type: 'SET_LOADING', value: true });
-    try {
-      const { data } = await fetchClient.post<{ sheets: ConnectionSheet[]; fetchedAt: string }>(
-        API.connection.fetch(connectionId),
-        buildFilters(),
-      );
-      const fileName = `${selected?.name ?? 'Connection'}-${new Date(data.fetchedAt).toISOString().slice(0, 10)}`;
-      const id = addReportFromSheets(fileName, data.sheets, {
-        connectionId,
-        connectionType: selected?.type,
-        fetchedAt: data.fetchedAt,
-      });
-
-      const mappingId = selected?.mapping?.id;
-      if (!skipMapping && mappingId) {
-        const mapping = await fetchMappingById(queryClient, mappingId);
-        setMapping(id, mapping);
-      }
-
-      // No mapping linked → navigate to mapping wizard so user can build one
-      // (source-layout auto-detect kicks in there). With mapping → straight to Dashboard.
-      router.push(skipMapping || !selected?.mapping ? '/' : '/upload/mapping');
-    } catch (err) {
-      enqueueError(err as Error, 'Failed to import from connection');
-    } finally {
-      dispatch({ type: 'SET_LOADING', value: false });
-    }
+    importMutation.mutate({
+      connectionId,
+      connectionName: selected?.name ?? 'Connection',
+      connectionType: selected?.type,
+      mappingId: selected?.mapping?.id,
+      filters: buildFilters(),
+      skipMapping,
+    });
   }
 
   return (
@@ -187,7 +154,7 @@ export default function ConnectionImport() {
       <div className="mt-4 flex justify-end gap-3">
         <ArtButton
           variant="outlined"
-          loading={loading}
+          loading={importMutation.isPending}
           disabled={!connectionId}
           onClick={() => handleImport(true)}
         >
@@ -195,7 +162,7 @@ export default function ConnectionImport() {
         </ArtButton>
         <ArtButton
           color="primary"
-          loading={loading}
+          loading={importMutation.isPending}
           disabled={!connectionId}
           onClick={() => handleImport(false)}
         >

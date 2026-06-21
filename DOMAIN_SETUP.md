@@ -9,6 +9,9 @@ unset → `email.ts` falls back to console dev-stub.
 - DNS host: Hurricane Electric (`dns.he.net`) — 5 nameservers ns1…ns5.he.net
 - EU.org request: `20260519180907-arf-50919` (submitted 2026-05-19, awaiting review, 1–4 weeks)
   - 2026-06-06: confirmed still active (re-submit attempt was ignored — request alive)
+  - 2026-06-21: re-submit attempt again ignored (`IGNORED: you already have a pending request`) — sent follow-up email from `artemijvorozhun@yandex.com` asking for status
+    - first sent to `webmaster@eu.org` — bounced back: that address is web-matters only, DNS/domain questions go to `hostmaster@eu.org`
+    - resent same message to `hostmaster@eu.org` — correct contact, awaiting reply
 - Cloudflare zone for `direance.eu.org`: **dead weight, delete after approval**
 
 ## ==== After EU.org approves ====

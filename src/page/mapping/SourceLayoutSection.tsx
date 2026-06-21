@@ -228,7 +228,7 @@ function SheetTab({
             ) : (
               <>
                 <strong style={{ color: 'var(--art-warning)' }}>{currentUnassigned}</strong>
-                {' '}col{currentUnassigned !== 1 ? 's' : ''} unassigned — ignored when reading
+                {' '}col{currentUnassigned !== 1 ? 's' : ''} unassigned (ignored when reading)
               </>
             )}
           </p>
@@ -324,7 +324,7 @@ function SheetTab({
                   </div>
                   {region.valueColumns.length === 0 && (
                     <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                      None — click columns above to include them
+                      None, click columns above to include them
                     </span>
                   )}
                 </div>
