@@ -1,73 +1,13 @@
 import 'server-only';
 import { Prisma } from '../../generated/prisma/client';
 import type { PrismaClient } from '../../generated/prisma/client';
-
-// ==== Where builder ====
-
-type SimpleValue = string | number | boolean | Date | null | undefined;
-
-type ComparisonOp = {
-  lt?:  SimpleValue;
-  lte?: SimpleValue;
-  gt?:  SimpleValue;
-  gte?: SimpleValue;
-  not?: SimpleValue;
-  in?:  SimpleValue[];
-};
-
-export type SimpleWhere =
-  { OR?: SimpleWhere[]; AND?: SimpleWhere[] } &
-  Record<string, SimpleValue | ComparisonOp | SimpleWhere[]>;
-
-export function buildWhere(where: SimpleWhere): Prisma.Sql {
-  const parts: Prisma.Sql[] = [];
-
-  for (const [key, val] of Object.entries(where)) {
-    if (key === 'OR' && Array.isArray(val)) {
-      const clauses = (val as SimpleWhere[]).map(buildWhere);
-      parts.push(Prisma.sql`(${Prisma.join(clauses, ' OR ')})`);
-      continue;
-    }
-    if (key === 'AND' && Array.isArray(val)) {
-      const clauses = (val as SimpleWhere[]).map(buildWhere);
-      parts.push(Prisma.sql`(${Prisma.join(clauses, ' AND ')})`);
-      continue;
-    }
-    if (val === undefined) continue;
-
-    const col = Prisma.raw(`"${key}"`);
-
-    if (val !== null && typeof val === 'object' && !(val instanceof Date) && !Array.isArray(val)) {
-      const op = val as ComparisonOp;
-      if (op.lt  !== undefined) parts.push(Prisma.sql`${col} < ${op.lt}`);
-      if (op.lte !== undefined) parts.push(Prisma.sql`${col} <= ${op.lte}`);
-      if (op.gt  !== undefined) parts.push(Prisma.sql`${col} > ${op.gt}`);
-      if (op.gte !== undefined) parts.push(Prisma.sql`${col} >= ${op.gte}`);
-      if (op.not !== undefined) parts.push(
-        op.not === null
-          ? Prisma.sql`${col} IS NOT NULL`
-          : Prisma.sql`${col} != ${op.not}`,
-      );
-      if (op.in !== undefined) parts.push(Prisma.sql`${col} = ANY(${op.in})`);
-      continue;
-    }
-
-    parts.push(
-      val === null
-        ? Prisma.sql`${col} IS NULL`
-        : Prisma.sql`${col} = ${val as SimpleValue}`,
-    );
-  }
-
-  if (parts.length === 0) throw new Error('where cannot be empty');
-  return Prisma.join(parts, ' AND ');
-}
+import { buildWhere, buildReturning, type SimpleWhere } from './prisma/simpleWhere';
+export type { SimpleWhere } from './prisma/simpleWhere';
+export { buildWhere, buildReturning } from './prisma/simpleWhere';
 
 // ==== Value → Prisma.Sql ====
 // Maps a JS value to a parameterized SQL fragment with the correct Postgres type cast.
-// Exported so custom $queryRaw helpers outside withCrud can reuse the same mapping.
-
-export const toSql = (v: unknown): Prisma.Sql => {
+const toSql = (v: unknown): Prisma.Sql => {
   if (Buffer.isBuffer(v) || v instanceof Uint8Array) return Prisma.sql`${v}::bytea`;
   if (!Array.isArray(v)) return Prisma.sql`${v as Prisma.Sql}`;
   if (typeof v[0] === 'number')  return Prisma.sql`${v}::float8[]`;
@@ -77,16 +17,6 @@ export const toSql = (v: unknown): Prisma.Sql => {
   if (Buffer.isBuffer(v[0]) || v[0] instanceof Uint8Array) return Prisma.sql`${v}::bytea[]`;
   return Prisma.sql`${v}::text[]`;
 };
-
-// ==== Select builder ====
-
-export function buildReturning(select?: Record<string, boolean>): Prisma.Sql {
-  if (!select) return Prisma.sql`*`;
-  const cols = Object.entries(select)
-    .filter(([, v]) => v)
-    .map(([k]) => Prisma.raw(`"${k}"`));
-  return cols.length > 0 ? Prisma.join(cols, ', ') : Prisma.sql`*`;
-}
 
 // ==== Factory ====
 
@@ -116,7 +46,7 @@ export function withCrud<TModel extends object>(client: PrismaClient, table: str
     deleteManyAndReturn<
       TSelect extends Partial<Record<keyof TModel, boolean>> | undefined = undefined,
     >(args: {
-      where: SimpleWhere;
+      where: SimpleWhere<TModel>;
       select?: TSelect;
       limit?: number;
     }): Prisma.PrismaPromise<
@@ -124,7 +54,7 @@ export function withCrud<TModel extends object>(client: PrismaClient, table: str
         ? TModel
         : Pick<TModel, Extract<keyof NonNullable<TSelect>, keyof TModel>>)[]
     > {
-      const whereSql = buildWhere(args.where);
+      const whereSql = buildWhere(args.where as SimpleWhere);
       const returningSql = buildReturning(args.select as Record<string, boolean> | undefined);
       const t = Prisma.raw(table);
 

@@ -1,6 +1,8 @@
+/* eslint-disable react-doctor/no-barrel-import */
 'use client';
 
 import React from 'react';
+// NOTE: no-barrel-import — barrel IS the icon registry, dynamic lookup by name, nothing to split.
 import * as Icons from '../icons';
 import { cn } from './art.utils';
 

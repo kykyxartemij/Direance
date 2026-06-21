@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import Image from 'next/image';
 import { useAuth } from '@/providers/AuthProvider';
 import { useGetLightLogos, useCreateLogo, useDeleteLogo, useGetLogoById } from '@/hooks/logo.hooks';
 import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
@@ -54,8 +55,7 @@ function LogoRow({
     <div className="flex items-center gap-4 py-2" style={{ borderTop: '1px solid var(--border)' }}>
       <div style={{ width: 80, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--border)', borderRadius: 4 }}>
         {src ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={src} alt={name ?? 'Logo'} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+          <Image src={src} alt={name ?? 'Logo'} width={80} height={48} unoptimized style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
         ) : (
           <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
             {query.isFetching ? '…' : 'preview'}
@@ -114,6 +114,7 @@ function LogosSection() {
           ref={fileInputRef}
           type="file"
           accept="image/png,image/jpeg,image/webp,image/gif"
+          aria-label="Upload logo image"
           style={{ display: 'none' }}
           onChange={handleFileChange}
         />

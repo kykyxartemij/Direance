@@ -12,8 +12,10 @@ interface ArtFormSelectProps extends Omit<ArtSelectProps, 'name' | 'selected' | 
 
 // ==== Component ====
 
+const EMPTY_OPTIONS: ArtSelectOption[] = [];
+
 // field.value is the option's .value string (or null) — not the full ArtSelectOption object.
-export function ArtFormSelect({ name, helperText, options = [], ...props }: ArtFormSelectProps) {
+export function ArtFormSelect({ name, helperText, options = EMPTY_OPTIONS, ...props }: ArtFormSelectProps) {
   const { control } = useFormContext();
   return (
     <Controller
@@ -31,5 +33,3 @@ export function ArtFormSelect({ name, helperText, options = [], ...props }: ArtF
     />
   );
 }
-
-export default ArtFormSelect;

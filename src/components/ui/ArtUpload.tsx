@@ -1,12 +1,13 @@
 'use client';
 
-import React, { forwardRef, useId, useRef, useState } from 'react';
+import React, { useId, useRef, useState, type Ref } from 'react';
 import ArtLabel from './ArtLabel';
 import ArtIcon from './ArtIcon';
 import ArtIconButton from './ArtIconButton';
 import { cn } from './art.utils';
 
 interface ArtUploadProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type' | 'size'> {
+  ref?: Ref<HTMLInputElement>;
   label?: string;
   /** Short hint below the icon, e.g. "MP4, WebM · max 500 MB" */
   hint?: string;
@@ -19,20 +20,9 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-const ArtUpload = forwardRef<HTMLInputElement, ArtUploadProps>((props, ref) => {
-  const {
-    label,
-    hint,
-    helperText,
-    onChange,
-    id: idProp,
-    required,
-    className,
-    disabled,
-    readOnly = false,
-    ...rest
-  } = props;
-
+function ArtUpload({
+  label, hint, helperText, onChange, id: idProp, required, className, disabled, readOnly = false, ref, ...rest
+}: ArtUploadProps) {
   const generatedId = useId();
   const id = idProp ?? generatedId;
 
@@ -43,7 +33,8 @@ const ArtUpload = forwardRef<HTMLInputElement, ArtUploadProps>((props, ref) => {
   const setRef = (el: HTMLInputElement | null) => {
     inputRef.current = el;
     if (!ref) return;
-    typeof ref === 'function' ? ref(el) : (ref.current = el);
+    if (typeof ref === 'function') ref(el);
+    else (ref as React.MutableRefObject<HTMLInputElement | null>).current = el;
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -66,7 +57,7 @@ const ArtUpload = forwardRef<HTMLInputElement, ArtUploadProps>((props, ref) => {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    if (disabled) return;
+    if (disabled || readOnly) return;
     const dropped = e.dataTransfer.files[0];
     if (!dropped || !inputRef.current) return;
     // Transfer dropped file into the input via DataTransfer
@@ -81,20 +72,10 @@ const ArtUpload = forwardRef<HTMLInputElement, ArtUploadProps>((props, ref) => {
     <div className="art-field-wrapper">
       {label && <ArtLabel htmlFor={id} required={required}>{label}</ArtLabel>}
 
-      {/* Hidden native input */}
-      <input
-        {...rest}
-        ref={setRef}
-        id={id}
-        type="file"
-        required={required}
-        disabled={disabled}
-        className="hidden"
-        onChange={handleChange}
-      />
-
-      {/* Drop zone */}
-      <div
+      {/* Drop zone — a <label> so clicking/keyboard-activating the visually-hidden
+          file input opens the native picker without a fake role="button". */}
+      <label
+        htmlFor={id}
         className={cn(
           'art-upload',
           dragging && 'art-upload--dragging',
@@ -103,11 +84,22 @@ const ArtUpload = forwardRef<HTMLInputElement, ArtUploadProps>((props, ref) => {
           readOnly && 'art-upload--readonly',
           className,
         )}
-        onClick={() => !disabled && !readOnly && inputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); if (!disabled && !readOnly) setDragging(true); }}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
       >
+        {/* Visually-hidden but focusable native input — sr-only keeps it tabbable
+            so keyboard users can open the picker with Enter/Space. */}
+        <input
+          {...rest}
+          ref={setRef}
+          id={id}
+          type="file"
+          required={required}
+          disabled={disabled || readOnly}
+          className="sr-only"
+          onChange={handleChange}
+        />
         {file ? (
           /* Selected state */
           <>
@@ -134,12 +126,12 @@ const ArtUpload = forwardRef<HTMLInputElement, ArtUploadProps>((props, ref) => {
             {!readOnly && hint && <span className="art-upload-hint">{hint}</span>}
           </>
         )}
-      </div>
+      </label>
 
       {helperText && <p className="art-field-helper">{helperText}</p>}
     </div>
   );
-});
+}
 
 ArtUpload.displayName = 'ArtUpload';
 export default ArtUpload;

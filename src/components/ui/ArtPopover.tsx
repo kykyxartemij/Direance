@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAnchoredPanel } from './art.hooks';
 import { cn } from './art.utils';
@@ -32,10 +32,16 @@ function ArtPopover({ trigger, children, placement = 'bottom', trackWidth = fals
     return () => document.removeEventListener('keydown', handler);
   }, [open, hide]);
 
+  // cloneElement injects onClick onto the real trigger element (keyboard-accessible
+  // when it's a button/link) instead of a generic onClick-on-span.
+  const triggerEl = React.isValidElement(trigger)
+    ? React.cloneElement(trigger as React.ReactElement<{ onClick?: React.MouseEventHandler }>, { onClick: toggle })
+    : <button type="button" onClick={toggle}>{trigger}</button>;
+
   return (
     <>
-      <span ref={triggerRef} style={{ display: 'inline-flex' }} onClick={toggle}>
-        {trigger}
+      <span ref={triggerRef} style={{ display: 'inline-flex' }}>
+        {triggerEl}
       </span>
 
       {open && createPortal(

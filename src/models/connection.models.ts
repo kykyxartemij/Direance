@@ -116,6 +116,12 @@ export type UpdateConnectionModel = Partial<CreateConnectionModel> & { id: strin
 // driver translates to external API requirements.
 
 export type FetchFiltersModel = {
+  /** Report type filter (Merit: drives which endpoint is called). */
+  reportType?: string;
+  /** Range start date YYYY-MM-DD. */
+  dateFrom?: string;
+  /** Range end date YYYY-MM-DD. */
+  dateTo?: string;
   /** Number of periods to fetch (Merit: PerCount). */
   perCount?: number;
   /** Period end date YYYY-MM-DD (Merit: EndDate). */
@@ -127,6 +133,9 @@ export type FetchFiltersModel = {
 };
 
 export const FetchFiltersValidator = yup.object({
+  reportType: yup.string().optional(),
+  dateFrom:   yup.string().optional(),
+  dateTo:     yup.string().optional(),
   perCount:   yup.number().integer().min(1).optional(),
   endDate:    yup.string().optional(),
   sumPeriods: yup.boolean().optional(),

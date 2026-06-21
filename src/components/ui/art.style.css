@@ -17,7 +17,9 @@
   }
   .btn:not(:disabled):hover { border-color: var(--btn-hover-border); background: color-mix(in srgb, var(--btn-tint) 5%, var(--surface)); }
   .btn:not(:disabled):active { background: color-mix(in srgb, var(--btn-tint) 10%, var(--surface)); }
-  .btn:disabled { @apply cursor-not-allowed; filter: grayscale(1); opacity: 0.35; }
+  /* pointer-events: none lets a hover fall through to a wrapping ArtTooltip span,
+     so a disabled button can still explain (via tooltip) why it's disabled. */
+  .btn:disabled { @apply cursor-not-allowed; filter: grayscale(1); opacity: 0.35; pointer-events: none; }
   .btn.art-primary, .btn.art-warning, .btn.art-success, .btn.art-danger {
     border-color: color-mix(in srgb, var(--art-accent) 45%, var(--border));
     color: var(--art-accent);
@@ -40,7 +42,7 @@
   }
   .btn-primary:not(:disabled):hover { background: color-mix(in srgb, var(--btn-tint) 22%, var(--surface)); border-color: color-mix(in srgb, var(--btn-tint) 22%, var(--surface)); }
   .btn-primary:not(:disabled):active { background: color-mix(in srgb, var(--btn-tint) 10%, var(--surface)); border-color: color-mix(in srgb, var(--btn-tint) 10%, var(--surface)); }
-  .btn-primary:disabled { @apply cursor-not-allowed; filter: grayscale(1); opacity: 0.35; }
+  .btn-primary:disabled { @apply cursor-not-allowed; filter: grayscale(1); opacity: 0.35; pointer-events: none; }
   .btn-primary.art-primary, .btn-primary.art-warning, .btn-primary.art-success, .btn-primary.art-danger {
     background: color-mix(in srgb, var(--art-accent) 82%, #000);
     border-color: color-mix(in srgb, var(--art-accent) 82%, #000);
@@ -74,7 +76,7 @@
   }
   .btn-ghost:not(:disabled):hover { background: var(--btn-ghost-hover); }
   .btn-ghost:not(:disabled):active { background: var(--btn-ghost-press); }
-  .btn-ghost:disabled { @apply cursor-not-allowed; opacity: 0.25; }
+  .btn-ghost:disabled { @apply cursor-not-allowed; opacity: 0.25; pointer-events: none; }
 
   /* Button size modifiers — applied alongside .btn / .btn-primary / .btn-ghost */
   /* art-btn--md is the default and has no overrides */
@@ -82,36 +84,63 @@
   .art-btn--lg { @apply px-5 py-2.5 text-base; }
 
   /* ===== ArtSlider ===== */
-  /* Custom slider — replaces input[type=range] to avoid ::-webkit-slider-thumb vendor CSS */
-  /* Color driven by --art-accent (set via .art-{color} modifier on self or parent) */
+  /* Native <input type=range>. Color driven by --art-accent (set via .art-{color} modifier).
+     --art-slider-pct (inline) fills the webkit track; Firefox uses ::-moz-range-progress. */
   .art-slider {
-    @apply relative h-1 rounded-full cursor-pointer select-none;
-    background: color-mix(in srgb, var(--art-accent) 30%, transparent);
+    -webkit-appearance: none; appearance: none;
+    width: 100%; background: transparent; cursor: pointer;
   }
-  .art-slider-fill {
-    @apply absolute inset-y-0 left-0 rounded-full pointer-events-none;
-    background: var(--art-accent);
+  .art-slider::-webkit-slider-runnable-track {
+    height: 4px; border-radius: 9999px;
+    background: linear-gradient(to right,
+      var(--art-accent) 0 var(--art-slider-pct, 0%),
+      color-mix(in srgb, var(--art-accent) 30%, transparent) var(--art-slider-pct, 0%) 100%);
   }
-  .art-slider-thumb {
-    @apply absolute top-1/2 w-3 h-3 rounded-full pointer-events-none opacity-0 transition-opacity;
-    background: var(--art-accent);
-    transform: translate(-50%, -50%);
+  .art-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; margin-top: -4px;
+    width: 12px; height: 12px; border-radius: 50%; background: var(--art-accent);
+    opacity: 0; transition: opacity 150ms;
   }
-  .art-slider:hover .art-slider-thumb { @apply opacity-100; }
-  .art-slider--sm  { height: 3px; }
-  .art-slider--sm .art-slider-thumb { @apply w-2.5 h-2.5; }
+  .art-slider::-moz-range-track { height: 4px; border-radius: 9999px; background: color-mix(in srgb, var(--art-accent) 30%, transparent); }
+  .art-slider::-moz-range-progress { height: 4px; border-radius: 9999px; background: var(--art-accent); }
+  .art-slider::-moz-range-thumb {
+    width: 12px; height: 12px; border: none; border-radius: 50%; background: var(--art-accent);
+    opacity: 0; transition: opacity 150ms;
+  }
+  .art-slider:hover::-webkit-slider-thumb, .art-slider:focus-visible::-webkit-slider-thumb { opacity: 1; }
+  .art-slider:hover::-moz-range-thumb,     .art-slider:focus-visible::-moz-range-thumb     { opacity: 1; }
+  .art-slider:focus-visible { outline: none; }
+  .art-slider--readonly { pointer-events: none; }
+  .art-slider--sm::-webkit-slider-runnable-track { height: 3px; }
+  .art-slider--sm::-webkit-slider-thumb { margin-top: -3.5px; width: 10px; height: 10px; }
+  .art-slider--sm::-moz-range-track, .art-slider--sm::-moz-range-progress { height: 3px; }
+  .art-slider--sm::-moz-range-thumb { width: 10px; height: 10px; }
 
   /* ===== ArtProgress ===== */
-  /* Display-only counterpart to ArtSlider — no thumb, no interaction, role=progressbar */
+  /* Native <progress> — determinate value/max bars (DB usage, upload %, etc.) */
   .art-progress {
+    @apply h-1 rounded-full cursor-default select-none;
+    width: 100%; border: none; overflow: hidden;
+    appearance: none; -webkit-appearance: none;
+    background: color-mix(in srgb, var(--art-accent) 30%, transparent);
+  }
+  .art-progress::-webkit-progress-bar { background: transparent; }
+  .art-progress::-webkit-progress-value { background: var(--art-accent); border-radius: 9999px; }
+  .art-progress::-moz-progress-bar { background: var(--art-accent); border-radius: 9999px; }
+  .art-progress--sm { height: 3px; }
+
+  /* ===== ArtLoadingBar ===== */
+  /* Div+fill bar for CSS-animated / indeterminate fills (e.g. snackbar countdown),
+     which a native <progress> can't animate. */
+  .art-loading-bar {
     @apply relative h-1 rounded-full cursor-default select-none;
     background: color-mix(in srgb, var(--art-accent) 30%, transparent);
   }
-  .art-progress-fill {
+  .art-loading-bar-fill {
     @apply absolute inset-y-0 left-0 rounded-full pointer-events-none;
     background: var(--art-accent);
   }
-  .art-progress--sm { height: 3px; }
+  .art-loading-bar--sm { height: 3px; }
 
   /* ===== Art Field -- shared base for ArtInput & ArtTextarea ===== */
   .art-field-wrapper { @apply flex flex-col w-full; }
@@ -252,11 +281,13 @@
     background: var(--surface);
     max-height: 15rem;
   }
-  /* Prominent divider between action rows and regular option rows */
+  /* Prominent divider between action rows and regular option rows.
+     border: 0 resets the native <hr> look so it works as both <hr> and <div>. */
   .art-listbox-section-divider {
     height: 1px;
     background: var(--border);
     margin: 4px 0;
+    border: 0;
     list-style: none;
   }
 
@@ -335,7 +366,7 @@
     transition: opacity 80ms ease-out;
   }
 
-  /* ---- Tooltip — portal-rendered (position: fixed via inline style), visual only ---- */
+  /* ---- Tooltip — singleton, appended to body once, position: fixed via inline style ---- */
   .art-tooltip {
     white-space: nowrap;
     padding: 4px 8px;
@@ -346,6 +377,8 @@
     border: 1px solid var(--border);
     pointer-events: none;
     z-index: var(--z-tooltip);
+    will-change: opacity;
+    transition: opacity 1000ms ease;
   }
 
   /* ---- IconButton — size only, btn-ghost handles the rest ---- */
@@ -887,13 +920,16 @@
   .art-title--lg .art-title-icon { margin-top: 0.3rem; }
 
   /* ===== ArtDialog ===== */
-  .art-dialog-backdrop {
-    position: fixed; inset: 0; z-index: var(--z-dialog);
-    background: rgba(0,0,0,0.55);
-    @apply flex items-center justify-center p-4;
+  /* Native <dialog> — transparent wrapper; the browser top layer + ::backdrop handle
+     stacking and the dim overlay, so no z-index needed. The visible box is .art-dialog. */
+  dialog.art-dialog-native {
+    margin: auto; padding: 0; border: none; background: transparent;
+    max-width: 100vw; max-height: 100dvh; overflow: visible;
   }
+  dialog.art-dialog-native::backdrop { background: rgba(0,0,0,0.55); }
   .art-dialog {
-    @apply w-full flex flex-col;
+    @apply flex flex-col;
+    width: calc(100vw - 2rem);
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 12px; max-height: 85vh; overflow: hidden;
   }
@@ -968,8 +1004,8 @@
     color: var(--art-accent); border-color: color-mix(in srgb, var(--art-accent) 32%, var(--border));
   }
   .art-snackbar-progress { @apply absolute bottom-0 left-[3px] right-[3px] h-[2px] overflow-hidden; border-radius: 0 0 6px 6px; }
-  .art-snackbar-progress .art-progress-fill { animation: snack-progress var(--snack-duration, 4000ms) linear forwards; }
-  .art-snackbar:hover .art-snackbar-progress .art-progress-fill { animation-play-state: paused; }
+  .art-snackbar-progress .art-loading-bar-fill { animation: snack-progress var(--snack-duration, 4000ms) linear forwards; }
+  .art-snackbar:hover .art-snackbar-progress .art-loading-bar-fill { animation-play-state: paused; }
   .art-snackbar.art-primary, .art-snackbar.art-success,
   .art-snackbar.art-warning,  .art-snackbar.art-danger {
     border-color: color-mix(in srgb, var(--art-accent) 45%, var(--border));

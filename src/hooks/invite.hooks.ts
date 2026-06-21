@@ -54,11 +54,13 @@ export function useSendInvite() {
 }
 
 export function useAcceptInvite() {
+  const queryClient = useQueryClient();
   const { enqueueError } = useArtSnackbar();
   return useMutation<void, ApiError, AcceptInviteModel>({
     mutationFn: async (body) => {
       await fetchClient.post(API.invite.accept(), body);
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.invite.limits() }),
     onError: (err) => enqueueError(err, 'Failed to accept invite'),
   });
 }

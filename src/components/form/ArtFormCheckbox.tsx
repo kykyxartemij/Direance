@@ -29,5 +29,3 @@ export function ArtFormCheckbox({ name, helperText, ...props }: ArtFormCheckboxP
     />
   );
 }
-
-export default ArtFormCheckbox;

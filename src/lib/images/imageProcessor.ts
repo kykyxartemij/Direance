@@ -2,7 +2,7 @@ import sharp from 'sharp';
 import { ApiError } from '@/models/api-error';
 import { LOGO_ACCEPTED_MIME_TYPES } from '@/models/logo.model';
 
-export async function processImage(buffer: Buffer, maxBytes: number, maxWidth: number): Promise<{ data: Buffer; mime: string }> {
+async function processImage(buffer: Buffer, maxBytes: number, maxWidth: number): Promise<{ data: Buffer; mime: string }> {
   const limit = Math.floor(maxBytes * 0.95);
   let width = maxWidth;
 

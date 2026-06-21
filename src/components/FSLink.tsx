@@ -16,18 +16,15 @@ interface ForesightLinkProps
   className?: string
 }
 
-export function useForesight<T extends HTMLElement = HTMLElement>(
+function useForesight<T extends HTMLElement = HTMLElement>(
   options: ForesightRegisterOptionsWithoutElement
 ) {
   const elementRef = useRef<T>(null)
   const registerResults = useRef<ForesightRegisterResult | null>(null)
   useEffect(() => {
-    if (!elementRef.current) return
-
-    registerResults.current = ForesightManager.instance.register({
-      element: elementRef.current,
-      ...options,
-    })
+    const el = elementRef.current;
+    if (!el) return;
+    registerResults.current = ForesightManager.instance.register({ element: el, ...options });
   }, [options])
 
   return { elementRef, registerResults }

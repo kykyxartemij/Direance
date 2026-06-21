@@ -126,7 +126,7 @@ const DataRow = React.memo(function DataRow({
       onClick={isClickable ? () => onRowClick?.(row, index) : undefined}
     >
       {columns.map((col) => {
-        if (col._isFiller) return <td key={FILLER_KEY} className="art-data-filler-col" />;
+        if (col._isFiller) return <td key={FILLER_KEY} className="art-data-filler-col" aria-label="spacer" />;
         const isLeft  = col.sticky === true || col.sticky === 'left';
         const isRight = col.sticky === 'right';
         return (
@@ -152,13 +152,21 @@ const DataRow = React.memo(function DataRow({
 
 // ==== Skeleton cell ====
 
-function renderSkeletonCell(col: ProcessedColumn<unknown>): ReactNode {
+function SkeletonCell({ col }: { col: ProcessedColumn<unknown> }) {
   const content = col.render ? col.render({} as unknown, 0) : <span>&nbsp;</span>;
   return (
     <ArtCut width={col._cutWidth ?? '100%'}>
       <ArtSkeleton wrap>{content}</ArtSkeleton>
     </ArtCut>
   );
+}
+
+// ==== Custom-row wrapper ====
+// Wraps the caller's renderRow prop in its own component so React keeps row state
+// stable across re-renders (avoids no-render-in-render remounts).
+
+function RenderedRow({ render, row, index }: { render: (row: unknown, index: number) => ReactNode; row: unknown; index: number }) {
+  return <>{render(row, index)}</>;
 }
 
 // ==== Component ====
@@ -289,7 +297,7 @@ function ArtDataTable<T>({
           <thead>
             <tr>
               {processedColumns.map((col) => {
-                if (col._isFiller) return <th key={FILLER_KEY} className="art-data-th art-data-filler-col" />;
+                if (col._isFiller) return <th key={FILLER_KEY} className="art-data-th art-data-filler-col" aria-label="spacer" />;
                 const isLeft  = col.sticky === true || col.sticky === 'left';
                 const isRight = col.sticky === 'right';
                 return (
@@ -333,10 +341,10 @@ function ArtDataTable<T>({
                 <tr key={i}>
                   {processedColumns.map((col) =>
                     col._isFiller ? (
-                      <td key={FILLER_KEY} className="art-data-filler-col" />
+                      <td key={FILLER_KEY} className="art-data-filler-col" aria-label="spacer" />
                     ) : (
                       <td key={col.key} className="art-data-td">
-                        {renderSkeletonCell(col as ProcessedColumn<unknown>)}
+                        <SkeletonCell col={col as ProcessedColumn<unknown>} />
                       </td>
                     )
                   )}
@@ -350,9 +358,12 @@ function ArtDataTable<T>({
               </tr>
             ) : renderRow ? (
               data.map((row, index) => (
-                <React.Fragment key={rowKey ? rowKey(row, index) : index}>
-                  {renderRow(row, index)}
-                </React.Fragment>
+                <RenderedRow
+                  key={rowKey ? rowKey(row, index) : index}
+                  render={renderRow as (row: unknown, index: number) => ReactNode}
+                  row={row as unknown}
+                  index={index}
+                />
               ))
             ) : (
               data.map((row, index) => (

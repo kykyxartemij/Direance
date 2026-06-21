@@ -13,7 +13,7 @@ import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
 import { ArtForm, ArtFormInput, ArtFormListbox } from '@/components/form';
 import ArtLabel from '@/components/ui/ArtLabel';
 import { type ArtListboxOption } from '@/components/ui/ArtListbox';
-import { PERMISSION_META } from '@/components/PermissionBadge';
+import { PERMISSION_META } from '@/components/permissionMeta';
 
 // ==== Permission options ====
 // IS_ADMIN never appears in the picker — admins can grant other perms but not their own role.

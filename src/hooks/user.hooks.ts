@@ -21,6 +21,19 @@ export function useCurrentUser() {
   });
 }
 
+export function useUpdateUser() {
+  const queryClient = useQueryClient();
+  return useMutation<UserModel, ApiError, UpdateUserModel>({
+    mutationFn: async (body) => {
+      const { data } = await fetchClient.patch<UserModel>(API.user.update(), body);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.user.invalidate.all() });
+    },
+  });
+}
+
 export function useGetDbConsumption() {
   return useQuery<DbConsumption, ApiError>({
     queryKey: queryKeys.user.dbConsumption(),
@@ -41,15 +54,3 @@ export function useGetPagedUsers(page: number, pageSize: number, freeText?: stri
   });
 }
 
-export function useUpdateUser() {
-  const queryClient = useQueryClient();
-  return useMutation<UserModel, ApiError, UpdateUserModel>({
-    mutationFn: async (body) => {
-      const { data } = await fetchClient.patch<UserModel>(API.user.update(), body);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.user.invalidate.all() });
-    },
-  });
-}

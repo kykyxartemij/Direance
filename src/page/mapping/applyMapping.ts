@@ -54,7 +54,7 @@ function regionDataStart(region: TableRegion, fallbackHeaderRow: number): number
 
 // ==== Apply mapping (multi-region, stacked) ====
 
-export function applyMapping(
+function applyMapping(
   workbook: XLSX.WorkBook,
   sheetName: string,
   config: MappingConfig,
@@ -150,7 +150,7 @@ export function applyMapping(
     for (const tc of totalColumnDefs) {
       // Resolve which output value header indices to sum (1-based in outHeaders)
       const srcIndices = tc.sourceValueIndices.length > 0
-        ? tc.sourceValueIndices.filter((i) => i < valueHeaderCount).map((i) => i + 1)
+        ? tc.sourceValueIndices.flatMap((i) => i < valueHeaderCount ? [i + 1] : [])
         : Array.from({ length: valueHeaderCount }, (_, i) => i + 1);
 
       const headerIndex = outHeaders.length;
@@ -208,7 +208,7 @@ function inferValueColumns(grid: RawCell[][], descCol: number, regions: TableReg
   if (grid.length < 2) return [];
   const totalCols = grid[0]?.length ?? 0;
   const descCols = new Set(regions.map((r) => r.descriptionColumn));
-  const sortedDescs = [...descCols].sort((a, b) => a - b);
+  const sortedDescs = [...descCols].toSorted((a, b) => a - b);
   const descIdx = sortedDescs.indexOf(descCol);
   const nextDesc = descIdx < sortedDescs.length - 1 ? sortedDescs[descIdx + 1] : totalCols;
   const result: number[] = [];
@@ -338,7 +338,7 @@ export function extractRowNames(workbook: XLSX.WorkBook, sheetName: string, layo
 
 // ==== Parse workbook (no mapping transforms, for Dashboard fallback) ====
 
-export function parseWorkbook(
+function parseWorkbook(
   workbook: XLSX.WorkBook,
   sheetName: string,
   layout?: SourceLayout,

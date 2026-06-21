@@ -1,14 +1,14 @@
-import { forwardRef } from 'react';
+import { type ButtonHTMLAttributes, type Ref } from 'react';
 import ArtButton, { type ArtButtonProps } from './ArtButton';
 import ArtIcon, { ArtIconName, type ArtIconProps } from './ArtIcon';
 import ArtTooltip from './ArtTooltip';
-import { type ButtonHTMLAttributes } from 'react';
 import { type ArtColor } from './art.types';
 import { cn } from './art.utils';
 
 type ArtIconDef = ArtIconName | { name: ArtIconName; size?: number; style?: React.CSSProperties };
 
 interface ArtIconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  ref?: Ref<HTMLButtonElement>;
   icon: ArtIconDef;
   tooltip?: string;
   size?: ArtButtonProps['size'];
@@ -25,28 +25,26 @@ function resolveIcon(icon: ArtIconDef, buttonSize: NonNullable<ArtIconButtonProp
   return { name: icon.name, size: icon.size ?? ICON_SIZE[buttonSize], style: icon.style };
 }
 
-const ArtIconButton = forwardRef<HTMLButtonElement, ArtIconButtonProps>(
-  ({ icon, tooltip, size = 'md', color, variant = 'ghost', className = '', ...rest }, ref) => {
-    const { name, size: iconSize, style: iconStyle } = resolveIcon(icon, size);
-    const button = (
-      <ArtButton
-        ref={ref}
-        variant={variant}
-        size={size}
-        color={color}
-        aria-label={tooltip}
-        className={cn('art-icon-btn', className)}
-        {...rest}
-      >
-        <ArtIcon name={name} size={iconSize} style={iconStyle} />
-      </ArtButton>
-    );
+function ArtIconButton({ icon, tooltip, size = 'md', color, variant = 'ghost', className = '', ref, ...rest }: ArtIconButtonProps) {
+  const { name, size: iconSize, style: iconStyle } = resolveIcon(icon, size);
+  const button = (
+    <ArtButton
+      ref={ref}
+      variant={variant}
+      size={size}
+      color={color}
+      aria-label={tooltip}
+      className={cn('art-icon-btn', className)}
+      {...rest}
+    >
+      <ArtIcon name={name} size={iconSize} style={iconStyle} />
+    </ArtButton>
+  );
 
-    if (!tooltip) return button;
+  if (!tooltip) return button;
 
-    return <ArtTooltip label={tooltip}>{button}</ArtTooltip>;
-  },
-);
+  return <ArtTooltip label={tooltip}>{button}</ArtTooltip>;
+}
 
 ArtIconButton.displayName = 'ArtIconButton';
 

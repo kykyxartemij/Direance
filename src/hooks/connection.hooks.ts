@@ -1,14 +1,17 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { useReports, type ConnectionSheet } from '@/providers/ReportProvider';
 import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
+import { fetchMappingById } from '@/hooks/mapping.hooks';
 import fetchClient from '@/lib/fetchClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
 import type {
   ConnectionModel,
   ConnectionLightModel,
+  ConnectionType,
   CreateConnectionModel,
   UpdateConnectionModel,
   FetchFiltersModel,
@@ -99,9 +102,8 @@ export function useDeleteConnection() {
 // session thing" expectation. User must explicitly refetch to bust.
 
 export function useFetchFromConnection(id: string | undefined, filters: FetchFiltersModel, enabled: boolean) {
-  const filtersKey = JSON.stringify(filters);
   return useQuery({
-    queryKey: queryKeys.connection.fetch(id ?? '', filtersKey),
+    queryKey: queryKeys.connection.fetch(id ?? '', filters),
     queryFn: async () => {
       const { data } = await fetchClient.post(API.connection.fetch(id!), filters);
       return data;
@@ -120,27 +122,73 @@ type RefreshTarget = { reportId: string; connectionId: string; filters: FetchFil
 type RefreshResult = { reportId: string; sheets: ConnectionSheet[]; fetchedAt: string };
 
 export function useRefreshConnectionReports() {
+  const queryClient = useQueryClient();
   const { replaceReportSheets } = useReports();
   const { enqueueError, enqueueSuccess } = useArtSnackbar();
 
   return useMutation<RefreshResult[], ApiError, RefreshTarget[]>({
-    mutationFn: async (targets) => {
-      const results: RefreshResult[] = [];
-      for (const t of targets) {
-        const { data } = await fetchClient.post<{ sheets: ConnectionSheet[]; fetchedAt: string }>(
-          API.connection.fetch(t.connectionId),
-          t.filters,
-        );
-        results.push({ reportId: t.reportId, sheets: data.sheets, fetchedAt: data.fetchedAt });
-      }
-      return results;
-    },
+    mutationFn: async (targets) =>
+      Promise.all(
+        targets.map(async (t) => {
+          const { data } = await fetchClient.post<{ sheets: ConnectionSheet[]; fetchedAt: string }>(
+            API.connection.fetch(t.connectionId),
+            t.filters,
+          );
+          return { reportId: t.reportId, sheets: data.sheets, fetchedAt: data.fetchedAt };
+        }),
+      ),
     onSuccess: (results) => {
       for (const r of results) replaceReportSheets(r.reportId, r.sheets, r.fetchedAt);
       enqueueSuccess(`Refreshed ${results.length} report${results.length > 1 ? 's' : ''}`);
+      queryClient.invalidateQueries({ queryKey: ['placeholder'] })
     },
     onError: (err) => {
       enqueueError(err as Error, 'Failed to refresh');
+    },
+  });
+}
+
+// ==== Import from connection ====
+
+type ConnectionImportInput = {
+  connectionId: string;
+  connectionName: string;
+  connectionType: ConnectionType | undefined;
+  mappingId: string | undefined;
+  filters: FetchFiltersModel;
+  skipMapping: boolean;
+};
+
+export function useImportFromConnection() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { addReportFromSheets, setMapping } = useReports();
+  const { enqueueError } = useArtSnackbar();
+
+  return useMutation({
+    mutationFn: async ({ connectionId, connectionName, connectionType, mappingId, filters, skipMapping }: ConnectionImportInput) => {
+      const { data } = await fetchClient.post<{ sheets: ConnectionSheet[]; fetchedAt: string }>(
+        API.connection.fetch(connectionId),
+        filters,
+      );
+      const fileName = `${connectionName}-${new Date(data.fetchedAt).toISOString().slice(0, 10)}`;
+      const id = addReportFromSheets(fileName, data.sheets, {
+        connectionId,
+        connectionType,
+        fetchedAt: data.fetchedAt,
+      });
+      if (!skipMapping && mappingId) {
+        const mapping = await fetchMappingById(queryClient, mappingId);
+        setMapping(id, mapping);
+      }
+      return { skipMapping, hasMappingId: !!mappingId };
+    },
+    onSuccess: ({ skipMapping, hasMappingId }) => {
+      queryClient.invalidateQueries({ queryKey: ['placeholder'] });
+      router.push(skipMapping || !hasMappingId ? '/' : '/upload/mapping');
+    },
+    onError: (err) => {
+      enqueueError(err as Error, 'Failed to import from connection');
     },
   });
 }

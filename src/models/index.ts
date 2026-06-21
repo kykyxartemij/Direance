@@ -1,6 +1,6 @@
 import * as yup from 'yup';
 
-export const IdValidator = yup.object({
+const IdValidator = yup.object({
   id: yup.string().required('ID is required').uuid('ID must be a valid UUID'),
 });
 

@@ -438,5 +438,5 @@ z-auto     → z-index: auto (default)
 ```tsx
 <div className="aspect-video">   {/* 16:9 */}
 <div className="aspect-square">  {/* 1:1  */}
-<div className="aspect-[4/3]">   {/* 4:3  */}
+<div className="aspect-4/3">   {/* 4:3  */}
 ```

@@ -52,5 +52,6 @@ export const CACHE_KEYS = {
     paged: (userId: string, page: number, pageSize: number, freeText?: string) => ['connection', userId, 'paged', String(page), String(pageSize), freeText ?? ''],
     count: (userId: string, freeText?: string) => ['connection', userId, 'count', freeText ?? ''],
     byId: (userId: string, id: string) => ['connection', userId, 'byId', id],
+    fetch: (userId: string, id: string, filters: object) => ['connection', userId, 'fetch', id, JSON.stringify(filters)],
   },
 };

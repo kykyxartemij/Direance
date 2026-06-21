@@ -1,9 +1,20 @@
 'use client';
 
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useState, type MutableRefObject } from 'react';
 import debounce from 'lodash.debounce';
 
 const DEFAULT_DEBOUNCE_MS = 300;
+
+/**
+ * Ref whose value is built once on first render, never rebuilt-and-discarded.
+ * Use for mutable containers (Map/Set) read only in handlers/effects — refs need
+ * no deps, so callbacks stay stable.
+ */
+export function useLazyRef<T>(init: () => T): MutableRefObject<T> {
+  const ref = useRef<T | null>(null);
+  if (ref.current === null) ref.current = init();
+  return ref as MutableRefObject<T>;
+}
 
 /**
  * Returns a stable debounced caller for `callback`.

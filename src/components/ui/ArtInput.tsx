@@ -1,6 +1,6 @@
 'use client';
 
-import React, { forwardRef, useCallback, useId, useRef, useState } from 'react';
+import React, { useCallback, useId, useRef, useState, type Ref } from 'react';
 import { ArtIcon, ArtIconProps } from './ArtIcon';
 import ArtIconButton from './ArtIconButton';
 import ArtLabel from './ArtLabel';
@@ -9,6 +9,7 @@ import { type ArtColor, ART_COLOR_CLASS } from './art.types';
 import { cn } from './art.utils';
 
 interface ArtInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
+  ref?: Ref<HTMLInputElement>;
   icon?: ArtIconProps;
   clearable?: boolean;
   helperText?: string;
@@ -20,25 +21,24 @@ interface ArtInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>
   label?: string;
 }
 
-const ArtInput = forwardRef<HTMLInputElement, ArtInputProps>((props, ref) => {
-  const {
-    className,
-    icon,
-    clearable,
-    helperText,
-    debounce: debounceMs = false,
-    onDebouncedChange,
-    onChange,
-    color,
-    error,
-    onClear,
-    label,
-    id: idProp,
-    required,
-    readOnly,
-    ...rest
-  } = props;
-
+function ArtInput({
+  className,
+  icon,
+  clearable,
+  helperText,
+  debounce: debounceMs = false,
+  onDebouncedChange,
+  onChange,
+  color,
+  error,
+  onClear,
+  label,
+  id: idProp,
+  required,
+  readOnly,
+  ref,
+  ...rest
+}: ArtInputProps) {
   const generatedId = useId();
   const id = idProp ?? generatedId;
 
@@ -49,7 +49,8 @@ const ArtInput = forwardRef<HTMLInputElement, ArtInputProps>((props, ref) => {
   const setRef = (el: HTMLInputElement | null) => {
     inputRef.current = el;
     if (!ref) return;
-    typeof ref === 'function' ? ref(el) : (ref.current = el);
+    if (typeof ref === 'function') ref(el);
+    else (ref as React.MutableRefObject<HTMLInputElement | null>).current = el;
   };
 
   // ---- debounce ----
@@ -111,7 +112,7 @@ const ArtInput = forwardRef<HTMLInputElement, ArtInputProps>((props, ref) => {
       {helperText && <p className="art-field-helper">{helperText}</p>}
     </div>
   );
-});
+}
 
 ArtInput.displayName = 'ArtInput';
 

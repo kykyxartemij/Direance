@@ -14,9 +14,10 @@ export const RATE_LIMITS = {
   privileged_multiplier: 5,
 } as const;
 
-// ==== In-memory pre-filter ====
-// Impossible to hit under normal global rate limits — ensures a single Vercel instance
-// cannot be overwhelmed if something goes seriously wrong.
+// ==== Instance capacity guard ====
+// Protects this Vercel instance from being overloaded. Shared across all traffic
+// (auth + public) — called once per request by withHandler / withPublicHandler before
+// any DB work. DB limit functions do not call this — no double-counting.
 
 let _mem = { count: 0, windowStart: Date.now() };
 
@@ -24,6 +25,10 @@ function checkMemGlobal(): boolean {
   const now = Date.now();
   if (now - _mem.windowStart > 60_000) _mem = { count: 0, windowStart: now };
   return ++_mem.count <= RATE_LIMITS.global_ops.max * RATE_LIMITS.privileged_multiplier;
+}
+
+export function assertInstanceCapacity(): void {
+  if (!checkMemGlobal()) throw new ApiError('Server busy, please try again shortly', 429);
 }
 
 // ==== Helpers ====
@@ -48,9 +53,6 @@ function windowSec(windowMs: number): number {
  * Backed by Postgres — works across all Vercel instances.
  */
 export async function checkUserRequestLimit(req: NextRequest, userId: string, permissions: string[]): Promise<void> {
-
-  if (!checkMemGlobal()) throw new ApiError('Server busy, please try again shortly', 429);
-
   const ip = getIp(req);
 
   if (hasPermission({ permissions }, Permission.NO_DB_REQUEST_LIMITS)) {
@@ -82,8 +84,6 @@ export async function checkUserRequestLimit(req: NextRequest, userId: string, pe
  * Call at the top of public endpoints (acceptInvite, lookupInvite, etc.).
  */
 export async function checkPublicRequestLimit(req: NextRequest): Promise<void> {
-  if (!checkMemGlobal()) throw new ApiError('Server busy, please try again shortly', 429);
-
   const ip = getIp(req);
   const [row] = await prisma.$queryRaw<[{ ip_ok: boolean; global_ok: boolean }]>`
     SELECT
@@ -99,7 +99,7 @@ export async function checkPublicRequestLimit(req: NextRequest): Promise<void> {
  * Returns false if the limit is exceeded.
  * Call inside Credentials authorize() — return null to deny.
  */
-export async function checkLoginRate(email: string): Promise<boolean> {
+export async function checkLoginLimit(email: string): Promise<boolean> {
   const [row] = await prisma.$queryRaw<[{ ok: boolean }]>`
     SELECT check_rate_limit(${`login:${email.toLowerCase()}`}::text, ${RATE_LIMITS.login_attempts.max}::int, ${windowSec(RATE_LIMITS.login_attempts.windowMs)}::int) AS ok
   `;

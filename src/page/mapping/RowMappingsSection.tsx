@@ -1,11 +1,10 @@
 'use client';
 
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
+import { useImperativeHandle, useState } from 'react';
 import { useGetLightExportSettings } from '@/hooks/export-settings.hooks';
 import { useGetExportSettingById } from '@/hooks/export-settings.hooks';
 import type { RowMapping } from '@/models/mapping.models';
 import type { MappedValueModel } from '@/models/export-settings.models';
-import type { ArtColor } from '@/components/ui/art.types';
 import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox';
 import ArtComboBox from '@/components/ui/ArtComboBox';
 import ArtCheckbox from '@/components/ui/ArtCheckbox';
@@ -32,7 +31,10 @@ export interface RowMappingsSectionRef {
 }
 
 interface RowMappingsSectionProps {
-  rowMappings: RowMappingRow[];
+  /** Live data — always reflected in read-only mode (editable=false). */
+  rowMappings?: RowMappingRow[];
+  /** Editable-mode seed — only read at mount. Use key= on the caller to reset. */
+  initialRowMappings?: RowMappingRow[];
   initialExportSettingId?: string | null;
   collapseOpen?: boolean;
   onCollapseChange?: (open: boolean) => void;
@@ -45,15 +47,12 @@ interface RowMappingsSectionProps {
 
 // ==== Row item ====
 
-interface RowMappingRowItemRef {
-  getData(): Partial<RowMapping>;
-}
-
 interface RowMappingRowItemProps {
   row: RowMappingRow;
   mappedValueOptions: ArtComboBoxOption[];
   mappedValues: MappedValueModel[];
   editable: boolean;
+  onChange: (patch: Partial<RowMapping>) => void;
   onRemove?: () => void;
 }
 
@@ -63,39 +62,16 @@ function findCategory(name: string | undefined, categories: MappedValueModel[]):
   return categories.find((c) => c.name.trim().toLowerCase() === key);
 }
 
-
-const RowMappingRowItem = forwardRef<RowMappingRowItemRef, RowMappingRowItemProps>(
-  ({ row, mappedValueOptions, mappedValues, editable, onRemove }, ref) => {
-    const [nameColor, setNameColor] = useState<ArtColor | undefined>(row.nameColor);
-    const [valueColor, setValueColor] = useState<ArtColor | undefined>(row.valueColor);
-    const [displayName, setDisplayName] = useState<string | undefined>(row.displayName);
-
-    const matchedCategory = findCategory(displayName, mappedValues);
+function RowMappingRowItem({ row, mappedValueOptions, mappedValues, editable, onChange, onRemove }: RowMappingRowItemProps) {
+    const matchedCategory = findCategory(row.displayName, mappedValues);
     const lockedNameColor = matchedCategory?.color;
-    const effectiveNameColor = lockedNameColor ?? nameColor;
-    const hiddenRef = useRef<HTMLInputElement>(null);
-    const sourceNameRef = useRef<HTMLInputElement>(null);
-
-    useImperativeHandle(
-      ref,
-      () => ({
-        getData: () => ({
-          sourceName: editable ? (sourceNameRef.current?.value ?? row.sourceName) : row.sourceName,
-          displayName: displayName || undefined,
-          hidden: hiddenRef.current?.checked ?? false,
-          nameColor: effectiveNameColor,
-          valueColor,
-        }),
-      }),
-      [editable, row.sourceName, displayName, effectiveNameColor, valueColor],
-    );
 
     // When displayName is a free-text value that doesn't match any option, synthesise a
     // temporary option so the controlled ArtComboBox keeps showing the typed text instead
     // of resetting the input to empty (controlled selected={null} clears the input).
     const selectedOption =
-      mappedValueOptions.find((o) => o.value === displayName) ??
-      (displayName ? { label: displayName, value: displayName } : null);
+      mappedValueOptions.find((o) => o.value === row.displayName) ??
+      (row.displayName ? { label: row.displayName, value: row.displayName } : null);
 
     return (
       <ArtDataTr
@@ -105,9 +81,9 @@ const RowMappingRowItem = forwardRef<RowMappingRowItemRef, RowMappingRowItemProp
         <ArtDataTd>
           {editable ? (
             <ArtInput
-              ref={sourceNameRef}
-              defaultValue={row.sourceName}
+              value={row.sourceName}
               placeholder="Source name"
+              onChange={(e) => onChange({ sourceName: e.target.value })}
             />
           ) : (
             <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{row.sourceName}</span>
@@ -120,8 +96,8 @@ const RowMappingRowItem = forwardRef<RowMappingRowItemRef, RowMappingRowItemProp
             placeholder={row.sourceName || 'Display name'}
             clearable
             noOptionsMessage={false}
-            onChange={(opt) => setDisplayName(opt?.value || undefined)}
-            onSubmit={(text) => setDisplayName(text || undefined)}
+            onChange={(opt) => onChange({ displayName: opt?.value || undefined })}
+            onSubmit={(text) => onChange({ displayName: text || undefined })}
             selectFirstOnEnter={mappedValueOptions.length > 0}
           />
         </ArtDataTd>
@@ -131,14 +107,18 @@ const RowMappingRowItem = forwardRef<RowMappingRowItemRef, RowMappingRowItemProp
               <ColorSelect value={lockedNameColor} onChange={() => {}} disabled />
             </ArtTooltip>
           ) : (
-            <ColorSelect value={nameColor} onChange={setNameColor} />
+            <ColorSelect value={row.nameColor} onChange={(c) => onChange({ nameColor: c })} />
           )}
         </ArtDataTd>
         <ArtDataTd>
-          <ColorSelect value={valueColor} onChange={setValueColor} />
+          <ColorSelect value={row.valueColor} onChange={(c) => onChange({ valueColor: c })} />
         </ArtDataTd>
         <ArtDataTd>
-          <ArtCheckbox ref={hiddenRef} defaultChecked={row.hidden ?? false} size="sm" />
+          <ArtCheckbox
+            checked={row.hidden ?? false}
+            size="sm"
+            onChange={(e) => onChange({ hidden: e.target.checked })}
+          />
         </ArtDataTd>
         {editable && (
           <ArtDataTd>
@@ -154,10 +134,11 @@ const RowMappingRowItem = forwardRef<RowMappingRowItemRef, RowMappingRowItemProp
         )}
       </ArtDataTr>
     );
-  },
-);
+}
 
-RowMappingRowItem.displayName = 'RowMappingRowItem';
+// ==== Empty defaults ====
+
+const EMPTY_ROWS: RowMappingRow[] = [];
 
 // ==== Column definitions ====
 
@@ -180,24 +161,13 @@ const EDITABLE_COLUMNS: ArtColumn<RowMappingRow>[] = [
 
 // ==== Section ====
 
-const RowMappingsSection = forwardRef<RowMappingsSectionRef, RowMappingsSectionProps>(
-  (
-    { rowMappings, initialExportSettingId = null, collapseOpen, onCollapseChange, editable = false },
-    ref,
-  ) => {
-    const rowItemRefs = useRef<Map<number, RowMappingRowItemRef>>(new Map());
+function RowMappingsSection({ rowMappings = EMPTY_ROWS, initialRowMappings = EMPTY_ROWS, initialExportSettingId = null, collapseOpen, onCollapseChange, editable = false, ref }: RowMappingsSectionProps & { ref?: React.Ref<RowMappingsSectionRef> }) {
     const [exportSettingId, setExportSettingId] = useState<string | null>(initialExportSettingId);
 
-    const [editableRows, setEditableRows] = useState<RowMappingRow[]>(rowMappings);
-
-    const [prevRows, setPrevRows] = useState(rowMappings);
-    if (editable && prevRows !== rowMappings) {
-      setPrevRows(rowMappings);
-      setEditableRows(rowMappings);
-    }
+    // initialRowMappings is the seed — only read at mount. key= on the caller resets on ID change.
+    const [editableRows, setEditableRows] = useState<RowMappingRow[]>(initialRowMappings);
 
     const rows = editable ? editableRows : rowMappings;
-    // Derive next free _index from current rows — keeps add/remove monotonic.
     const nextIndex = rows.reduce((max, r) => Math.max(max, r._index), -1) + 1;
 
     const { data: exportSettingsList = [] } = useGetLightExportSettings();
@@ -214,38 +184,27 @@ const RowMappingsSection = forwardRef<RowMappingsSectionRef, RowMappingsSectionP
     useImperativeHandle(
       ref,
       () => ({
-        getRowMappings: () =>
-          rows.map((row) => {
-            const item = rowItemRefs.current.get(row._index);
-            return item ? { ...row, ...item.getData() } : row;
-          }),
+        getRowMappings: () => editableRows,
         getExportSettingId: () => exportSettingId,
         setExportSettingId,
         getLinkedExportSetting: () => linkedExportSetting,
       }),
-      [rows, exportSettingId, linkedExportSetting],
+      [editableRows, exportSettingId, linkedExportSetting],
     );
 
     const selectedExportSetting =
       exportSettingOptions.find((o) => o.value === exportSettingId) ?? null;
 
+    function handleRowChange(index: number, patch: Partial<RowMapping>) {
+      setEditableRows((prev) => prev.map((r) => r._index === index ? { ...r, ...patch } : r));
+    }
+
     function handleAddRow() {
-      const flushed = rows.map((row) => {
-        const item = rowItemRefs.current.get(row._index);
-        return item ? { ...row, ...item.getData() } : row;
-      });
-      setEditableRows([...flushed, { sourceName: '', _index: nextIndex }]);
+      setEditableRows((prev) => [...prev, { sourceName: '', _index: nextIndex }]);
     }
 
     function handleRemoveRow(index: number) {
-      const flushed = rows
-        .filter((r) => r._index !== index)
-        .map((row) => {
-          const item = rowItemRefs.current.get(row._index);
-          return item ? { ...row, ...item.getData() } : row;
-        });
-      rowItemRefs.current.delete(index);
-      setEditableRows(flushed);
+      setEditableRows((prev) => prev.filter((r) => r._index !== index));
     }
 
     return (
@@ -284,22 +243,17 @@ const RowMappingsSection = forwardRef<RowMappingsSectionRef, RowMappingsSectionP
           emptyMessage={editable ? 'No rows yet — click "Add row" below.' : 'No rows found in the uploaded file'}
           renderRow={(row) => (
             <RowMappingRowItem
-              ref={(el) => {
-                if (el) rowItemRefs.current.set(row._index, el);
-                else rowItemRefs.current.delete(row._index);
-              }}
               row={row}
               mappedValueOptions={mappedValueOptions}
               mappedValues={mappedValues}
               editable={editable}
+              onChange={(patch) => handleRowChange(row._index, patch)}
               onRemove={() => handleRemoveRow(row._index)}
             />
           )}
         />
       </ArtCollapse>
     );
-  },
-);
+}
 
-RowMappingsSection.displayName = 'RowMappingsSection';
 export default RowMappingsSection;

@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState } from 'react';
+import { createContext, use, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import type { ArtColor } from '@/components/ui/art.types';
 import type { MappingModel } from '@/models/mapping.models';
@@ -101,6 +101,19 @@ function buildMappedReport(report: UploadedReport, mapping: MappingModel): Mappe
   };
 }
 
+// ==== Helpers ====
+
+function buildSheetsWorkbook(sheets: ConnectionSheet[]): { workbook: XLSX.WorkBook; activeSheet: string; rowIndents: number[] } {
+  const workbook = XLSX.utils.book_new();
+  for (const s of sheets) {
+    const ws = XLSX.utils.json_to_sheet(s.rows);
+    XLSX.utils.book_append_sheet(workbook, ws, s.name.slice(0, 31)); // xlsx caps at 31 chars
+  }
+  const activeSheet = workbook.SheetNames[0] ?? 'Sheet1';
+  const rowIndents = (sheets[0]?.rows ?? []).map(() => 0);
+  return { workbook, activeSheet, rowIndents };
+}
+
 // ==== Context ====
 
 const ReportContext = createContext<ReportContextValue | null>(null);
@@ -126,17 +139,6 @@ export function ReportProvider({ children }: { children: React.ReactNode }) {
       ...prev,
       { id: crypto.randomUUID(), fileName: file.name, source: 'file', active: true, workbook, activeSheet, rowIndents },
     ]);
-  }
-
-  function buildSheetsWorkbook(sheets: ConnectionSheet[]): { workbook: XLSX.WorkBook; activeSheet: string; rowIndents: number[] } {
-    const workbook = XLSX.utils.book_new();
-    for (const s of sheets) {
-      const ws = XLSX.utils.json_to_sheet(s.rows);
-      XLSX.utils.book_append_sheet(workbook, ws, s.name.slice(0, 31)); // xlsx caps at 31 chars
-    }
-    const activeSheet = workbook.SheetNames[0] ?? 'Sheet1';
-    const rowIndents = (sheets[0]?.rows ?? []).map(() => 0);
-    return { workbook, activeSheet, rowIndents };
   }
 
   function addReportFromSheets(fileName: string, sheets: ConnectionSheet[], opts?: { connectionId?: string; connectionType?: 'merit' | 'odoo'; fetchedAt?: string }): string {
@@ -181,15 +183,20 @@ export function ReportProvider({ children }: { children: React.ReactNode }) {
     }));
   }
 
+  const ctx = useMemo(
+    () => ({ reports, addReport, addReportFromSheets, replaceReportSheets, removeReport, updateReport, setMapping, setActive }),
+    [reports],
+  );
+
   return (
-    <ReportContext.Provider value={{ reports, addReport, addReportFromSheets, replaceReportSheets, removeReport, updateReport, setMapping, setActive }}>
+    <ReportContext.Provider value={ctx}>
       {children}
     </ReportContext.Provider>
   );
 }
 
 export function useReports(): ReportContextValue {
-  const ctx = useContext(ReportContext);
+  const ctx = use(ReportContext);
   if (!ctx) throw new Error('useReports must be used inside ReportProvider');
   return ctx;
 }

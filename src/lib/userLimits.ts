@@ -2,7 +2,7 @@ import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { ApiError } from '@/models/api-error';
 import { Permission, hasPermission } from '@/lib/permissions';
-import { cached, invalidateCache, populateCache } from '@/lib/serverCache';
+import { populateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 
 // ==== Limits ====

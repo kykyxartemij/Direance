@@ -1,5 +1,3 @@
-import * as yup from 'yup';
-
 // ==== Constants ====
 
 export const LOGO_ACCEPTED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const;
@@ -18,7 +16,3 @@ export type LogoBytesModel = LogoModel & {
 };
 
 export type LogoMetadataModel = { id: string; name: string };
-
-// ==== Validators ====
-
-export const LogoIdValidator = yup.string().uuid('Invalid logo ID');

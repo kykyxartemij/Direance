@@ -1,7 +1,7 @@
 'use client';
 
 import React, {
-  createContext, useCallback, useContext, useMemo, useState,
+  createContext, use, useCallback, useLayoutEffect, useMemo, useRef, useState,
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -74,7 +74,7 @@ export function ArtDialogProvider({ children }: { children: ReactNode }) {
   return (
     <ArtDialogContext.Provider value={value}>
       {children}
-      {config !== null && createPortal(<DialogUI config={config} onClose={close} />, document.body)}
+      {createPortal(<DialogUI config={config} onClose={close} />, document.body)}
     </ArtDialogContext.Provider>
   );
 }
@@ -82,7 +82,7 @@ export function ArtDialogProvider({ children }: { children: ReactNode }) {
 // ---- Hook ----
 
 export function useArtDialog(): ArtDialogContextValue {
-  const ctx = useContext(ArtDialogContext);
+  const ctx = use(ArtDialogContext);
   if (!ctx) throw new Error('useArtDialog must be used inside <ArtDialogProvider>');
   return ctx;
 }
@@ -107,7 +107,7 @@ export function ArtDialog({
   onClose: onCloseProp,
   ...config
 }: ArtDialogProps) {
-  const ctx = useContext(ArtDialogContext);
+  const ctx = use(ArtDialogContext);
 
   // Always declared — only used in fallback mode (no provider, not controlled)
   const [localOpen, setLocalOpen] = useState(false);
@@ -135,8 +135,10 @@ export function ArtDialog({
     onOpenChange?.(true);
   };
 
+  // cloneElement injects onClick onto the trigger element itself (keyboard-accessible
+  // when it's a button) instead of a generic onClick-on-div wrapper.
   const trigger = React.isValidElement(children)
-    ? <div onClick={handleOpen} style={{ display: 'contents' }}>{children}</div>
+    ? React.cloneElement(children as React.ReactElement<{ onClick?: React.MouseEventHandler }>, { onClick: handleOpen })
     : <button type="button" onClick={handleOpen}>{children}</button>;
 
   return (
@@ -197,15 +199,46 @@ const SIZE_MAX: Record<NonNullable<ArtDialogConfig['size']>, string> = {
   lg: 'max-w-2xl',
 };
 
-function DialogUI({
-  config,
-  onClose,
-}: {
-  config: ArtDialogConfig | null;
-  onClose: () => void;
-}) {
-  if (!config) return null;
+// Native <dialog> — showModal()/close() give focus trapping, Esc, and the ::backdrop
+// for free. Mounted once by the provider; open state is driven by `config`.
+function DialogUI({ config, onClose }: { config: ArtDialogConfig | null; onClose: () => void }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const open = config !== null;
 
+  const onCloseRef = useRef(onClose);
+  useLayoutEffect(() => { onCloseRef.current = onClose; });
+
+  useLayoutEffect(() => {
+    const el = dialogRef.current;
+    if (!el) return;
+    if (open && !el.open) el.showModal();
+    else if (!open && el.open) el.close();
+  }, [open]);
+
+  // Dismiss via native DOM listeners (not JSX handlers): 'cancel' is Esc, a click whose
+  // target is the dialog itself landed on the ::backdrop. preventDefault keeps React the
+  // single source of truth for open state.
+  useLayoutEffect(() => {
+    const el = dialogRef.current;
+    if (!el) return;
+    const onCancel = (e: Event) => { e.preventDefault(); onCloseRef.current(); };
+    const onClick = (e: MouseEvent) => { if (e.target === el) onCloseRef.current(); };
+    el.addEventListener('cancel', onCancel);
+    el.addEventListener('click', onClick);
+    return () => {
+      el.removeEventListener('cancel', onCancel);
+      el.removeEventListener('click', onClick);
+    };
+  }, []);
+
+  return (
+    <dialog ref={dialogRef} className="art-dialog-native">
+      {config && <DialogBox config={config} onClose={onClose} />}
+    </dialog>
+  );
+}
+
+function DialogBox({ config, onClose }: { config: ArtDialogConfig; onClose: () => void }) {
   const {
     title, description, icon, color, variant = 'default', content,
     buttons, cancelButton, size = 'md',
@@ -217,46 +250,39 @@ function DialogUI({
 
   return (
     <div
-      className="art-dialog-backdrop"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      className={cn('art-dialog', SIZE_MAX[size], color && ART_COLOR_CLASS[color], variant === 'outlined' && 'art-dialog--outlined')}
+      aria-labelledby="art-dialog-title"
     >
-      <div
-        className={cn('art-dialog', SIZE_MAX[size], color && ART_COLOR_CLASS[color], variant === 'outlined' && 'art-dialog--outlined')}
-        role="dialog"
-        aria-modal
-        aria-labelledby="art-dialog-title"
-      >
-        {/* Header */}
-        <div className="art-dialog-header">
-          <ArtTitle title={title} description={description} icon={icon} size="md" id="art-dialog-title" />
-          <ArtIconButton icon={{ name: 'Close', size: 16 }} tooltip="Close" onClick={onClose} />
-        </div>
-
-        {/* Content */}
-        {content && <div className="art-dialog-content">{content}</div>}
-
-        {/* Footer */}
-        {hasFooter && (
-          <ArtButtonRow
-            className="art-dialog-footer"
-            buttons={[
-              ...(cancelCfg !== null ? [{
-                label: cancelCfg?.label ?? 'Cancel',
-                variant: cancelCfg?.variant ?? 'ghost' as const,
-                color: cancelCfg?.color,
-                size: cancelCfg?.size,
-                onClick: onClose,
-              }] : []),
-              ...(buttons ?? []).map(({ label, onClick, closesDialog = true, side, ...btnProps }) => ({
-                label,
-                side,
-                ...btnProps,
-                onClick: () => { onClick?.(); if (closesDialog) onClose(); },
-              })),
-            ]}
-          />
-        )}
+      {/* Header */}
+      <div className="art-dialog-header">
+        <ArtTitle title={title} description={description} icon={icon} size="md" id="art-dialog-title" />
+        <ArtIconButton icon={{ name: 'Close', size: 16 }} tooltip="Close" onClick={onClose} />
       </div>
+
+      {/* Content */}
+      {content && <div className="art-dialog-content">{content}</div>}
+
+      {/* Footer */}
+      {hasFooter && (
+        <ArtButtonRow
+          className="art-dialog-footer"
+          buttons={[
+            ...(cancelCfg !== null ? [{
+              label: cancelCfg?.label ?? 'Cancel',
+              variant: cancelCfg?.variant ?? 'ghost' as const,
+              color: cancelCfg?.color,
+              size: cancelCfg?.size,
+              onClick: onClose,
+            }] : []),
+            ...(buttons ?? []).map(({ label, onClick, closesDialog = true, side, ...btnProps }) => ({
+              label,
+              side,
+              ...btnProps,
+              onClick: () => { onClick?.(); if (closesDialog) onClose(); },
+            })),
+          ]}
+        />
+      )}
     </div>
   );
 }

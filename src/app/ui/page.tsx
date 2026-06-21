@@ -1981,6 +1981,7 @@ export default function UiPage() {
           <span className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Theme</span>
           {THEMES.map((t) => (
             <button
+              type="button"
               key={t}
               onClick={() => switchTheme(t)}
               className="text-sm py-1 text-left capitalize"

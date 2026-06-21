@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef, useImperativeHandle, useState, type ReactNode } from 'react';
+import { useImperativeHandle, useState, type ReactNode, type Ref } from 'react';
 import ArtBaseCollapse from './ArtBaseCollapse';
 import ArtIcon, { type ArtIconName } from './ArtIcon';
 import { type ArtColor, ART_COLOR_CLASS } from './art.types';
@@ -15,6 +15,7 @@ export interface ArtCollapseRef {
 }
 
 interface ArtCollapseProps {
+  ref?: Ref<ArtCollapseRef>;
   children: ReactNode;
 
   // ==== Trigger (self-contained header button) ====
@@ -39,21 +40,9 @@ interface ArtCollapseProps {
 
 // ==== Component ====
 
-const ArtCollapse = forwardRef<ArtCollapseRef, ArtCollapseProps>((
-  {
-    children,
-    title,
-    icon,
-    trigger,
-    variant = 'outlined',
-    color,
-    open,
-    defaultOpen = false,
-    onChange,
-    className,
-  },
-  ref,
-) => {
+function ArtCollapse({
+  children, title, icon, trigger, variant = 'outlined', color, open, defaultOpen = false, onChange, className, ref,
+}: ArtCollapseProps) {
   // ==== Controlled / uncontrolled ====
 
   const isControlled = open !== undefined;
@@ -122,7 +111,7 @@ const ArtCollapse = forwardRef<ArtCollapseRef, ArtCollapseProps>((
       </ArtBaseCollapse>
     </div>
   );
-});
+}
 
 ArtCollapse.displayName = 'ArtCollapse';
 export default ArtCollapse;

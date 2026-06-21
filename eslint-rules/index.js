@@ -21,6 +21,7 @@ const requireAbortEarlyFalse   = require('./rules/require-abort-early-false');
 const requireFtsCacheKeyMatch  = require('./rules/require-fts-cache-key-match');
 const useFetchClient           = require('./rules/use-fetch-client');
 const noRouterPushNavigation   = require('./rules/no-router-push-navigation');
+const hooksOnlyFetchClient     = require('./rules/hooks-only-fetch-client');
 
 module.exports = {
   rules: {
@@ -36,6 +37,7 @@ module.exports = {
     'use-fetch-client':            useFetchClient,
 
     // ==== FE ====
+    'hooks-only-fetch-client':     hooksOnlyFetchClient,
     'require-link-prefetch':       requireLinkPrefetch,
     'require-href-constant':       requireHrefConstant,
     'require-loading-page':        requireLoadingPage,

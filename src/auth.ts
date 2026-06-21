@@ -3,13 +3,12 @@ import Credentials from 'next-auth/providers/credentials';
 import Google from 'next-auth/providers/google';
 import GitHub from 'next-auth/providers/github';
 import { PrismaAdapter } from '@auth/prisma-adapter';
-import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { authConfig } from './auth.config';
 import { ApiError } from './models/api-error';
 import { hasPermission, type Permission } from './lib/permissions';
-import { checkLoginRate, checkUserRequestLimit } from './lib/rateLimiter';
+import { checkLoginLimit } from './lib/rateLimiter';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -31,7 +30,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
-        if (!await checkLoginRate(credentials.email as string)) return null;
+        if (!await checkLoginLimit(credentials.email as string)) return null;
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },
@@ -90,5 +89,11 @@ export async function requireAuth(checkPermission?: Permission): Promise<{ userI
   if (!session?.user?.id) throw new ApiError('Unauthorized', 401);
   if (checkPermission !== undefined && !hasPermission(session.user, checkPermission))
     throw new ApiError('Forbidden', 403);
+  return { userId: session.user.id, permissions: session.user.permissions ?? [] };
+}
+
+export async function tryAuth(): Promise<{ userId: string; permissions: string[] } | null> {
+  const session = await auth();
+  if (!session?.user?.id) return null;
   return { userId: session.user.id, permissions: session.user.permissions ?? [] };
 }

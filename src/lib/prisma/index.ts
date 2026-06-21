@@ -1,10 +1,10 @@
-import { PrismaClient } from '../../generated/prisma/client';
+import { PrismaClient } from '../../../generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { withFts } from './prismaFts';
-import { withCrud } from './prismaCrud';
-import { withLazyCleanup } from './prismaLazyCleanup';
-import type { FieldMappingModel } from '../../generated/prisma/models/FieldMapping';
-import type { InviteModel } from '../../generated/prisma/models/Invite';
+import { withFts } from '../prismaFts';
+import { withCrud } from '../prismaCrud';
+import { withLazyCleanup } from '../prismaLazyCleanup';
+import type { FieldMappingModel } from '../../../generated/prisma/models/FieldMapping';
+import type { InviteModel } from '../../../generated/prisma/models/Invite';
 
 function makePrisma() {
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
@@ -22,7 +22,7 @@ function makePrisma() {
       invite: {
         ...withCrud<InviteModel>(base, '"Invite"'),
         ...withLazyCleanup<InviteModel>(base, '"Invite"', {
-          ttl:                  { field: 'createdAt', ms: 14 * 24 * 60 * 60 * 1000 },
+          ttl:                  { field: 'createdAt', days: 14 },
           limit:                50,
           limitExceededMessage: 'Too many invites sent. Please try again later, after some invitations expire.',
         }),

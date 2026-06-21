@@ -1,10 +1,9 @@
 'use client';
 
-import { forwardRef, useState } from 'react';
+import { useState, type ButtonHTMLAttributes, type Ref } from 'react';
 import ArtButton, { type ArtButtonProps } from './ArtButton';
 import ArtIcon, { type ArtIconName } from './ArtIcon';
 import ArtTooltip from './ArtTooltip';
-import { type ButtonHTMLAttributes } from 'react';
 import { type ArtColor, ART_COLOR_CLASS } from './art.types';
 import { cn } from './art.utils';
 
@@ -19,6 +18,7 @@ export interface ArtIconCycleOption<T extends string = string> {
 
 interface ArtIconCycleProps<T extends string = string>
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onChange' | 'color'> {
+  ref?: Ref<HTMLButtonElement>;
   options: ArtIconCycleOption<T>[];
   value?: T;
   defaultValue?: T;
@@ -33,10 +33,9 @@ const ICON_SIZE: Record<NonNullable<ArtIconCycleProps['size']>, number> = {
 
 // ==== Component ====
 
-function ArtIconCycleInner<T extends string = string>(
-  { options, value: valueProp, defaultValue, onChange, size = 'md', variant = 'ghost', className = '', onClick, ...rest }: ArtIconCycleProps<T>,
-  ref: React.ForwardedRef<HTMLButtonElement>,
-) {
+function ArtIconCycle<T extends string = string>({
+  options, value: valueProp, defaultValue, onChange, size = 'md', variant = 'ghost', className = '', onClick, ref, ...rest
+}: ArtIconCycleProps<T>) {
   const [internal, setInternal] = useState<T>(defaultValue ?? options[0]?.value);
   const isControlled = valueProp !== undefined;
   const current = isControlled ? valueProp! : internal;
@@ -68,11 +67,6 @@ function ArtIconCycleInner<T extends string = string>(
   if (!opt?.tooltip) return button;
   return <ArtTooltip label={opt.tooltip}>{button}</ArtTooltip>;
 }
-
-// forwardRef doesn't play well with generics — cast via a typed const
-const ArtIconCycle = forwardRef(ArtIconCycleInner) as <T extends string = string>(
-  props: ArtIconCycleProps<T> & { ref?: React.ForwardedRef<HTMLButtonElement> },
-) => React.ReactElement;
 
 (ArtIconCycle as React.FC).displayName = 'ArtIconCycle';
 

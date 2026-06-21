@@ -44,7 +44,7 @@ export const queryKeys = {
     paged: (page: number, pageSize: number, freeText?: string) =>
       ['connection', 'list', 'paged', page, pageSize, freeText ?? ''] as const,
     byId: (id: string) => ['connection', 'single', 'byId', id] as const,
-    fetch: (id: string, filtersKey: string) => ['connection', 'fetch', id, filtersKey] as const,
+    fetch: (id: string, filters: object) => ['connection', 'fetch', id, filters] as const,
   },
   // Separate namespace — never invalidated by exportSetting mutations (bytes can't be cached)
   logo: {

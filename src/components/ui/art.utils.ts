@@ -1,8 +1,27 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { type Ref } from 'react';
 
 /** Merge Tailwind classes without conflicts. Use instead of template literals in all Art components. */
 export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
+
+// ==== mergeRefs ====
+
+/**
+ * Combine several refs into one callback ref — use when a component keeps its own
+ * internal ref but must also honour a forwarded `ref` prop. Writing to a ref's
+ * `.current` here is the ref API (not prop mutation), so it lives outside any
+ * component body. Wrap the result in `useMemo` at the call site to keep identity stable.
+ */
+export function mergeRefs<T>(...refs: (Ref<T> | undefined)[]): (node: T | null) => void {
+  return (node) => {
+    for (const ref of refs) {
+      if (!ref) continue;
+      if (typeof ref === 'function') ref(node);
+      else (ref as { current: T | null }).current = node;
+    }
+  };
+}
 
 // ==== computeAnchoredPos ====
 

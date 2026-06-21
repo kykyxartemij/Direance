@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import GlobalPageLoader from '@/components/GlobalPageLoader';
 import { useForm, type Resolver } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
@@ -15,7 +16,8 @@ import RowMappingsSection, {
   type RowMappingRow,
   type RowMappingsSectionRef,
 } from '@/page/mapping/RowMappingsSection';
-import MappingMetaSection, { REPORT_TYPE_OPTIONS } from '@/page/mapping/MappingMetaSection';
+import MappingMetaSection from '@/page/mapping/MappingMetaSection';
+import { REPORT_TYPE_OPTIONS } from '@/models/mapping.models';
 import FormSection from '@/components/FormSection';
 import SourceLayoutFormSection, {
   type SourceLayoutFormSectionRef,
@@ -90,22 +92,16 @@ function MappingFormInner({ id, mapping }: { id?: string; mapping?: MappingModel
     defaultValues: mapping ? mappingToDefaults(mapping) : emptyDefaults,
   });
 
-  useEffect(() => {
-    if (mapping) methods.reset(mappingToDefaults(mapping));
-  }, [mapping, methods]);
-
   const initialRows = useMemo(() => rowsFromMapping(mapping), [mapping]);
   const initialExportSettingId = mapping?.exportSetting?.id ?? null;
 
   async function onSave(data: FormValues) {
     const collectedRows = rowsSectionRef.current?.getRowMappings() ?? [];
-    const cleanRows: RowMapping[] = collectedRows
-      .filter((r) => r.sourceName.trim().length > 0)
-      .map(({ _index, ...rest }) => ({
-        ...rest,
-        sourceName: rest.sourceName.trim(),
-        displayName: rest.displayName || undefined,
-      }));
+    const cleanRows: RowMapping[] = collectedRows.flatMap(({ _index, ...rest }) =>
+      rest.sourceName.trim().length > 0
+        ? [{ ...rest, sourceName: rest.sourceName.trim(), displayName: rest.displayName || undefined }]
+        : []
+    );
 
     const exportSettingId = rowsSectionRef.current?.getExportSettingId() ?? null;
 
@@ -191,7 +187,8 @@ function MappingFormInner({ id, mapping }: { id?: string; mapping?: MappingModel
       />
       <RowMappingsSection
         ref={rowsSectionRef}
-        rowMappings={initialRows}
+        key={id ?? '__new__'}
+        initialRowMappings={initialRows}
         initialExportSettingId={initialExportSettingId}
         editable
       />
@@ -204,7 +201,8 @@ function MappingFormInner({ id, mapping }: { id?: string; mapping?: MappingModel
 export function MappingFormEdit() {
   const params = useParams();
   const id = params.id as string;
-  const { data: mapping } = useGetMappingById(id);
+  const { data: mapping, isLoading } = useGetMappingById(id);
+  if (isLoading || !mapping) return <GlobalPageLoader />;
   return <MappingFormInner id={id} mapping={mapping} />;
 }
 

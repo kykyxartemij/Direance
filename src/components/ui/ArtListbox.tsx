@@ -1,6 +1,9 @@
+/* eslint-disable react-doctor/prefer-tag-over-role */
+// NOTE: prefer-tag-over-role on role="listbox"/"option" — native <datalist>/<option> can't
+// render icons, action rows, skeletons, or portal. W3C APG combobox pattern. Left visible.
 'use client';
 
-import { forwardRef, memo, useMemo, type ReactNode } from 'react';
+import { memo, useMemo, type ReactNode, type Ref } from 'react';
 import ArtIcon, { type ArtIconName } from './ArtIcon';
 import ArtSkeleton from './ArtSkeleton';
 import ArtEmptyState from './ArtEmptyState';
@@ -23,6 +26,7 @@ export interface ArtListboxAction {
 }
 
 export interface ArtListboxProps {
+  ref?: Ref<HTMLDivElement>;
   options: ArtListboxOption[];
   /** Values currently selected — renders a neutral tint on the row */
   selectedValues?: string[];
@@ -52,28 +56,15 @@ export interface ArtListboxProps {
   hasMore?: boolean;
 }
 
-const ArtListbox = memo(forwardRef<HTMLUListElement, ArtListboxProps>((props, ref) => {
-  const {
-    options,
-    selectedValues = [],
-    onSelect,
-    noOptionsMessage,
-    isLoading,
-    isError,
-    className,
-    extraActions = [],
-    actionsPosition = 'bottom',
-    query = '',
-    onEndReached,
-    hasMore,
-  } = props;
-
+const ArtListbox = memo(function ArtListbox({
+  options, selectedValues = [], onSelect, noOptionsMessage, isLoading, isError, className,
+  extraActions = [], actionsPosition = 'bottom', query = '', onEndReached, hasMore, ref,
+}: ArtListboxProps) {
   const trimmedQuery = query.trim();
 
   const visibleActions = useMemo(() =>
     extraActions.filter((action) => {
       if (!action.showOnNoExactMatch) return true;
-      // Hide when query is empty (nothing to create) or when there's an exact match.
       if (!trimmedQuery) return false;
       return !options.some((o) => o.label.toLowerCase() === trimmedQuery.toLowerCase());
     }),
@@ -84,11 +75,13 @@ const ArtListbox = memo(forwardRef<HTMLUListElement, ArtListboxProps>((props, re
     visibleActions.map((action, i) => {
       const labelText =
         typeof action.label === 'function' ? action.label(trimmedQuery) : action.label;
+      const key = typeof action.label === 'string' ? action.label : String(i);
       return (
-        <li
-          key={`action-${i}`}
+        <div
+          key={`action-${key}`}
           role="option"
           aria-selected={false}
+          tabIndex={-1}
           className="art-combobox-option"
           style={{ color: 'var(--art-accent)' }}
           onMouseDown={(e) => {
@@ -104,7 +97,7 @@ const ArtListbox = memo(forwardRef<HTMLUListElement, ArtListboxProps>((props, re
             {labelText}
           </span>
           {action.isLoading && <span className="ml-auto text-xs opacity-60">Loading…</span>}
-        </li>
+        </div>
       );
     }),
     [visibleActions, trimmedQuery],
@@ -114,10 +107,11 @@ const ArtListbox = memo(forwardRef<HTMLUListElement, ArtListboxProps>((props, re
     options.map((opt) => {
       const isSelected = selectedValues.includes(opt.value);
       return (
-        <li
+        <div
           key={opt.value}
           role="option"
           aria-selected={isSelected}
+          tabIndex={-1}
           className={cn(
             'art-combobox-option',
             opt.color && ART_COLOR_CLASS[opt.color as ArtColor],
@@ -135,24 +129,23 @@ const ArtListbox = memo(forwardRef<HTMLUListElement, ArtListboxProps>((props, re
             {opt.icon && <ArtIcon name={opt.icon as ArtIconName} size="sm" />}
             {opt.label}
           </span>
-        </li>
+        </div>
       );
     }),
     [options, selectedValues, onSelect],
   );
 
   const divider = visibleActions.length > 0
-    ? <li key="divider" className="art-listbox-section-divider" role="presentation" />
+    ? <div key="divider" className="art-listbox-section-divider" role="presentation" />
     : null;
 
   // ==== State rows ====
 
-  // false = caller wants no empty-state row; dropdown stays hidden when options are empty
   const showEmptyState = noOptionsMessage !== false;
   const showStateRow = isLoading || isError || (options.length === 0 && visibleActions.length === 0 && showEmptyState);
 
   const stateRow = showStateRow && (
-    <li role="presentation">
+    <div role="presentation">
       {isLoading ? (
         <div className="flex flex-col gap-1 p-1">
           <ArtSkeleton className="h-8 rounded-md" />
@@ -168,18 +161,18 @@ const ArtListbox = memo(forwardRef<HTMLUListElement, ArtListboxProps>((props, re
           title={noOptionsMessage === true ? undefined : (noOptionsMessage as string | undefined)}
         />
       )}
-    </li>
+    </div>
   );
 
   const handleScroll = onEndReached
-    ? (e: React.UIEvent<HTMLUListElement>) => {
+    ? (e: React.UIEvent<HTMLDivElement>) => {
         const el = e.currentTarget;
         if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) onEndReached();
       }
     : undefined;
 
   return (
-    <ul
+    <div
       ref={ref}
       role="listbox"
       className={cn('art-scrollable', className)}
@@ -200,13 +193,13 @@ const ArtListbox = memo(forwardRef<HTMLUListElement, ArtListboxProps>((props, re
       )}
       {stateRow}
       {hasMore && (
-        <li role="presentation" className="p-1">
+        <div role="presentation" className="p-1">
           <ArtSkeleton className="h-8 rounded-md" />
-        </li>
+        </div>
       )}
-    </ul>
+    </div>
   );
-}));
+});
 
 ArtListbox.displayName = 'ArtListbox';
 export default ArtListbox;
