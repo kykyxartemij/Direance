@@ -19,6 +19,8 @@ model User {
   accounts Account[]
   sessions Session[]
 
+  search_vector Unsupported("tsvector")? // managed by fts.sql trigger
+
   mappings        FieldMapping[]
   exportSettings  ExportSetting[]
   sentInvites     Invite[]

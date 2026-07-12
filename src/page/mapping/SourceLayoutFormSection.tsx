@@ -1,11 +1,16 @@
 'use client';
 
-import { useImperativeHandle, useReducer } from 'react';
+import { useImperativeHandle, useReducer, useState } from 'react';
 import * as XLSX from 'xlsx';
-import type { SourceLayout, SheetConfig, TotalColumnMode } from '@/models/mapping.models';
+import type { SourceLayout, SheetConfig, TotalColumnMode, ReportType } from '@/models/mapping.models';
+import type { ConnectionSheet } from '@/providers/ReportProvider';
 import ArtCollapse from '@/components/ui/ArtCollapse';
 import ArtUpload from '@/components/ui/ArtUpload';
 import ArtButton from '@/components/ui/ArtButton';
+import ArtSelect from '@/components/ui/ArtSelect';
+import { useGetLightConnections, useFetchFromConnectionsByIds } from '@/hooks/connection.hooks';
+import { defaultPnlFilterValues, buildPnlFetchFilters } from '@/page/connections/pnlFilterFields';
+import { defaultFinancialPositionFilterValues, buildFinancialPositionFetchFilters } from '@/page/connections/financialPositionFilterFields';
 import { autoDetectLayout } from './applyMapping';
 import SourceLayoutSection from './SourceLayoutSection';
 
@@ -21,6 +26,8 @@ interface SourceLayoutFormSectionProps {
   initialLayout: SourceLayout;
   initialSheetLayouts?: Record<string, SourceLayout>;
   initialSheetsConfig?: Record<string, SheetConfig>;
+  /** When set, shows a "fetch sample from connection" picker scoped to this report type. Omit for manual-upload contexts. */
+  reportType?: ReportType;
 }
 
 // ==== Helpers ====
@@ -40,6 +47,15 @@ function describeRegion(r: { descriptionColumn: number; valueColumns: number[]; 
   const vals = r.valueColumns.map(colLetter).join(', ') || '—';
   const start = r.startRow != null ? ` from row ${r.startRow + 1}` : '';
   return `desc ${desc} → vals ${vals}${start}`;
+}
+
+function buildWorkbookFromSheets(sheets: ConnectionSheet[]): XLSX.WorkBook {
+  const workbook = XLSX.utils.book_new();
+  for (const s of sheets) {
+    const ws = XLSX.utils.json_to_sheet(s.rows);
+    XLSX.utils.book_append_sheet(workbook, ws, s.name.slice(0, 31)); // xlsx caps at 31 chars
+  }
+  return workbook;
 }
 
 // ==== Readonly summary ====
@@ -139,7 +155,7 @@ function layoutReducer(state: LayoutState, action: LayoutAction): LayoutState {
 
 // ==== Section ====
 
-function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSheetsConfig, ref }: SourceLayoutFormSectionProps & { ref?: React.Ref<SourceLayoutFormSectionRef> }) {
+function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSheetsConfig, reportType, ref }: SourceLayoutFormSectionProps & { ref?: React.Ref<SourceLayoutFormSectionRef> }) {
     const [state, dispatch] = useReducer(layoutReducer, {
       workbook: null,
       sheetLayouts: initialSheetLayouts ?? {},
@@ -148,6 +164,13 @@ function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSh
       warning: null,
     });
     const { workbook, sheetLayouts, autoDetectedLayouts, sheetsConfig, warning } = state;
+
+    const [connectionId, setConnectionId] = useState<string | null>(null);
+    const { data: connections = [] } = useGetLightConnections();
+    const { mutateAsync: fetchMany, isPending: fetching } = useFetchFromConnectionsByIds();
+    const connectionOptions = connections.flatMap((c) =>
+      c.reportType === reportType ? [{ label: c.name, value: c.id }] : []
+    );
 
     useImperativeHandle(
       ref,
@@ -166,6 +189,32 @@ function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSh
       [workbook, sheetLayouts, sheetsConfig, initialLayout],
     );
 
+    function processWorkbook(wb: XLSX.WorkBook) {
+      const expected = Object.keys(sheetLayouts);
+      const incoming = new Set(wb.SheetNames);
+      const missing = expected.filter((n) => !incoming.has(n));
+      const extra = wb.SheetNames.filter((n) => expected.length > 0 && !expected.includes(n));
+
+      let nextWarning: string | null = null;
+      if (missing.length || extra.length) {
+        const parts: string[] = [];
+        if (missing.length) parts.push(`missing sheets: ${missing.join(', ')}`);
+        if (extra.length) parts.push(`extra sheets: ${extra.join(', ')}`);
+        nextWarning = `Uploaded file does not match stored layout — ${parts.join('; ')}`;
+      }
+
+      const nextLayouts: Record<string, SourceLayout> = { ...sheetLayouts };
+      const nextAuto: Record<string, SourceLayout> = {};
+      const nextConfig: Record<string, SheetConfig> = { ...sheetsConfig };
+      for (const name of wb.SheetNames) {
+        const auto = autoDetectLayout(wb, name);
+        nextAuto[name] = auto;
+        if (!nextLayouts[name]) nextLayouts[name] = auto;
+        if (!nextConfig[name]) nextConfig[name] = { mode: 'combine' };
+      }
+      dispatch({ type: 'LOAD_WORKBOOK', workbook: wb, sheetLayouts: nextLayouts, autoDetectedLayouts: nextAuto, sheetsConfig: nextConfig, warning: nextWarning });
+    }
+
     async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
       const file = e.target.files?.[0];
       if (!file) {
@@ -174,32 +223,23 @@ function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSh
       }
       try {
         const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellStyles: true });
-
-        const expected = Object.keys(sheetLayouts);
-        const incoming = new Set(wb.SheetNames);
-        const missing = expected.filter((n) => !incoming.has(n));
-        const extra = wb.SheetNames.filter((n) => expected.length > 0 && !expected.includes(n));
-
-        let nextWarning: string | null = null;
-        if (missing.length || extra.length) {
-          const parts: string[] = [];
-          if (missing.length) parts.push(`missing sheets: ${missing.join(', ')}`);
-          if (extra.length) parts.push(`extra sheets: ${extra.join(', ')}`);
-          nextWarning = `Uploaded file does not match stored layout — ${parts.join('; ')}`;
-        }
-
-        const nextLayouts: Record<string, SourceLayout> = { ...sheetLayouts };
-        const nextAuto: Record<string, SourceLayout> = {};
-        const nextConfig: Record<string, SheetConfig> = { ...sheetsConfig };
-        for (const name of wb.SheetNames) {
-          const auto = autoDetectLayout(wb, name);
-          nextAuto[name] = auto;
-          if (!nextLayouts[name]) nextLayouts[name] = auto;
-          if (!nextConfig[name]) nextConfig[name] = { mode: 'combine' };
-        }
-        dispatch({ type: 'LOAD_WORKBOOK', workbook: wb, sheetLayouts: nextLayouts, autoDetectedLayouts: nextAuto, sheetsConfig: nextConfig, warning: nextWarning });
+        processWorkbook(wb);
       } catch (err) {
         dispatch({ type: 'SET_WARNING', warning: `Failed to parse Excel file: ${(err as Error).message}` });
+      }
+    }
+
+    async function handleFetchFromConnection() {
+      if (!connectionId || !reportType) return;
+      try {
+        const filters = reportType === 'pnl'
+          ? buildPnlFetchFilters(defaultPnlFilterValues())
+          : buildFinancialPositionFetchFilters(defaultFinancialPositionFilterValues());
+        const result = await fetchMany({ ids: [connectionId], ...filters });
+        const wb = buildWorkbookFromSheets(result[connectionId].sheets);
+        processWorkbook(wb);
+      } catch (err) {
+        dispatch({ type: 'SET_WARNING', warning: `Failed to fetch from connection: ${(err as Error).message}` });
       }
     }
 
@@ -228,6 +268,32 @@ function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSh
               sheetLayouts={initialSheetLayouts}
               sheetsConfig={initialSheetsConfig}
             />
+          )}
+
+          {reportType && !workbook && (
+            <div className="flex items-end gap-3">
+              <div style={{ flex: 1 }}>
+                <ArtSelect
+                  label="Or fetch sample from connection"
+                  helperText="Pulls the latest data using default filters — only to populate Source Layout, not stored."
+                  options={connectionOptions}
+                  selected={connectionOptions.find((o) => o.value === connectionId) ?? null}
+                  onChange={(opt) => setConnectionId((opt?.value as string) ?? null)}
+                  placeholder="Select connection…"
+                  clearable
+                />
+              </div>
+              <ArtButton
+                type="button"
+                variant="outlined"
+                size="md"
+                disabled={!connectionId}
+                loading={fetching}
+                onClick={handleFetchFromConnection}
+              >
+                Fetch latest
+              </ArtButton>
+            </div>
           )}
 
           <div className="flex items-start gap-3">

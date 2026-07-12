@@ -1,5 +1,7 @@
 export const HREF = {
   home: '/',
+  reportsPnl: '/reports/pnl',
+  reportsFinancialPosition: '/reports/financial-position',
   upload: '/upload',
   uploadMapping: '/upload/mapping',
   uploadMappingFor: (id: string) => `/upload/mapping?id=${encodeURIComponent(id)}`,
@@ -12,6 +14,7 @@ export const HREF = {
   connections: '/connections',
   connectionNew: '/connections/new',
   connectionById: (id: string) => `/connections/${id}`,
+  profile: '/profile',
   admin: '/admin',
   invite: '/invite',
   signIn: '/auth/sign-in',

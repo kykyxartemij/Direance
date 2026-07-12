@@ -3,7 +3,8 @@
 import { createContext, use, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import type { ArtColor } from '@/components/ui/art.types';
-import type { MappingModel } from '@/models/mapping.models';
+import type { MappingModel, ReportType } from '@/models/mapping.models';
+import type { ConnectionLightModel, ConnectionType } from '@/models/connection.models';
 import {
   applyMappingMultiSheet,
   type TotalColumnInfo,
@@ -36,7 +37,7 @@ export type UploadedReport = {
   /** Originating Connection id (only set when source === 'connection'). Used to refetch with new filters. */
   connectionId?: string;
   /** Driver type of the originating Connection — drives per-driver filter UI. */
-  connectionType?: 'merit' | 'odoo';
+  connectionType?: ConnectionType;
   /** ISO timestamp of last successful fetch from the connection (connection sources only). */
   fetchedAt?: string;
   /** Whether this report contributes to the combined Dashboard view. Defaults to true. */
@@ -62,7 +63,7 @@ type ReportContextValue = {
   reports: UploadedReport[];
   addReport: (file: File) => Promise<void>;
   /** Add a report built from connection-driver output. Builds a synthetic xlsx workbook so the rest of the pipeline (mapping, viewer, export) works unchanged. */
-  addReportFromSheets: (fileName: string, sheets: ConnectionSheet[], opts?: { connectionId?: string; connectionType?: 'merit' | 'odoo'; fetchedAt?: string }) => string;
+  addReportFromSheets: (fileName: string, sheets: ConnectionSheet[], opts?: { connectionId?: string; connectionType?: ConnectionType; fetchedAt?: string }) => string;
   /** Replace the data of an existing connection-sourced report (refetch path). Re-applies the existing mapping if one was set. */
   replaceReportSheets: (id: string, sheets: ConnectionSheet[], fetchedAt?: string) => void;
   removeReport: (id: string) => void;
@@ -75,6 +76,14 @@ type ReportContextValue = {
 };
 
 // ==== Helpers ====
+
+// Connection-sourced reports are typed by their Connection (always known).
+// File-sourced reports are untyped until a Mapping is applied — undefined until then,
+// which is why every consumer that splits reports by type must handle the undefined case.
+export function getReportType(report: UploadedReport, connections: ConnectionLightModel[]): ReportType | undefined {
+  if (report.connectionId) return connections.find((c) => c.id === report.connectionId)?.reportType;
+  return report.mapping?.reportType;
+}
 
 function buildMappedReport(report: UploadedReport, mapping: MappingModel): MappedReport {
   const sheetsConfig = mapping.config.sheetsConfig ?? {};
@@ -141,7 +150,7 @@ export function ReportProvider({ children }: { children: React.ReactNode }) {
     ]);
   }
 
-  function addReportFromSheets(fileName: string, sheets: ConnectionSheet[], opts?: { connectionId?: string; connectionType?: 'merit' | 'odoo'; fetchedAt?: string }): string {
+  function addReportFromSheets(fileName: string, sheets: ConnectionSheet[], opts?: { connectionId?: string; connectionType?: ConnectionType; fetchedAt?: string }): string {
     const { workbook, activeSheet, rowIndents } = buildSheetsWorkbook(sheets);
     const id = crypto.randomUUID();
     setReports((prev) => [

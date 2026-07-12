@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
-import Dashboard from '@/page/dashboard/Dashboard';
 
-export const metadata: Metadata = { title: 'Dashboard' };
+export const metadata: Metadata = { title: 'Direance' };
 
 export default function Page() {
-  return <Dashboard />;
+  return (
+    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+      Welcome to Direance.
+    </p>
+  );
 }

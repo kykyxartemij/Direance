@@ -33,7 +33,7 @@ const MAPPING_SELECT_PAGED = {
 } as const;
 
 // Full — detail view, adds config and full exportSetting
-const MAPPING_SELECT = {
+export const MAPPING_SELECT = {
   id: true,
   name: true,
   isGlobal: true,

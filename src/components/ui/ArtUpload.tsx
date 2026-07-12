@@ -4,6 +4,7 @@ import React, { useId, useRef, useState, type Ref } from 'react';
 import ArtLabel from './ArtLabel';
 import ArtIcon from './ArtIcon';
 import ArtIconButton from './ArtIconButton';
+import ArtHelperText from './ArtHelperText';
 import { cn } from './art.utils';
 
 interface ArtUploadProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type' | 'size'> {
@@ -12,6 +13,7 @@ interface ArtUploadProps extends Omit<React.InputHTMLAttributes<HTMLInputElement
   /** Short hint below the icon, e.g. "MP4, WebM · max 500 MB" */
   hint?: string;
   helperText?: string;
+  errorText?: string;
   readOnly?: boolean;
 }
 
@@ -21,7 +23,7 @@ function formatSize(bytes: number): string {
 }
 
 function ArtUpload({
-  label, hint, helperText, onChange, id: idProp, required, className, disabled, readOnly = false, ref, ...rest
+  label, hint, helperText, errorText, onChange, id: idProp, required, className, disabled, readOnly = false, ref, ...rest
 }: ArtUploadProps) {
   const generatedId = useId();
   const id = idProp ?? generatedId;
@@ -128,7 +130,7 @@ function ArtUpload({
         )}
       </label>
 
-      {helperText && <p className="art-field-helper">{helperText}</p>}
+      <ArtHelperText errorText={errorText} helperText={helperText} />
     </div>
   );
 }

@@ -1,0 +1,8 @@
+// Postgres-backed rate limiting — owned by check_rate_limit() in functions.sql.
+// Re-run functions.sql after any prisma db push to keep the function intact.
+
+model RateLimit {
+  key          String   @id
+  count        Int
+  window_start DateTime @default(now())
+}

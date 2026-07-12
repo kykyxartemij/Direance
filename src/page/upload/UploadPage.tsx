@@ -5,9 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useReports } from '@/providers/ReportProvider';
 import ArtUpload from '@/components/ui/ArtUpload';
 import ArtButton from '@/components/ui/ArtButton';
-import ArtTabs from '@/components/ui/ArtTabs';
-import FormSection from '@/components/FormSection';
-import ConnectionImport from './ConnectionImport';
 
 export default function UploadPage() {
   const { addReport } = useReports();
@@ -15,7 +12,6 @@ export default function UploadPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [tab, setTab] = useState<'file' | 'connection'>('file');
 
   async function handleUpload(skipMapping: boolean) {
     if (!file) return;
@@ -29,52 +25,33 @@ export default function UploadPage() {
   }
 
   return (
-    <>
-      <ArtTabs
-        value={tab}
-        onChange={(v) => setTab(v as 'file' | 'connection')}
-        tabs={[
-          { value: 'file',       label: 'From file' },
-          { value: 'connection', label: 'From connection' },
-        ]}
+    <div className="flex flex-col gap-3">
+      <ArtUpload
+        ref={fileInputRef}
+        label="Report file"
+        hint="Excel (.xlsx, .xls)"
+        accept=".xlsx,.xls"
+        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
       />
 
-      {tab === 'file' && (
-        <FormSection title="Upload">
-          <ArtUpload
-            ref={fileInputRef}
-            label="Report file"
-            hint="Excel (.xlsx, .xls)"
-            accept=".xlsx,.xls"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
-
-          <div className="mt-4 flex justify-end gap-3">
-            <ArtButton
-              variant="outlined"
-              loading={loading}
-              disabled={!file}
-              onClick={() => handleUpload(true)}
-            >
-              Skip mapping
-            </ArtButton>
-            <ArtButton
-              color="primary"
-              loading={loading}
-              disabled={!file}
-              onClick={() => handleUpload(false)}
-            >
-              Add to reports
-            </ArtButton>
-          </div>
-        </FormSection>
-      )}
-
-      {tab === 'connection' && (
-        <FormSection title="Import from connection">
-          <ConnectionImport />
-        </FormSection>
-      )}
-    </>
+      <div className="mt-4 flex justify-end gap-3">
+        <ArtButton
+          variant="outlined"
+          loading={loading}
+          disabled={!file}
+          onClick={() => handleUpload(true)}
+        >
+          Skip mapping
+        </ArtButton>
+        <ArtButton
+          color="primary"
+          loading={loading}
+          disabled={!file}
+          onClick={() => handleUpload(false)}
+        >
+          Add to reports
+        </ArtButton>
+      </div>
+    </div>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useId, useState, type Ref } from 'react';
+import ArtHelperText from './ArtHelperText';
 import { type ArtColor, ART_COLOR_CLASS } from './art.types';
 import { cn } from './art.utils';
 
@@ -8,6 +9,7 @@ interface ArtSwitchProps extends Omit<React.InputHTMLAttributes<HTMLInputElement
   ref?: Ref<HTMLInputElement>;
   label?: string;
   helperText?: string;
+  errorText?: string;
   size?: 'sm' | 'md' | 'lg';
   color?: ArtColor;
 }
@@ -19,7 +21,7 @@ const SIZE_CLASS: Record<NonNullable<ArtSwitchProps['size']>, string> = {
 };
 
 function ArtSwitch({
-  label, helperText, size = 'md', color, id: idProp, className, checked, defaultChecked, onChange, disabled, readOnly, required, ref, ...rest
+  label, helperText, errorText, size = 'md', color, id: idProp, className, checked, defaultChecked, onChange, disabled, readOnly, required, ref, ...rest
 }: ArtSwitchProps) {
   const generatedId = useId();
   const id = idProp ?? generatedId;
@@ -71,7 +73,7 @@ function ArtSwitch({
         </span>
       )}
     </label>
-    {helperText && <p className="art-field-helper">{helperText}</p>}
+    <ArtHelperText errorText={errorText} helperText={helperText} />
     </>
   );
 }

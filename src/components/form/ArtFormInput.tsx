@@ -23,7 +23,8 @@ export function ArtFormInput({ name, helperText, ...props }: ArtFormInputProps) 
           {...field}
           value={field.value ?? ''}
           error={!!fieldState.error}
-          helperText={fieldState.error?.message ?? helperText}
+          errorText={fieldState.error?.message}
+          helperText={helperText}
         />
       )}
     />

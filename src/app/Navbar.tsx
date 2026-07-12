@@ -6,6 +6,7 @@ import { signOut } from 'next-auth/react';
 import { useAuth } from '@/providers/AuthProvider';
 import { Permission, type PermissionCheck } from '@/lib/permissions';
 import ArtButton from '@/components/ui/ArtButton';
+import { HREF } from '@/lib/hrefUrl';
 
 // ==== Nav config ====
 // Single source of truth. Add a page here → it appears in the nav,
@@ -21,13 +22,19 @@ type NavItem = {
 
 const BRAND: NavItem = { label: 'Direance', href: '/', authOnly: false };
 
-const NAV_ITEMS: NavItem[] = [
-  { label: 'Mappings',        href: '/mappings' },
-  { label: 'Export Settings', href: '/export-settings' },
-  { label: 'Connections',     href: '/connections' },
-  { label: 'Profile',         href: '/profile' },
-  { label: 'Invite',          href: '/invite', permission: Permission.CAN_INVITE_USERS },
-  { label: 'Admin',           href: '/admin',  permission: Permission.CAN_ACCESS_STATS },
+// Items shown on the LEFT side of the header (next to the logo)
+const NAV_LEFT: NavItem[] = [
+  { label: 'Profit & Loss',      href: HREF.reportsPnl },
+  { label: 'Financial Position', href: HREF.reportsFinancialPosition },
+];
+
+// Items shown in the MIDDLE of the header
+const NAV_MIDDLE: NavItem[] = [
+  { label: 'Mappings',        href: HREF.mappings },
+  { label: 'Export Settings', href: HREF.exportSettings },
+  { label: 'Connections',     href: HREF.connections },
+  { label: 'Invite',          href: HREF.invite, permission: Permission.CAN_INVITE_USERS },
+  { label: 'Admin',           href: HREF.admin,  permission: Permission.CAN_ACCESS_STATS },
 ];
 
 // ==== Component ====
@@ -45,7 +52,17 @@ export default function Navbar() {
   const isActive = (href: string) =>
     pathname === href || (href !== '/' && pathname.startsWith(href));
 
-  const visibleItems = NAV_ITEMS.filter(isVisible);
+  const navLink = (item: NavItem) => (
+    <Link
+      key={item.href}
+      href={item.href}
+      prefetch={item.prefetch !== false}
+      className="text-sm"
+      style={{ color: isActive(item.href) ? 'var(--text)' : 'var(--text-muted)' }}
+    >
+      {item.label}
+    </Link>
+  );
 
   return (
     <nav
@@ -56,8 +73,9 @@ export default function Navbar() {
       }}
       className="px-6 py-3"
     >
-      <div className={`mx-auto flex max-w-7xl items-center ${user ? 'justify-between' : 'justify-center'}`}>
-        <div className="flex items-center gap-6">
+      <div className="mx-auto flex max-w-7xl items-center gap-6">
+        {/* Left: brand + primary report pages */}
+        <div className="flex items-center gap-6 shrink-0">
           <Link
             href={BRAND.href}
             prefetch={BRAND.prefetch !== false}
@@ -66,33 +84,31 @@ export default function Navbar() {
           >
             {BRAND.label}
           </Link>
-
-          {user && (
-            <div className="flex items-center gap-4">
-              {visibleItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  prefetch={item.prefetch !== false}
-                  className="text-sm"
-                  style={{ color: isActive(item.href) ? 'var(--text)' : 'var(--text-muted)' }}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-          )}
+          {user && NAV_LEFT.flatMap((item) => (isVisible(item) ? [navLink(item)] : []))}
         </div>
 
+        {/* Middle: secondary nav — grows to push right section to edge */}
         {user && (
-          <div className="flex items-center gap-4">
-            <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          <div className="flex flex-1 items-center justify-center gap-4">
+            {NAV_MIDDLE.flatMap((item) => (isVisible(item) ? [navLink(item)] : []))}
+          </div>
+        )}
+
+        {/* Right: email (→ profile) + sign out */}
+        {user && (
+          <div className="flex items-center gap-4 shrink-0">
+            <Link
+              href={HREF.profile}
+              prefetch
+              className="text-sm"
+              style={{ color: isActive(HREF.profile) ? 'var(--text)' : 'var(--text-muted)' }}
+            >
               {user.email}
-            </span>
+            </Link>
             <ArtButton
               variant="ghost"
               size="sm"
-              onClick={() => signOut({ callbackUrl: '/auth/sign-in' })}
+              onClick={() => signOut({ callbackUrl: HREF.signIn })}
             >
               Sign out
             </ArtButton>

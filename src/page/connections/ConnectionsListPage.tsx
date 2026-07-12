@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useGetPagedConnections, useDeleteConnection } from '@/hooks/connection.hooks';
 import type { ConnectionModel } from '@/models/connection.models';
+import { CONNECTION_TYPE_LABELS } from '@/models/connection.models';
 import type { ArtColumn } from '@/components/ui/ArtDataTable';
 import ArtData from '@/components/ui/ArtData';
 import ArtButton from '@/components/ui/ArtButton';
@@ -13,6 +14,12 @@ import { FSLink } from '@/components/FSLink';
 // ==== Constants ====
 
 const PAGE_SIZE = 20;
+
+// ==== Helpers ====
+
+function formatTypeLabel(row: ConnectionModel): string {
+  return CONNECTION_TYPE_LABELS[row.type] ?? row.type?.toUpperCase() ?? '—';
+}
 
 // ==== Page ====
 
@@ -38,7 +45,7 @@ export default function ConnectionsListPage() {
       key: 'type',
       label: 'Type',
       sizing: { width: 120, renderLoading: true },
-      render: (row) => row.type?.toUpperCase() ?? '—',
+      render: formatTypeLabel,
     },
     {
       key: 'mapping',

@@ -1,7 +1,7 @@
 /* eslint-disable local/use-fetch-client */
 import 'server-only';
-import type { DriverInput, RawReport } from './index';
-import type { OdooConfig, OdooSecret } from '@/models/connection.models';
+import type { RawReport } from './index';
+import type { OdooConfig, OdooSecret, PnlFetchFiltersModel, FinancialPositionFetchFiltersModel } from '@/models/connection.models';
 import { ApiError } from '@/models/api-error';
 
 // ==== Odoo driver ====
@@ -9,8 +9,17 @@ import { ApiError } from '@/models/api-error';
 //   1. authenticate → uid
 //   2. execute_kw(db, uid, password, 'account.move.line', 'search_read', [domain], { fields, limit })
 //
-// First pass: pulls account.move.line for a date range. Mapping turns the
-// flat list into the row shape downstream code expects.
+// Two separate functions (P&L / Financial Position), mirroring the Merit
+// driver split, even though the query logic is currently identical — keeps
+// the two report types independently changeable as Odoo support grows
+// (e.g. Financial Position will eventually need a real balance-sheet query,
+// not the same account.move.line pull as P&L).
+
+type OdooDriverInput<F> = {
+  config: Record<string, unknown>;
+  secret: unknown;
+  filters: F;
+};
 
 const FIELDS = ['date', 'account_id', 'name', 'debit', 'credit', 'balance', 'journal_id', 'partner_id'];
 
@@ -31,7 +40,11 @@ async function rpc(url: string, service: string, method: string, args: unknown[]
   return data.result;
 }
 
-export async function runOdooDriver({ config, secret, filters }: DriverInput): Promise<RawReport> {
+async function fetchAccountMoveLines(
+  config: Record<string, unknown>,
+  secret: unknown,
+  filters: { dateFrom?: string; dateTo?: string; extras?: Record<string, unknown> },
+): Promise<Record<string, unknown>[]> {
   const { url, db, username } = config as unknown as OdooConfig;
   const { password } = secret as OdooSecret;
 
@@ -53,8 +66,21 @@ export async function runOdooDriver({ config, secret, filters }: DriverInput): P
     { fields: FIELDS, limit: 10_000 },
   ]) as Record<string, unknown>[];
 
+  return Array.isArray(rows) ? rows : [];
+}
+
+export async function runOdooPnlDriver({ config, secret, filters }: OdooDriverInput<PnlFetchFiltersModel>): Promise<RawReport> {
+  const rows = await fetchAccountMoveLines(config, secret, filters);
   return {
-    sheets: [{ name: filters.reportType ?? 'gl', rows: Array.isArray(rows) ? rows : [] }],
+    sheets: [{ name: 'pnl', rows }],
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+export async function runOdooFinancialPositionDriver({ config, secret, filters }: OdooDriverInput<FinancialPositionFetchFiltersModel>): Promise<RawReport> {
+  const rows = await fetchAccountMoveLines(config, secret, filters);
+  return {
+    sheets: [{ name: 'financial_position', rows }],
     fetchedAt: new Date().toISOString(),
   };
 }

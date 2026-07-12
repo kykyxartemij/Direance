@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useForm, type Resolver } from 'react-hook-form';
+import { useForm, useWatch, type Resolver } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import {
@@ -17,14 +17,12 @@ import FormSection from '@/components/FormSection';
 import GlobalPageLoader from '@/components/GlobalPageLoader';
 import {
   CONNECTION_TYPES,
-  MERIT_COUNTRIES,
+  CONNECTION_TYPE_LABELS,
   type ConnectionType,
-  type MeritCountry,
   type CreateConnectionModel,
   type UpdateConnectionModel,
 } from '@/models/connection.models';
 import { REPORT_TYPES, REPORT_TYPE_LABELS, type ReportType } from '@/models/mapping.models';
-// REPORT_TYPES + REPORT_TYPE_LABELS used in REPORT_TYPE_OPTIONS below
 
 // ==== Types ====
 
@@ -33,7 +31,7 @@ interface ConnectionFormPageProps {
 }
 
 // Form values flat: per-type fields appear only when their type is selected.
-// Submit-time we narrow into the discriminated CreateConnectionModel shape.
+// type itself now encodes the Merit country — no separate meritCountry field.
 type FormValues = {
   name:       string;
   type:       ConnectionType;
@@ -41,9 +39,8 @@ type FormValues = {
   isDefault:  boolean;
   mappingId:  string | null;
 
-  meritCountry?: MeritCountry;
-  meritApiKey?:    string;
-  meritApiId?:     string;
+  meritApiKey?: string;
+  meritApiId?:  string;
 
   odooUrl?:      string;
   odooDb?:       string;
@@ -52,6 +49,11 @@ type FormValues = {
 };
 
 const REPORT_TYPE_OPTIONS = REPORT_TYPES.map((r) => ({ label: REPORT_TYPE_LABELS[r], value: r }));
+const CONNECTION_TYPE_OPTIONS = CONNECTION_TYPES.map((t) => ({ label: CONNECTION_TYPE_LABELS[t], value: t }));
+
+function isMeritType(type: ConnectionType | undefined): boolean {
+  return type === 'merit_estonia' || type === 'merit_poland';
+}
 
 const formSchema = yup.object({
   name:       yup.string().trim().min(1, 'Name is required').required('Name is required'),
@@ -60,9 +62,8 @@ const formSchema = yup.object({
   isDefault:  yup.boolean().default(false),
   mappingId:  yup.string().uuid('Mapping ID must be UUID').nullable(),
 
-  meritCountry:   yup.string().when('type', { is: 'merit', then: (s) => s.oneOf(MERIT_COUNTRIES).required('Country is required') }),
-  meritApiKey:    yup.string().when('type', { is: 'merit', then: (s) => s.required('API key is required') }),
-  meritApiId:     yup.string().when('type', { is: 'merit', then: (s) => s.required('API ID is required') }),
+  meritApiKey: yup.string().when('type', { is: isMeritType, then: (s) => s.required('API key is required') }),
+  meritApiId:  yup.string().when('type', { is: isMeritType, then: (s) => s.required('API ID is required') }),
 
   odooUrl:      yup.string().when('type', { is: 'odoo', then: (s) => s.url('Must be a valid URL').required('URL is required') }),
   odooDb:       yup.string().when('type', { is: 'odoo', then: (s) => s.required('Database is required') }),
@@ -111,21 +112,19 @@ interface ConnectionFormProps {
 }
 
 function ConnectionForm({ id, existing, isEdit, onSuccess, enqueueSuccess, enqueueError }: ConnectionFormProps) {
-  const meritCfg = existing?.type === 'merit' ? (existing.config as Record<string, string>) : undefined;
-  const odooCfg  = existing?.type === 'odoo'  ? (existing.config as Record<string, string>) : undefined;
+  const odooCfg = existing?.type === 'odoo' ? (existing.config as Record<string, string>) : undefined;
 
   const methods = useForm<FormValues>({
     resolver: yupResolver(formSchema) as Resolver<FormValues>,
     defaultValues: {
       name:       existing?.name ?? '',
-      type:       (existing?.type as ConnectionType) ?? 'merit',
+      type:       (existing?.type as ConnectionType) ?? 'merit_estonia',
       reportType: (existing?.reportType as ReportType) ?? 'pnl',
       isDefault:  existing?.isDefault ?? false,
       mappingId:  existing?.mapping?.id ?? null,
 
-      meritCountry:   (meritCfg?.country as MeritCountry) ?? 'estonia',
-      meritApiKey:    '',
-      meritApiId:     '',
+      meritApiKey: '',
+      meritApiId:  '',
 
       odooUrl:      odooCfg?.url ?? '',
       odooDb:       odooCfg?.db ?? '',
@@ -134,8 +133,8 @@ function ConnectionForm({ id, existing, isEdit, onSuccess, enqueueSuccess, enque
     },
   });
 
-  const type       = methods.watch('type');
-  const reportType = methods.watch('reportType');
+  const type       = useWatch({ control: methods.control, name: 'type' }) as ConnectionType;
+  const reportType = useWatch({ control: methods.control, name: 'reportType' }) as ReportType;
 
   const { data: mappings = [] } = useGetLightMappings();
   const mappingOptions = mappings.flatMap((m) =>
@@ -147,20 +146,17 @@ function ConnectionForm({ id, existing, isEdit, onSuccess, enqueueSuccess, enque
   const [secretCleared, setSecretCleared] = useState(false);
 
   async function onSave(data: FormValues) {
-    const config =
-      data.type === 'merit'
-        ? { country: data.meritCountry! }
-        : { url: data.odooUrl!, db: data.odooDb!, username: data.odooUsername! };
+    const config = data.type === 'odoo'
+      ? { url: data.odooUrl!, db: data.odooDb!, username: data.odooUsername! }
+      : {};
 
-    const secretFilled =
-      data.type === 'merit'
-        ? !!(data.meritApiKey || data.meritApiId)
-        : !!data.odooPassword;
+    const secretFilled = isMeritType(data.type)
+      ? !!(data.meritApiKey || data.meritApiId)
+      : !!data.odooPassword;
 
-    const secret =
-      data.type === 'merit'
-        ? { apiKey: data.meritApiKey ?? '', apiId: data.meritApiId ?? '' }
-        : { password: data.odooPassword ?? '' };
+    const secret = isMeritType(data.type)
+      ? { apiKey: data.meritApiKey ?? '', apiId: data.meritApiId ?? '' }
+      : { password: data.odooPassword ?? '' };
 
     const baseBody = {
       name:       data.name,
@@ -172,7 +168,6 @@ function ConnectionForm({ id, existing, isEdit, onSuccess, enqueueSuccess, enque
     };
 
     if (isEdit) {
-      // On edit, only send secret when user typed new values — else keep stored secret.
       const body: Omit<UpdateConnectionModel, 'id'> = secretFilled
         ? { ...baseBody, secret }
         : baseBody;
@@ -206,35 +201,14 @@ function ConnectionForm({ id, existing, isEdit, onSuccess, enqueueSuccess, enque
       ]}
     >
       <ArtFormInput name="name" label="Name" required />
-      <ArtFormSelect
-        name="type"
-        label="Type"
-        options={CONNECTION_TYPES.map((t) => ({ label: t.toUpperCase(), value: t }))}
-      />
-      <ArtFormSelect
-        name="reportType"
-        label="Report Type"
-        options={REPORT_TYPE_OPTIONS}
-      />
-      <ArtFormSelect
-        name="mappingId"
-        label="Mapping (optional)"
-        options={mappingOptions}
-        clearable
-      />
-      <ArtFormCheckbox
-        name="isDefault"
-        label="Active by default (auto-load on Dashboard)"
-      />
+      <ArtFormSelect name="type" label="Type" options={CONNECTION_TYPE_OPTIONS} />
+      <ArtFormSelect name="reportType" label="Report Type" options={REPORT_TYPE_OPTIONS} />
+      <ArtFormSelect name="mappingId" label="Mapping (optional)" options={mappingOptions} clearable />
+      <ArtFormCheckbox name="isDefault" label="Active by default (auto-load on Dashboard)" />
 
-      {type === 'merit' && (
-        <FormSection title="Merit.ee">
-          <ArtFormSelect
-            name="meritCountry"
-            label="Country"
-            options={MERIT_COUNTRIES.map((c) => ({ label: c === 'estonia' ? 'Estonia' : 'Poland', value: c }))}
-          />
-          <ArtFormInput name="meritApiId"     label="API ID" required={!isEdit} />
+      {isMeritType(type) && (
+        <FormSection title={CONNECTION_TYPE_LABELS[type]}>
+          <ArtFormInput name="meritApiId" label="API ID" required={!isEdit} />
           <ArtFormInput
             name="meritApiKey"
             label="API Key"

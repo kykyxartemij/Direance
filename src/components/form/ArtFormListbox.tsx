@@ -2,6 +2,7 @@
 
 import { Controller, useFormContext } from 'react-hook-form';
 import ArtListbox, { type ArtListboxProps, type ArtListboxOption } from '@/components/ui/ArtListbox';
+import ArtHelperText from '@/components/ui/ArtHelperText';
 
 // ==== Types ====
 
@@ -31,9 +32,7 @@ export function ArtFormListbox({ name, helperText, ...props }: ArtFormListboxPro
               field.onChange(next);
             }}
           />
-          {(fieldState.error?.message ?? helperText) && (
-            <p className="art-field-helper">{fieldState.error?.message ?? helperText}</p>
-          )}
+          <ArtHelperText errorText={fieldState.error?.message} helperText={helperText} />
         </>
       )}
     />

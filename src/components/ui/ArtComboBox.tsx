@@ -6,6 +6,7 @@ import { useAnchoredPanel } from './art.hooks';
 import ArtInput from './ArtInput';
 import ArtBadge from './ArtBadge';
 import ArtLabel from './ArtLabel';
+import ArtHelperText from './ArtHelperText';
 import ArtListbox from './ArtListbox';
 import ArtIcon, { type ArtIconProps, type ArtIconName } from './ArtIcon';
 import { type ArtOption, type ArtColor, ART_COLOR_CLASS } from './art.types';
@@ -22,6 +23,7 @@ interface ArtComboBoxBaseProps {
   options: ArtComboBoxOption[];
   label?: string;
   helperText?: string;
+  errorText?: string;
   required?: boolean;
   placeholder?: string;
   icon?: ArtIconProps;
@@ -211,6 +213,7 @@ function ArtComboBox(props: ArtComboBoxProps) {
     options,
     label,
     helperText,
+    errorText,
     required,
     placeholder,
     icon,
@@ -501,7 +504,7 @@ function ArtComboBox(props: ArtComboBoxProps) {
         document.body,
       )}
       </div>
-      {helperText && <p className="art-field-helper">{helperText}</p>}
+      <ArtHelperText errorText={errorText} helperText={helperText} />
     </div>
   );
 }

@@ -1,17 +1,30 @@
 /* eslint-disable local/use-fetch-client */
 import 'server-only';
 import crypto from 'crypto';
-import type { DriverInput, RawReport } from './index';
-import { MERIT_BASE_URLS, type MeritConfig, type MeritSecret } from '@/models/connection.models';
+import type { RawReport } from './index';
+import { MERIT_BASE_URLS, type MeritSecret, type PnlFetchFiltersModel, type FinancialPositionFetchFiltersModel } from '@/models/connection.models';
 import { ApiError } from '@/models/api-error';
 
 // ==== Merit.ee driver ====
-// Fetches one report per call: 'financial_position' (getbalancerep) or 'pnl' (getprofitrep).
-// filters.reportType selects which one (defaults to 'pnl').
+// Two separate functions, not one switch on reportType — getbalancerep
+// (Financial Position) and getprofitrep (P&L) are different endpoints with
+// different payloads. Per the real API spec (PDF: Merit_Aktiva_API_specification,
+// v1), the ONLY accepted fields are:
+//   getprofitrep:  EndDate (Str), PerCount (Int), DepFilter (Str, optional)
+//   getbalancerep: EndDate (Str), PerCount (Int) — no DepFilter
+// There is no SumPeriods, date-range, journal, or account-prefix concept on
+// Merit's side at all — those are Odoo-only (see odoo.ts). Do not add them
+// back here without a doc reference confirming the real param name.
 //
-// Date range: dateFrom + dateTo → EndDate = dateTo, PerCount = month diff.
 // Auth: POST JSON body, auth params in URL query string.
 // Docs: https://api.merit.ee/connecting-robots/reference-manual/authentication/
+
+type MeritDriverInput<F> = {
+  type: 'merit_estonia' | 'merit_poland';
+  config: Record<string, unknown>;
+  secret: unknown;
+  filters: F;
+};
 
 function toMeritDate(iso: string): string {
   return iso.replace(/-/g, '');
@@ -24,7 +37,6 @@ function defaultEndDate(): string {
 function meritTimestamp(): string {
   return new Date().toISOString().replace(/[-T:.Z]/g, '').slice(0, 14);
 }
-
 
 async function meritPost(
   baseUrl: string,
@@ -90,34 +102,36 @@ function flattenMeritRows(data: unknown): Record<string, unknown>[] {
   });
 }
 
-export async function runMeritDriver({ config, secret, filters, reportType }: DriverInput): Promise<RawReport> {
-  const { country }       = config as unknown as MeritConfig;
+export async function runMeritPnlDriver({ type, secret, filters }: MeritDriverInput<PnlFetchFiltersModel>): Promise<RawReport> {
   const { apiKey, apiId } = secret as MeritSecret;
-  const baseUrl           = MERIT_BASE_URLS[country];
+  const baseUrl           = MERIT_BASE_URLS[type];
 
   const endDate  = filters.endDate ? toMeritDate(filters.endDate) : defaultEndDate();
   const perCount = filters.perCount ?? 1;
-  const fetchedAt = new Date().toISOString();
 
-  let data: unknown;
-  switch (reportType) {
-    case 'financial_position':
-      data = await meritPost(baseUrl, 'getbalancerep', apiId, apiKey, { EndDate: endDate, PerCount: perCount });
-      break;
-    case 'pnl':
-      data = await meritPost(baseUrl, 'getprofitrep', apiId, apiKey, {
-        EndDate: endDate,
-        PerCount: perCount,
-        DepFilter: '',
-        ...(filters.sumPeriods ? { SumPeriods: true } : {}),
-      });
-      break;
-    default:
-      throw new ApiError(`Merit: unknown reportType "${reportType}"`, 400);
-  }
+  const data = await meritPost(baseUrl, 'getprofitrep', apiId, apiKey, {
+    EndDate: endDate,
+    PerCount: perCount,
+    DepFilter: filters.depFilter ?? '',
+  });
 
   return {
-    sheets: [{ name: reportType, rows: flattenMeritRows(data) }],
-    fetchedAt,
+    sheets: [{ name: 'pnl', rows: flattenMeritRows(data) }],
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+export async function runMeritFinancialPositionDriver({ type, secret, filters }: MeritDriverInput<FinancialPositionFetchFiltersModel>): Promise<RawReport> {
+  const { apiKey, apiId } = secret as MeritSecret;
+  const baseUrl           = MERIT_BASE_URLS[type];
+
+  const endDate  = filters.endDate ? toMeritDate(filters.endDate) : defaultEndDate();
+  const perCount = filters.perCount ?? 1;
+
+  const data = await meritPost(baseUrl, 'getbalancerep', apiId, apiKey, { EndDate: endDate, PerCount: perCount });
+
+  return {
+    sheets: [{ name: 'financial_position', rows: flattenMeritRows(data) }],
+    fetchedAt: new Date().toISOString(),
   };
 }

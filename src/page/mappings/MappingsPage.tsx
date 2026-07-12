@@ -39,18 +39,19 @@ export default function MappingsPage() {
       key: 'name',
       label: 'Name',
       sizing: { width: 180, renderLoading: true },
-      render: (row) => (
-        <div className="flex items-center gap-2">
-          <span>{row.name}</span>
-          {row.isGlobal && <ArtBadge size="sm" color="primary">Global</ArtBadge>}
-        </div>
-      ),
+      render: (row) => row.name,
     },
     {
       key: 'reportType',
       label: 'Report Type',
       sizing: { width: 180, renderLoading: true },
       render: (row) => REPORT_TYPE_LABELS[row.reportType] ?? row.reportType,
+    },
+    {
+      key: 'isGlobal',
+      label: 'Global',
+      sizing: { width: 100, renderLoading: true },
+      render: (row) => (row.isGlobal ? <ArtBadge size="sm" color="primary">Global</ArtBadge> : null),
     },
     {
       key: 'exportSetting',

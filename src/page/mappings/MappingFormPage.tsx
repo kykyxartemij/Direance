@@ -3,7 +3,7 @@
 import { useMemo, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import GlobalPageLoader from '@/components/GlobalPageLoader';
-import { useForm, type Resolver } from 'react-hook-form';
+import { useForm, useWatch, type Resolver } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { useGetMappingById, useCreateMapping, useUpdateMapping } from '@/hooks/mapping.hooks';
@@ -94,6 +94,7 @@ function MappingFormInner({ id, mapping }: { id?: string; mapping?: MappingModel
 
   const initialRows = useMemo(() => rowsFromMapping(mapping), [mapping]);
   const initialExportSettingId = mapping?.exportSetting?.id ?? null;
+  const reportType = useWatch({ control: methods.control, name: 'reportType' });
 
   async function onSave(data: FormValues) {
     const collectedRows = rowsSectionRef.current?.getRowMappings() ?? [];
@@ -184,6 +185,7 @@ function MappingFormInner({ id, mapping }: { id?: string; mapping?: MappingModel
         initialLayout={mapping?.config.sourceLayout ?? DEFAULT_MAPPING_CONFIG.sourceLayout}
         initialSheetLayouts={mapping?.config.sheetLayouts}
         initialSheetsConfig={mapping?.config.sheetsConfig}
+        reportType={reportType}
       />
       <RowMappingsSection
         ref={rowsSectionRef}

@@ -27,7 +27,8 @@ export function ArtFormComboBox({ name, helperText, options = EMPTY_OPTIONS, ...
           options={options}
           selected={options.find((o) => o.value === (field.value as string | null | undefined)) ?? null}
           onChange={(opt: ArtComboBoxOption | null) => field.onChange(opt?.value ?? null)}
-          helperText={fieldState.error?.message ?? helperText}
+          errorText={fieldState.error?.message}
+          helperText={helperText}
           ref={field.ref}
         />
       )}

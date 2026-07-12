@@ -37,6 +37,7 @@ When working in an area, read the relevant guide first:
 | TanStack Query mutations, optimistic updates | `docs/TanStackMutationGuide.md` |
 | Navigation, links, loading states, page structure (page/layout/loading.tsx), ArtTitle | `docs/InstantNavigationAndLoadingState.md` |
 | Tailwind CSS reference — width/height, flex, grid, positioning, overflow, breakpoints, z-index | `docs/LayoutGuide.md` |
+| UI consistency — don't gate components on empty data, let them own their empty state | `docs/UIConsistencyGuide.md` |
 
 ---
 

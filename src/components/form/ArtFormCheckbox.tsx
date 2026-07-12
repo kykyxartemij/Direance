@@ -23,7 +23,8 @@ export function ArtFormCheckbox({ name, helperText, ...props }: ArtFormCheckboxP
           checked={field.value ?? false}
           onChange={(e) => field.onChange(e.target.checked)}
           ref={field.ref}
-          helperText={fieldState.error?.message ?? helperText}
+          errorText={fieldState.error?.message}
+          helperText={helperText}
         />
       )}
     />

@@ -2,12 +2,14 @@
 
 import React, { useId, type Ref } from 'react';
 import ArtLabel from './ArtLabel';
+import ArtHelperText from './ArtHelperText';
 import { type ArtColor, ART_COLOR_CLASS } from './art.types';
 import { cn } from './art.utils';
 
 interface ArtTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   ref?: Ref<HTMLTextAreaElement>;
   helperText?: string;
+  errorText?: string;
   color?: ArtColor;
   error?: boolean;
   /** Cap auto-grow at this number of visible rows, then show a scrollbar */
@@ -16,7 +18,7 @@ interface ArtTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElem
 }
 
 function ArtTextarea({
-  className, helperText, color, error, maxRows, style, onChange, rows = 1, label, id: idProp, required, ref, ...rest
+  className, helperText, errorText, color, error, maxRows, style, onChange, rows = 1, label, id: idProp, required, ref, ...rest
 }: ArtTextareaProps) {
   const generatedId = useId();
   const id = idProp ?? generatedId;

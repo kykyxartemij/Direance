@@ -3,114 +3,44 @@
 import { useState } from 'react';
 import { useReports } from '@/providers/ReportProvider';
 import { useGetLightConnections, useRefreshConnectionReports } from '@/hooks/connection.hooks';
-import ArtInput from '@/components/ui/ArtInput';
 import ArtButton from '@/components/ui/ArtButton';
-import ArtCheckbox from '@/components/ui/ArtCheckbox';
-import { REPORT_TYPE_LABELS } from '@/models/mapping.models';
+import PnlFilterForm from '@/page/connections/PnlFilterForm';
+import FinancialPositionFilterForm from '@/page/connections/FinancialPositionFilterForm';
+import { defaultPnlFilterValues, buildPnlFetchFilters, type PnlFilterValues } from '@/page/connections/pnlFilterFields';
+import {
+  defaultFinancialPositionFilterValues,
+  buildFinancialPositionFetchFilters,
+  type FinancialPositionFilterValues,
+} from '@/page/connections/financialPositionFilterFields';
 import type { ReportType } from '@/models/mapping.models';
-import type { FetchFiltersModel } from '@/models/connection.models';
 
-// ==== Filter state per connection ====
+// ==== Per-active-connection refresh bar — scoped to one report page's type ====
+// Mounted once per report page (pnl / financial position), only ever shows
+// connections of that page's reportType — see PnlFilterForm /
+// FinancialPositionFilterForm (kept separate on purpose).
 
-type ConnectionFilters = {
-  perCount: number;
-  endDate: string;
-  sumPeriods: boolean;
+type Props = {
+  reportType: ReportType;
 };
 
-function defaultFilters(): ConnectionFilters {
-  const today = new Date().toISOString().slice(0, 10);
-  return { perCount: 3, endDate: today, sumPeriods: false };
-}
-
-// ==== Per-connection filter card ====
-
-interface ConnectionFilterCardProps {
-  connectionId: string;
-  reportId: string;
-  name: string;
-  reportType: string;
-  filters: ConnectionFilters;
-  onChange: (f: ConnectionFilters) => void;
-  onSubmit: () => void;
-  loading: boolean;
-}
-
-function ConnectionFilterCard({
-  name, reportType, filters, onChange, onSubmit, loading,
-}: ConnectionFilterCardProps) {
-  const isPnl = reportType === 'pnl';
-  const label = REPORT_TYPE_LABELS[reportType as ReportType] ?? reportType;
-
-  return (
-    <div className="art-data-filters">
-      <div className="art-data-filters-bar" style={{ flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <span className="text-xs font-medium" style={{ color: 'var(--text-muted)', alignSelf: 'center', marginRight: 4 }}>
-          {name} · {label}
-        </span>
-
-        <ArtInput
-          label="Periods"
-          type="number"
-          min={1}
-          max={24}
-          value={String(filters.perCount)}
-          onChange={(e) => onChange({ ...filters, perCount: Math.max(1, Number(e.target.value) || 1) })}
-          style={{ width: 90 }}
-        />
-
-        <ArtInput
-          label={isPnl ? 'Period end date' : 'Balance date'}
-          type="date"
-          value={filters.endDate}
-          onChange={(e) => onChange({ ...filters, endDate: e.target.value })}
-          style={{ width: 160 }}
-        />
-
-        {isPnl && (
-          <ArtCheckbox
-            label="Sum periods"
-            size="sm"
-            checked={filters.sumPeriods}
-            onChange={(e) => onChange({ ...filters, sumPeriods: e.target.checked })}
-          />
-        )}
-
-        <ArtButton color="primary" loading={loading} onClick={onSubmit} style={{ alignSelf: 'flex-end' }}>
-          Get report
-        </ArtButton>
-      </div>
-    </div>
-  );
-}
-
-// ==== Main component ====
-
-export default function ConnectionRefreshBar() {
+export default function ConnectionRefreshBar({ reportType }: Props) {
   const { reports } = useReports();
-  const { data: connections = [] } = useGetLightConnections();
+  const { data: allConnections = [] } = useGetLightConnections();
+  const connections = allConnections.filter((c) => c.reportType === reportType);
   const { mutate: refresh, isPending } = useRefreshConnectionReports();
 
-  const [filterMap, setFilterMap] = useState<Record<string, ConnectionFilters>>({});
+  const [pnlValuesMap, setPnlValuesMap] = useState<Record<string, PnlFilterValues>>({});
+  const [finPosValuesMap, setFinPosValuesMap] = useState<Record<string, FinancialPositionFilterValues>>({});
 
-  const activeConnectionReports = reports.filter((r) => r.source === 'connection' && r.connectionId && r.active);
+  const activeConnectionReports = reports.filter(
+    (r) => r.source === 'connection' && r.active && connections.some((c) => c.id === r.connectionId),
+  );
   if (activeConnectionReports.length === 0) return null;
 
-  function getFilters(connectionId: string): ConnectionFilters {
-    return filterMap[connectionId] ?? defaultFilters();
-  }
-
-  function setFilters(connectionId: string, f: ConnectionFilters) {
-    setFilterMap((prev) => ({ ...prev, [connectionId]: f }));
-  }
-
   function handleSubmit(reportId: string, connectionId: string) {
-    const f = getFilters(connectionId);
-    const filters: FetchFiltersModel = {
-      perCount:   f.perCount,
-      endDate:    f.endDate || undefined,
-      sumPeriods: f.sumPeriods || undefined,
-    };
+    const filters = reportType === 'pnl'
+      ? buildPnlFetchFilters(pnlValuesMap[connectionId] ?? defaultPnlFilterValues())
+      : buildFinancialPositionFetchFilters(finPosValuesMap[connectionId] ?? defaultFinancialPositionFilterValues());
     refresh([{ reportId, connectionId, filters }]);
   }
 
@@ -118,18 +48,35 @@ export default function ConnectionRefreshBar() {
     <div className="flex flex-col gap-2">
       {activeConnectionReports.map((r) => {
         const conn = connections.find((c) => c.id === r.connectionId);
+        if (!conn) return null;
         return (
-          <ConnectionFilterCard
-            key={r.id}
-            connectionId={r.connectionId!}
-            reportId={r.id}
-            name={conn?.name ?? r.fileName}
-            reportType={conn?.reportType ?? 'pnl'}
-            filters={getFilters(r.connectionId!)}
-            onChange={(f) => setFilters(r.connectionId!, f)}
-            onSubmit={() => handleSubmit(r.id, r.connectionId!)}
-            loading={isPending}
-          />
+          <div key={r.id} className="art-data-filters">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+                {conn.name}
+              </span>
+              <ArtButton color="primary" size="sm" loading={isPending} onClick={() => handleSubmit(r.id, conn.id)}>
+                Get report
+              </ArtButton>
+            </div>
+            {reportType === 'pnl' ? (
+              <PnlFilterForm
+                connectionType={conn.type}
+                values={pnlValuesMap[conn.id] ?? defaultPnlFilterValues()}
+                onChange={(key, value) =>
+                  setPnlValuesMap((prev) => ({ ...prev, [conn.id]: { ...(prev[conn.id] ?? defaultPnlFilterValues()), [key]: value } }))
+                }
+              />
+            ) : (
+              <FinancialPositionFilterForm
+                connectionType={conn.type}
+                values={finPosValuesMap[conn.id] ?? defaultFinancialPositionFilterValues()}
+                onChange={(key, value) =>
+                  setFinPosValuesMap((prev) => ({ ...prev, [conn.id]: { ...(prev[conn.id] ?? defaultFinancialPositionFilterValues()), [key]: value } }))
+                }
+              />
+            )}
+          </div>
         );
       })}
     </div>

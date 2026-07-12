@@ -4,7 +4,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useReports, type ConnectionSheet } from '@/providers/ReportProvider';
 import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
-import { fetchMappingById } from '@/hooks/mapping.hooks';
 import fetchClient from '@/lib/fetchClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
@@ -14,10 +13,19 @@ import type {
   ConnectionType,
   CreateConnectionModel,
   UpdateConnectionModel,
-  FetchFiltersModel,
+  PnlFetchFiltersModel,
+  FinancialPositionFetchFiltersModel,
 } from '@/models/connection.models';
+import type { MappingModel } from '@/models/mapping.models';
 import type { PaginatedResponse } from '@/models/paginated-response.model';
 import type { ApiError } from '@/models/api-error';
+
+// Two independent request shapes — see connection.models.ts. Not one shared
+// FetchFiltersModel; this union exists only so a single hook can route to
+// whichever of the two BE endpoints matches.
+type ConnectionFetchFilters =
+  | ({ reportType: 'pnl' } & PnlFetchFiltersModel)
+  | ({ reportType: 'financial_position' } & FinancialPositionFetchFiltersModel);
 
 // ==== Queries ====
 
@@ -96,56 +104,34 @@ export function useDeleteConnection() {
   });
 }
 
-// ==== Fetch external data ====
-// FE-cached per (connection, filters) for the session. staleTime: Infinity so
-// the same filter set never re-hits BE in one session — matches the "one
-// session thing" expectation. User must explicitly refetch to bust.
+// ==== Fetch many connection sheets by ids (batch — 1 request per reportType, BE coalesces DB) ====
+// Two BE endpoints (financial-position / pnl) behind one call — the only
+// branching FE does is picking the URL for the reportType already on the
+// filters; no merit/odoo knowledge here at all.
 
-export function useFetchFromConnection(id: string | undefined, filters: FetchFiltersModel, enabled: boolean) {
-  return useQuery({
-    queryKey: queryKeys.connection.fetch(id ?? '', filters),
-    queryFn: async () => {
-      const { data } = await fetchClient.post(API.connection.fetch(id!), filters);
-      return data;
-    },
-    enabled: !!id && enabled,
-    staleTime: Infinity,
-    gcTime: Infinity,
-  });
+// mapping comes joined on the connection row server-side — no separate
+// getMappingById round trip. null when the connection has no mapping linked.
+type FetchManyResult = Record<string, { sheets: ConnectionSheet[]; fetchedAt: string; mapping: MappingModel | null }>;
+
+async function fetchConnectionsByIds(ids: string[], filters: ConnectionFetchFilters): Promise<FetchManyResult> {
+  const url = filters.reportType === 'pnl' ? API.connection.fetchProfit() : API.connection.fetchFinancialPosition();
+  const { data } = await fetchClient.post<FetchManyResult>(url, { ids, ...filters });
+  return data;
 }
 
-// ==== Fetch single connection sheets (sidebar load/refresh) ====
-
-export function useFetchConnectionSheets() {
-  return useMutation<{ sheets: ConnectionSheet[]; fetchedAt: string }, ApiError, string>({
-    mutationFn: async (connectionId) => {
-      const { data } = await fetchClient.post<{ sheets: ConnectionSheet[]; fetchedAt: string }>(
-        API.connection.fetch(connectionId), {},
-      );
-      return data;
-    },
-  });
-}
-
-// ==== Fetch many connection sheets by ids (batch — 1 request, BE coalesces DB) ====
-
-type FetchManyInput = { ids: string[] } & FetchFiltersModel;
-type FetchManyResult = Record<string, { sheets: ConnectionSheet[]; fetchedAt: string }>;
+type FetchManyInput = { ids: string[] } & ConnectionFetchFilters;
 
 export function useFetchFromConnectionsByIds() {
   return useMutation<FetchManyResult, ApiError, FetchManyInput>({
-    mutationFn: async ({ ids, ...filters }) => {
-      const { data } = await fetchClient.post<FetchManyResult>(API.connection.fetchMany(), { ids, ...filters });
-      return data;
-    },
+    mutationFn: ({ ids, ...filters }) => fetchConnectionsByIds(ids, filters),
   });
 }
 
 // ==== Refresh connection reports ====
-// All business logic lives here: fetch each active connection, replace sheets,
-// surface success/error via snackbar. Component calls mutate() with no try/catch.
+// All business logic lives here: fetch each target, replace sheets, surface
+// success/error via snackbar. Component calls mutate() with no try/catch.
 
-type RefreshTarget = { reportId: string; connectionId: string; filters: FetchFiltersModel };
+type RefreshTarget = { reportId: string; connectionId: string; filters: ConnectionFetchFilters };
 type RefreshResult = { reportId: string; sheets: ConnectionSheet[]; fetchedAt: string };
 
 export function useRefreshConnectionReports() {
@@ -154,16 +140,11 @@ export function useRefreshConnectionReports() {
   const { enqueueError, enqueueSuccess } = useArtSnackbar();
 
   return useMutation<RefreshResult[], ApiError, RefreshTarget[]>({
-    mutationFn: async (targets) =>
-      Promise.all(
-        targets.map(async (t) => {
-          const { data } = await fetchClient.post<{ sheets: ConnectionSheet[]; fetchedAt: string }>(
-            API.connection.fetch(t.connectionId),
-            t.filters,
-          );
-          return { reportId: t.reportId, sheets: data.sheets, fetchedAt: data.fetchedAt };
-        }),
-      ),
+    mutationFn: (targets) =>
+      Promise.all(targets.map(async (t) => {
+        const data = await fetchConnectionsByIds([t.connectionId], t.filters);
+        return { reportId: t.reportId, ...data[t.connectionId] };
+      })),
     onSuccess: (results) => {
       for (const r of results) replaceReportSheets(r.reportId, r.sheets, r.fetchedAt);
       enqueueSuccess(`Refreshed ${results.length} report${results.length > 1 ? 's' : ''}`);
@@ -181,8 +162,7 @@ type ConnectionImportInput = {
   connectionId: string;
   connectionName: string;
   connectionType: ConnectionType | undefined;
-  mappingId: string | undefined;
-  filters: FetchFiltersModel;
+  filters: ConnectionFetchFilters;
   skipMapping: boolean;
 };
 
@@ -193,22 +173,17 @@ export function useImportFromConnection() {
   const { enqueueError } = useArtSnackbar();
 
   return useMutation({
-    mutationFn: async ({ connectionId, connectionName, connectionType, mappingId, filters, skipMapping }: ConnectionImportInput) => {
-      const { data } = await fetchClient.post<{ sheets: ConnectionSheet[]; fetchedAt: string }>(
-        API.connection.fetch(connectionId),
-        filters,
-      );
+    mutationFn: async ({ connectionId, connectionName, connectionType, filters, skipMapping }: ConnectionImportInput) => {
+      const result = await fetchConnectionsByIds([connectionId], filters);
+      const data = result[connectionId];
       const fileName = `${connectionName}-${new Date(data.fetchedAt).toISOString().slice(0, 10)}`;
       const id = addReportFromSheets(fileName, data.sheets, {
         connectionId,
         connectionType,
         fetchedAt: data.fetchedAt,
       });
-      if (!skipMapping && mappingId) {
-        const mapping = await fetchMappingById(queryClient, mappingId);
-        setMapping(id, mapping);
-      }
-      return { skipMapping, hasMappingId: !!mappingId };
+      if (!skipMapping && data.mapping) setMapping(id, data.mapping);
+      return { skipMapping, hasMappingId: !!data.mapping };
     },
     onSuccess: ({ skipMapping, hasMappingId }) => {
       queryClient.invalidateQueries({ queryKey: ['placeholder'] });

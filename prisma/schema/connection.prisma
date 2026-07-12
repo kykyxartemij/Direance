@@ -1,14 +1,20 @@
 // ─────────────────────────────────────────────────────────────────
 //  Connection — external integration credentials + config
-//  type: 'merit' | 'odoo' (extend as drivers added)
+//  type: 'merit_estonia' | 'merit_poland' | 'odoo' (extend as drivers added)
 //  config: non-secret per-type fields (URLs, db names, company ids)
 //  secret: pgcrypto-encrypted JSON blob (api keys, passwords). Never selected
 //          in listing queries — only decrypted server-side during fetch.
 //  mappingId: optional link to a FieldMapping used to normalize fetched data.
+//
+//  `merit` is kept temporarily during the merit_estonia/merit_poland split —
+//  see prisma/migrate_merit_country.sql. Remove it from this enum only after
+//  that script's UPDATE step has run against every environment (no rows left
+//  with type = 'merit'), then db push again.
 // ─────────────────────────────────────────────────────────────────
 
 enum ConnectionType {
-  merit
+  merit_estonia
+  merit_poland
   odoo
 }
 

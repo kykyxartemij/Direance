@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useReports } from '@/providers/ReportProvider';
+import { useReports, getReportType } from '@/providers/ReportProvider';
+import { useGetLightConnections } from '@/hooks/connection.hooks';
 import { useGetLightExportSettings, useGetExportSettingById } from '@/hooks/export-settings.hooks';
+import type { ReportType } from '@/models/mapping.models';
 import ArtBadge from '@/components/ui/ArtBadge';
 import ArtComboBox, { type ArtComboBoxOption } from '@/components/ui/ArtComboBox';
 import ArtDataTable, { type ArtColumn } from '@/components/ui/ArtDataTable';
@@ -150,8 +152,14 @@ const VIEW_TABS = [
   { value: 'excel', label: 'Excel' },
 ];
 
-export default function Dashboard() {
-  const { reports } = useReports();
+type DashboardProps = {
+  reportType: ReportType;
+};
+
+export default function Dashboard({ reportType }: DashboardProps) {
+  const { reports: allReports } = useReports();
+  const { data: connections = [] } = useGetLightConnections();
+  const reports = allReports.filter((r) => getReportType(r, connections) === reportType);
   const [view, setView] = useState('table');
 
   // Default ExportSetting comes from the first mapped report's linked ExportSetting.
@@ -247,7 +255,7 @@ export default function Dashboard() {
       </div>
 
       {/* Filters + table/excel */}
-      <ConnectionRefreshBar />
+      <ConnectionRefreshBar reportType={reportType} />
 
       {view === 'table' ? (
         <ArtDataTable<Row>

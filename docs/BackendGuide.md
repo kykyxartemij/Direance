@@ -389,6 +389,48 @@ if (results.length === 0) throw new ApiError('Mapping not found', 404);
 
 No "fetch then check then act". One query does all three.
 
+### Batch fetch by ids — `createBatchLoader` + per-id cache
+
+N individual cache-aware lookups, 1 DB call on a shared cache miss. `createBatchLoader`
+(`src/lib/batchLoader.ts`) coalesces every key requested in the same microtask into one
+`findMany`, then hands each caller back its own row from the result map:
+
+```ts
+const loadRow = createBatchLoader(
+  (batchIds: string[]) =>
+    prisma.connection.findMany({
+      where: { id: { in: batchIds }, userId, reportType: 'pnl' }, // reportType — see caveat below
+      select: { id: true, type: true, reportType: true, config: true, secret: true, mapping: { select: MAPPING_SELECT } },
+    }),
+  (row: { id: string }) => row.id,
+);
+
+const entries = await Promise.all(
+  ids.map(async (id) => {
+    const result = await cached(
+      async () => {
+        const row = await loadRow(id);          // batched: N calls here → 1 findMany
+        if (!row) throw new ApiError('Connection not found', 404);
+        // ... decrypt secret, run driver, return report
+      },
+      CACHE_KEYS.connection.fetch(userId, 'pnl', id, filters), // per-id cache entry
+    );
+    return [id, result] as const;
+  }),
+);
+```
+
+Each `ids.map` iteration calls `cached()` independently — on a full cache hit, `loadRow` never
+runs at all. Only the misses hit `findMany`, and they collapse into one query no matter how
+many ids miss in the same request.
+
+**Caveat — every filter the handler is scoped to must also be in the batch `where`.** This
+endpoint is already pinned to `reportType: 'pnl'` (it's `fetchProfitConnectionsByIds`, a
+separate function from the financial-position one — see Validation Architecture in
+CLAUDE.md). If `reportType` were left out of `where`, a `financial_position` connection id
+passed to this endpoint would still match the `findMany` and leak through — the URL/endpoint
+choice alone isn't enough, the DB query has to enforce it too.
+
 ### deleteManyAndReturn (custom extension)
 
 Postgres doesn't support `DELETE ... RETURNING` natively in Prisma ORM. `withCrud` in `src/lib/prismaCrud.ts` adds it as a Prisma extension using `$queryRaw` internally. Accepts Prisma-style `where` (equality + OR), `select`, and optional `limit`. Return type is inferred from `select` — no manual generics at the call site.

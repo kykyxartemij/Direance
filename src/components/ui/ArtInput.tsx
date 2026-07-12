@@ -4,6 +4,7 @@ import React, { useCallback, useId, useRef, useState, type Ref } from 'react';
 import { ArtIcon, ArtIconProps } from './ArtIcon';
 import ArtIconButton from './ArtIconButton';
 import ArtLabel from './ArtLabel';
+import ArtHelperText from './ArtHelperText';
 import { useArtDebounced } from './art.hooks';
 import { type ArtColor, ART_COLOR_CLASS } from './art.types';
 import { cn } from './art.utils';
@@ -13,6 +14,7 @@ interface ArtInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>
   icon?: ArtIconProps;
   clearable?: boolean;
   helperText?: string;
+  errorText?: string;
   debounce?: boolean | number;
   onDebouncedChange?: (value: string) => void;
   color?: ArtColor;
@@ -26,6 +28,7 @@ function ArtInput({
   icon,
   clearable,
   helperText,
+  errorText,
   debounce: debounceMs = false,
   onDebouncedChange,
   onChange,
@@ -109,7 +112,7 @@ function ArtInput({
           />
         )}
       </div>
-      {helperText && <p className="art-field-helper">{helperText}</p>}
+      <ArtHelperText errorText={errorText} helperText={helperText} />
     </div>
   );
 }

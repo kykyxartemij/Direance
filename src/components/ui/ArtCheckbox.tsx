@@ -2,6 +2,7 @@
 
 import { useId, useState, type Ref } from 'react';
 import ArtIcon from './ArtIcon';
+import ArtHelperText from './ArtHelperText';
 import { type ArtColor, ART_COLOR_CLASS } from './art.types';
 import { cn } from './art.utils';
 
@@ -11,6 +12,7 @@ interface ArtCheckboxProps extends Omit<React.InputHTMLAttributes<HTMLInputEleme
   ref?: Ref<HTMLInputElement>;
   label?: string;
   helperText?: string;
+  errorText?: string;
   size?: 'sm' | 'md' | 'lg';
   color?: ArtColor;
 }
@@ -24,7 +26,7 @@ const SIZE_CLASS: Record<NonNullable<ArtCheckboxProps['size']>, string> = {
 // ==== Component ====
 
 function ArtCheckbox({
-  label, helperText, size = 'md', color, id: idProp, className, checked, defaultChecked, onChange, disabled, readOnly, required, ref, ...rest
+  label, helperText, errorText, size = 'md', color, id: idProp, className, checked, defaultChecked, onChange, disabled, readOnly, required, ref, ...rest
 }: ArtCheckboxProps) {
   const generatedId = useId();
   const id = idProp ?? generatedId;
@@ -77,7 +79,7 @@ function ArtCheckbox({
         </span>
       )}
     </label>
-    {helperText && <p className="art-field-helper">{helperText}</p>}
+    <ArtHelperText errorText={errorText} helperText={helperText} />
     </>
   );
 }
