@@ -1,3 +1,11 @@
+/* eslint-disable react-doctor/control-has-associated-label */
+/* eslint-disable no-console */
+/* eslint-disable react-doctor/design-no-redundant-size-axes */
+/* eslint-disable react-doctor/design-no-redundant-padding-axes */
+/* eslint-disable local/no-dialog-trigger-onclick */
+/* eslint-disable react-doctor/jsx-no-jsx-as-prop */
+/* eslint-disable react-doctor/design-no-em-dash-in-jsx-text */
+/* eslint-disable react-doctor/nextjs-missing-metadata */
 /* eslint-disable local/require-loading-page */
 'use client';
 

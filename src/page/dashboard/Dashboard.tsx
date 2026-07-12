@@ -223,7 +223,7 @@ export default function Dashboard() {
               {unmappedReports.map((r) => (
                 <FSLink key={r.id} href={HREF.upload}>
                   <ArtBadge color="warning" size="sm">
-                    {r.fileName} — unmapped
+                    {r.fileName} (unmapped)
                   </ArtBadge>
                 </FSLink>
               ))}

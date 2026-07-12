@@ -44,6 +44,7 @@ export const API = {
       `/api/connections/paged?page=${page}&pageSize=${pageSize}${freeText ? `&freeText=${encodeURIComponent(freeText)}` : ''}`,
     byId: (id: string) => `/api/connections/${id}`,
     fetch: (id: string) => `/api/connections/${id}/fetch`,
+    fetchMany: () => '/api/connections/fetch',
   },
   currency: {
     list: () => '/api/currencies',

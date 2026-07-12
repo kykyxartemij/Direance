@@ -114,6 +114,33 @@ export function useFetchFromConnection(id: string | undefined, filters: FetchFil
   });
 }
 
+// ==== Fetch single connection sheets (sidebar load/refresh) ====
+
+export function useFetchConnectionSheets() {
+  return useMutation<{ sheets: ConnectionSheet[]; fetchedAt: string }, ApiError, string>({
+    mutationFn: async (connectionId) => {
+      const { data } = await fetchClient.post<{ sheets: ConnectionSheet[]; fetchedAt: string }>(
+        API.connection.fetch(connectionId), {},
+      );
+      return data;
+    },
+  });
+}
+
+// ==== Fetch many connection sheets by ids (batch — 1 request, BE coalesces DB) ====
+
+type FetchManyInput = { ids: string[] } & FetchFiltersModel;
+type FetchManyResult = Record<string, { sheets: ConnectionSheet[]; fetchedAt: string }>;
+
+export function useFetchFromConnectionsByIds() {
+  return useMutation<FetchManyResult, ApiError, FetchManyInput>({
+    mutationFn: async ({ ids, ...filters }) => {
+      const { data } = await fetchClient.post<FetchManyResult>(API.connection.fetchMany(), { ids, ...filters });
+      return data;
+    },
+  });
+}
+
 // ==== Refresh connection reports ====
 // All business logic lives here: fetch each active connection, replace sheets,
 // surface success/error via snackbar. Component calls mutate() with no try/catch.

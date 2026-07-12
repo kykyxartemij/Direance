@@ -11,7 +11,17 @@ This project is about **architecture and rules**, not shipping fast. Every decis
 
 **No dev/prod separation.** There is one environment — treat every change as production. No "fix it later", no hardcoded test data, no skipped validation.
 
+**Exception: `src/app/ui/**`.** This is the Art component showcase/dev page, not shipped product surface. It's ok for it to be lint-dirty or break convention (metadata, console.log, em dashes, etc.). Don't "fix" warnings here unless asked.
+
 This is an ecosystem project, not a single website. Rules and reusability apply on both BE and FE. A quick solution that doesn't fit the pattern is wrong even if it works.
+
+---
+
+## ==== Known Lint False Positives ====
+
+- **`react-doctor/nextjs-no-use-search-params-without-suspense`** — false positive project-wide. Every page that calls `useSearchParams()` has a sibling `loading.tsx`, which is itself the Suspense boundary (see Navigation Rule). Leave the warning visible, do not suppress or refactor around it.
+- **`react-doctor/async-parallel`** / **`react-doctor/server-sequential-independent-await`** — false positive on BE handler files. Sequential awaits there are a gate chain (validate → rate limit → DB limit → write); `Promise.all` would bypass gates. Already config-disabled for BE files in `eslint.config.mjs` (see Backend Handler Rule) — this is the one sanctioned config-level suppression, not a silent inline disable.
+- **`react-doctor/exhaustive-deps`** — NOT a blanket false positive, mostly accurate. The rule's own docs name one narrow exception: a captured value intentionally excluded (mount-only effect, or a function known to be referentially stable) that the static check can't prove safe. Only in that exact case is a justified `// eslint-disable-next-line` + `// NOTE:` acceptable, matching the existing Comment Style policy. Anywhere else, a missing-dep warning is a real bug — fix it, don't suppress it.
 
 ---
 

@@ -3,16 +3,14 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
-import { useGetLightConnections } from '@/hooks/connection.hooks';
+import { useGetLightConnections, useFetchConnectionSheets } from '@/hooks/connection.hooks';
 import { fetchMappingById } from '@/hooks/mapping.hooks';
-import { useReports, type ConnectionSheet } from '@/providers/ReportProvider';
+import { useReports } from '@/providers/ReportProvider';
 import { useAuth } from '@/providers/AuthProvider';
 import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
 import ArtCheckbox from '@/components/ui/ArtCheckbox';
 import ArtIconButton from '@/components/ui/ArtIconButton';
 import ArtBadge from '@/components/ui/ArtBadge';
-import fetchClient from '@/lib/fetchClient';
-import { API } from '@/lib/apiUrl';
 import { HREF } from '@/lib/hrefUrl';
 import { REPORT_TYPE_LABELS } from '@/models/mapping.models';
 import type { ReportType } from '@/models/mapping.models';
@@ -52,6 +50,7 @@ interface ConnectionRowProps {
 function ConnectionRow({ connection, loadedReportId, onToggle, toggling }: ConnectionRowProps) {
   const { reports, removeReport, setActive, replaceReportSheets } = useReports();
   const { enqueueError } = useArtSnackbar();
+  const { mutateAsync: fetchSheets } = useFetchConnectionSheets();
   const [refreshing, setRefreshing] = useState(false);
   const report = loadedReportId ? reports.find((r) => r.id === loadedReportId) : undefined;
 
@@ -59,9 +58,7 @@ function ConnectionRow({ connection, loadedReportId, onToggle, toggling }: Conne
     if (!report) return;
     setRefreshing(true);
     try {
-      const { data } = await fetchClient.post<{ sheets: ConnectionSheet[]; fetchedAt: string }>(
-        API.connection.fetch(connection.id), {},
-      );
+      const data = await fetchSheets(connection.id);
       replaceReportSheets(report.id, data.sheets, data.fetchedAt);
     } catch (err) {
       enqueueError(err as Error, 'Failed to refresh');
@@ -130,6 +127,7 @@ export default function ReportSidebar() {
   const { reports, addReportFromSheets, removeReport, setActive, replaceReportSheets, setMapping } = useReports();
   const { data: connections = [] } = useGetLightConnections();
   const { enqueueError } = useArtSnackbar();
+  const { mutateAsync: fetchSheets } = useFetchConnectionSheets();
 
   // Track which connection → loaded report id
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -147,9 +145,7 @@ export default function ReportSidebar() {
     didAutoLoad.current = true;
     void Promise.all(defaults.map(async (c) => {
       try {
-        const { data } = await fetchClient.post<{ sheets: ConnectionSheet[]; fetchedAt: string }>(
-          API.connection.fetch(c.id), {},
-        );
+        const data = await fetchSheets(c.id);
         const id = addReportFromSheets(`${c.name}-${data.fetchedAt.slice(0, 10)}`, data.sheets, {
           connectionId: c.id,
           connectionType: c.type,
@@ -161,15 +157,13 @@ export default function ReportSidebar() {
         }
       } catch { /* silent — auto-load failure doesn't block */ }
     }));
-  }, [connections, reports, addReportFromSheets, setMapping, queryClient]);
+  }, [connections, reports, addReportFromSheets, setMapping, queryClient, fetchSheets]);
 
   async function toggleConnection(connection: ConnectionLightModel, load: boolean) {
     setTogglingId(connection.id);
     try {
       if (load) {
-        const { data } = await fetchClient.post<{ sheets: ConnectionSheet[]; fetchedAt: string }>(
-          API.connection.fetch(connection.id), {},
-        );
+        const data = await fetchSheets(connection.id);
         const id = addReportFromSheets(`${connection.name}-${data.fetchedAt.slice(0, 10)}`, data.sheets, {
           connectionId: connection.id,
           connectionType: connection.type,
@@ -203,7 +197,7 @@ export default function ReportSidebar() {
       <SectionLabel>Connections</SectionLabel>
       {connections.length === 0 && (
         <p className="px-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-          No connections — <Link href="/connections/new" className="underline">create one</Link>
+          No connections, <Link href={HREF.connectionNew} prefetch className="underline">create one</Link>
         </p>
       )}
       {connections.map((c) => {
@@ -222,7 +216,7 @@ export default function ReportSidebar() {
       {/* Manual uploads */}
       <SectionLabel>Manual Uploads</SectionLabel>
       <Link
-        href="/upload"
+        href={HREF.upload}
         prefetch
         className="mb-1 px-2 py-1.5 rounded text-sm"
         style={{ color: 'var(--text-muted)', display: 'block' }}

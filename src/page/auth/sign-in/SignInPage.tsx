@@ -59,7 +59,7 @@ export default function SignInPage() {
 
       {verified && (
         <p className="mb-4 text-sm" style={{ color: 'var(--art-success)' }}>
-          Account created — you can sign in now.
+          Account created, you can sign in now.
         </p>
       )}
 

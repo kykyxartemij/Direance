@@ -63,7 +63,7 @@ function ReadonlySummary({
 
       {sheets.length === 0 ? (
         <div className="text-sm">
-          <span style={{ color: 'var(--text-muted)' }}>Primary layout — </span>
+          <span style={{ color: 'var(--text-muted)' }}>Primary layout: </span>
           <span>header row {layout.headerRow + 1}, {layout.regions.length} region{layout.regions.length !== 1 ? 's' : ''}</span>
           {layout.regions.length > 0 && (
             <ul className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>

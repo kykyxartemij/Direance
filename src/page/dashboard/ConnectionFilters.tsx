@@ -1,13 +1,11 @@
 'use client';
 
 import { useReducer } from 'react';
-import { useReports, type ConnectionSheet, type UploadedReport } from '@/providers/ReportProvider';
-import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
+import { useReports, type UploadedReport } from '@/providers/ReportProvider';
+import { useRefreshConnectionReports } from '@/hooks/connection.hooks';
 import ArtInput from '@/components/ui/ArtInput';
 import ArtSelect, { type ArtSelectOption } from '@/components/ui/ArtSelect';
 import ArtButton from '@/components/ui/ArtButton';
-import fetchClient from '@/lib/fetchClient';
-import { API } from '@/lib/apiUrl';
 import type { FetchFiltersModel } from '@/models/connection.models';
 import { REPORT_TYPES, REPORT_TYPE_LABELS } from '@/models/mapping.models';
 
@@ -150,8 +148,8 @@ function OdooFilterRow({ reports, runRefresh }: { reports: UploadedReport[]; run
 // ==== Main filter panel ====
 
 export default function ConnectionFilters() {
-  const { reports, replaceReportSheets } = useReports();
-  const { enqueueError, enqueueSuccess } = useArtSnackbar();
+  const { reports } = useReports();
+  const { mutateAsync: refreshReports } = useRefreshConnectionReports();
 
   const connectionReports = reports.filter((r) => r.source === 'connection' && r.connectionId);
   if (connectionReports.length === 0) return null;
@@ -160,18 +158,7 @@ export default function ConnectionFilters() {
   const odooReports  = connectionReports.filter((r) => r.connectionType === 'odoo');
 
   async function runRefresh(targetReports: UploadedReport[], filters: FetchFiltersModel) {
-    try {
-      await Promise.all(targetReports.map(async (r) => {
-        const { data } = await fetchClient.post<{ sheets: ConnectionSheet[]; fetchedAt: string }>(
-          API.connection.fetch(r.connectionId!),
-          filters,
-        );
-        replaceReportSheets(r.id, data.sheets, data.fetchedAt);
-      }));
-      enqueueSuccess(`Refreshed ${targetReports.length} report${targetReports.length > 1 ? 's' : ''}`);
-    } catch (err) {
-      enqueueError(err as Error, 'Failed to refresh');
-    }
+    await refreshReports(targetReports.map((r) => ({ reportId: r.id, connectionId: r.connectionId!, filters })));
   }
 
   return (

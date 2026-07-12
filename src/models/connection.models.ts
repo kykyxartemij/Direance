@@ -141,3 +141,9 @@ export const FetchFiltersValidator = yup.object({
   sumPeriods: yup.boolean().optional(),
   extras:     yup.object().optional(),
 });
+
+// ==== Fetch many filters ====
+
+export const FetchManyValidator = FetchFiltersValidator.shape({
+  ids: yup.array(yup.string().required()).min(1, 'ids is required').required('ids is required'),
+});

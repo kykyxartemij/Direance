@@ -2,6 +2,7 @@ import 'server-only';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cached, invalidateCache } from '@/lib/serverCache';
+import { createBatchLoader } from '@/lib/batchLoader';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { withHandler } from '@/lib/withHandler';
 import { getAuth } from '@/lib/requestContext';
@@ -13,6 +14,7 @@ import {
   CreateConnectionValidator,
   UpdateConnectionValidator,
   FetchFiltersValidator,
+  FetchManyValidator,
   type ConnectionType,
   type ConnectionSecret,
 } from '@/models/connection.models';
@@ -216,4 +218,45 @@ export const fetchFromConnection = withHandler<{ id: string }>(async (req, { par
   );
   
   return NextResponse.json(result);
+});
+
+// ==== Fetch many (batch by ids — 1 DB call for cache misses, N cache entries) ====
+
+export const fetchFromConnectionsByIds = withHandler(async (req) => {
+  const { userId, permissions } = getAuth();
+  const { ids, ...filters } = await FetchManyValidator.validate(await req.json(), { abortEarly: false });
+
+  await checkUserRequestLimit(req, userId, permissions);
+
+  const loadRow = createBatchLoader(
+    (batchIds: string[]) =>
+      prisma.connection.findMany({
+        where: { id: { in: batchIds }, userId },
+        select: { id: true, type: true, reportType: true, config: true, secret: true },
+      }),
+    (row: { id: string }) => row.id,
+  );
+
+  const entries = await Promise.all(
+    ids.map(async (id: string) => {
+      const result = await cached(
+        async () => {
+          const row = await loadRow(id);
+          if (!row) throw new ApiError('Connection not found', 404);
+          const secret = await decryptSecret<ConnectionSecret>(row.secret);
+          return runConnectionDriver({
+            type: row.type as ConnectionType,
+            reportType: row.reportType,
+            config: row.config as Record<string, unknown>,
+            secret,
+            filters,
+          });
+        },
+        CACHE_KEYS.connection.fetch(userId, id, filters),
+      );
+      return [id, result] as const;
+    }),
+  );
+
+  return NextResponse.json(Object.fromEntries(entries));
 });

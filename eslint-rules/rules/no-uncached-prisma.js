@@ -8,6 +8,10 @@
  * ✅ Good:
  *   cached(() => prisma.comment.findMany({ where: { videoId: id } }), CACHE_KEYS.comment.paged(...))
  *   cached(() => prisma.video.count(), CACHE_KEYS.video.count())
+ *   createBatchLoader((ids) => prisma.comment.findMany({ where: { id: { in: ids } } }), keyOf)
+ *     // ^ loadMany's result is per-key cached one layer up by the caller's own
+ *     //   cached(..., CACHE_KEYS...) — the batch key (the exact miss set) is never
+ *     //   stable across requests, so caching this call directly would never hit.
  *
  * ❌ Bad:
  *   prisma.comment.findMany({ where: { videoId: id } })  // bypasses server cache
@@ -54,9 +58,13 @@ function getPrismaMethodChain(node) {
   return parts.join('.');
 }
 
+// Wrappers whose first-class job is feeding a per-key cache one layer up, so a
+// direct Prisma read inside them is the intended cache-miss path, not a bypass.
+const ALLOWED_WRAPPERS = new Set(['cached', 'populateCache', 'createBatchLoader']);
+
 /**
- * Returns true if the node is inside cached(() => <here>).
- * Walks up through the arrow function and checks if the parent call is named 'cached'.
+ * Returns true if the node is inside one of ALLOWED_WRAPPERS(() => <here>).
+ * Walks up through the arrow function and checks if the parent call is named accordingly.
  */
 function isInsideCachedWrapper(node) {
   let current = node.parent;
@@ -66,7 +74,7 @@ function isInsideCachedWrapper(node) {
       current.parent?.type === 'CallExpression'
     ) {
       const parentCallee = current.parent.callee;
-      if (parentCallee.type === 'Identifier' && (parentCallee.name === 'cached' || parentCallee.name === 'populateCache')) {
+      if (parentCallee.type === 'Identifier' && ALLOWED_WRAPPERS.has(parentCallee.name)) {
         return true;
       }
     }

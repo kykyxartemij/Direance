@@ -53,7 +53,7 @@ export default function InviteLimitsSection() {
           className="rounded-lg p-6 text-sm"
           style={{ border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-muted)' }}
         >
-          Resend usage unavailable — set RESEND_API_KEY to enable.
+          Resend usage unavailable, set RESEND_API_KEY to enable.
         </div>
       </div>
     );
