@@ -53,8 +53,12 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
   const applyHeaderAllRef = useRef<HTMLInputElement>(null);
   const placeholderRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  const { data: fullSetting } = useGetExportSettingById(settingId ?? undefined);
-  const logoQuery = useGetLogoByExportSettingId(settingId ?? '');
+  const { data: fullSetting } = useGetExportSettingById(settingId ?? undefined, {
+    meta: { waitForLoading: true },
+  });
+  // enabled: false — logo bytes are expensive to fetch, only pull them right before
+  // export (handleExport calls refetch()), never speculatively on setting selection.
+  const logoQuery = useGetLogoByExportSettingId(settingId ?? '', { enabled: false });
 
   const options: ArtComboBoxOption[] = lightSettings.map((s) => ({
     label: s.name,

@@ -10,7 +10,7 @@ import { getAuth } from '@/lib/requestContext';
 import { ApiError } from '@/models/api-error';
 import { sendInviteEmail, fetchInviteLimits } from '@/lib/email';
 import { Permission } from '@/lib/permissions';
-import { checkUserRequestLimit } from '@/lib/rateLimiter';
+import { checkUserRequestLimit, checkPublicRequestLimit } from '@/lib/rateLimiter';
 import { buildSendInviteValidator, AcceptInviteValidator } from '@/models/invite.models';
 
 // ==== NOTES ====
@@ -69,6 +69,7 @@ export const sendInvite = withHandler(
 
 export const acceptInvite = withPublicHandler(async (req) => {
   const data = await AcceptInviteValidator.validate(await req.json(), { abortEarly: false });
+  await checkPublicRequestLimit(req);
 
   const invite = await cached(
     () => prisma.invite.findFirstWithCleanup({
@@ -111,10 +112,13 @@ export const lookupInvite = withPublicHandler(async (req) => {
   if (!token) throw new ApiError('Token is required', 400);
 
   const invite = await cached(
-    () => prisma.invite.findFirstWithCleanup({
-      where:  { token },
-      select: { id: true, email: true, invitedBy: true, permissions: true },
-    }),
+    async () => {
+      await checkPublicRequestLimit(req);
+      return prisma.invite.findFirstWithCleanup({
+        where:  { token },
+        select: { id: true, email: true, invitedBy: true, permissions: true },
+      });
+    },
     CACHE_KEYS.invite.byToken(token),
     INVITE_CACHE_TTL,
   );

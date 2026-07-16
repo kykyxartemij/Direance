@@ -73,28 +73,34 @@ Both return `{ userId, permissions }`:
 
 ## ==== Comment Style ====
 
-Section headers inside files use exactly this format:
+Section headers: `// ==== Title ====` exactly, no other decoration (`─`, `*`, `-`). Bare —
+no trailing explanation unless it's one line of genuine "why."
 
-```ts
-// ==== Title ====
-```
+**Every comment says why, never what.** The code already says what it is. Skip anything that
+restates a type, a name, or an obvious prop (`isLoading`, `disabled`, a self-describing name
+like `onlyFetchActiveByMappingBasedOnExportSetting`). Only comment when the name can't carry
+the reason — a non-obvious default, a unit, a cross-file contract, a driver-specific quirk
+(see the Odoo/Merit fields in `connection.models.ts`).
 
-No other decoration (`─`, `*`, `-`, etc.). This applies to all `.ts`, `.tsx`, `.js`, `.jsx` files.
+**Max 1–2 lines.** If the why needs a paragraph, fix the code instead (better name, smaller
+function) — don't write more prose. Never stack 4+ line blocks: no API-spec trivia, no
+restating a pattern already established elsewhere in the file, no justifying a choice nobody
+questioned.
 
-Comments (`//`) must be short and explanatory. Write **why it's here**, not **what it is** —
-the code already says what it is. Skip comments that restate an obvious type or name.
+**`/** */` vs `//`:** audience, not preference. `/** */` on exported helpers/factories/
+components read by callers who won't open the source file (`handleApiError`, `withCrud`,
+Art components). `//` for everything internal — logic, locals, section headers. Same 1–2
+line cap either way.
 
-`// NOTE:` is for **one purpose only**: pointing out something a future developer would find surprising or confusing that the code itself cannot show. Examples that qualify:
-- `ArtListbox` uses `role="option"` on `<li>` instead of a native `<option>` — non-obvious because it's a custom multi-select widget with no native equivalent.
-- A ref lazy-init pattern that conflicts with another lint rule — genuine catch-22 with no clean fix. In this specific case `// eslint-disable-next-line` is also acceptable since there is truly no alternative.
+**`// NOTE:`** flags something surprising the code can't show itself — e.g. `ArtListbox`
+using `role="option"` on `<li>` instead of a native `<option>` (custom widget, no native
+equivalent), or a genuine catch-22 with no clean fix. Write it once, on first occurrence —
+not repeated on every sibling that follows the same pattern.
 
-**`// NOTE:` is NOT a lint suppression tool.** Do not write a NOTE to explain "I didn't fix this lint rule because...". If a lint rule fires:
-- Fix exists → fix it, even if it needs a small refactor.
-- No fix and genuinely a false positive → leave the warning visible, flag it to the developer, move on. A broken lint rule in the open is better than one hidden behind a NOTE.
-
-Do **not** use `// NOTE:` to excuse a rule that has a fix. If no fix exists and you cannot ask the developer, leave the lint warning and continue — do not suppress it.
-
-If you encounter an existing `// eslint-disable` and know how to fix the underlying code, propose the fix to the developer instead of leaving the suppression.
+**Never use `// NOTE:` to excuse a fixable lint warning.** Fix exists → fix it. No fix and a
+genuine false positive → leave the warning visible and flag it, don't hide it behind a NOTE.
+Same for an existing `// eslint-disable`: if you know the fix, propose it instead of leaving
+the suppression.
 
 ---
 
@@ -145,46 +151,41 @@ tsc is enough.
 
 ## ==== Interactive State Rule ====
 
-Every clickable/selectable UI element must implement **4 distinct visual states** in this exact CSS cascade order (later = higher priority):
+Every clickable/selectable element needs **4 visually distinct states**, defined in this CSS
+cascade order (later = higher priority, so later rules must come later in the stylesheet):
 
-| Layer   | State            | How triggered              | Mechanism          |
-|---------|------------------|----------------------------|--------------------|
-| 1 base  | default          | resting, nothing happening | base CSS class     |
-| 2 hover | cursor over it   | `:hover`                   | pure CSS           |
-| 3 press | being clicked    | `:active` or `[data-pressing]` | CSS or DOM attr |
-| 4 sel   | persistently on  | `--selected` / `checked`   | JS class + CSS     |
+| Layer   | State           | Trigger                        | Mechanism        |
+|---------|-----------------|---------------------------------|-------------------|
+| 1 base  | default         | resting                        | base CSS class    |
+| 2 hover | cursor over it  | `:hover`                       | pure CSS          |
+| 3 press | being clicked   | `:active` or `[data-pressing]` | CSS or DOM attr   |
+| 4 sel   | persistently on | `--selected` / `checked`       | JS class + CSS    |
 
-**Each state must be visually distinct from the others.** Hover must not look like selected. Press must look more active than hover.
+Hover must not look like selected; press must look more active than hover.
 
-### Why `[data-pressing]` instead of `:active` for listbox options
-
-Listbox options call `e.preventDefault()` on `mousedown` to keep the input focused (required for multi-select). The browser silently cancels `:active` as a side effect of that call. The fix: set a `data-pressing` attribute directly on the DOM element (no React re-render) and use it in CSS:
+**`:active` vs `[data-pressing]`:** default to `:active` (ArtButton, links, toggles — no JS
+needed). Switch to `[data-pressing]` only where `e.preventDefault()` runs on `mousedown` —
+that silently cancels `:active`. `ArtListbox` is the reference case (needs `preventDefault`
+to keep the input focused for multi-select, and is hot-path enough that perf matters):
 
 ```ts
-// ArtListbox — onMouseDown on each <li>
-e.preventDefault();                          // keep input focused
+// onMouseDown on each <li>
+e.preventDefault();
 const el = e.currentTarget;
-el.setAttribute('data-pressing', '');        // triggers CSS [data-pressing]
-window.addEventListener('mouseup', () =>
-  el.removeAttribute('data-pressing'), { once: true });
+el.setAttribute('data-pressing', '');
+window.addEventListener('mouseup', () => el.removeAttribute('data-pressing'), { once: true });
 ```
 
-For elements that do NOT call `e.preventDefault()` (ArtButton, links, etc.), use pure CSS `:active` — no JS needed.
-
-### CSS cascade order requirement
-
-`:active` / `[data-pressing]` rules **must appear AFTER** `:hover` rules in the stylesheet. Same specificity = last rule wins. If press appears before hover, hovering while pressing will show the wrong state.
-
-### Neutral state values (dark theme)
+Dark theme values:
 
 ```
 default:  transparent
 hover:    var(--border)                                   (#333)
-pressing: color-mix(in srgb, white 18%, var(--border))   (~#585)
-selected: color-mix(in srgb, white  8%, var(--border))   (~#434)  ← between default and hover
+pressing: color-mix(in srgb, white 18%, var(--border))    (~#585)
+selected: color-mix(in srgb, white  8%, var(--border))    (~#434, between default and hover)
 ```
 
-### Colored variants
+Colored variant:
 
 ```
 default:  color: var(--art-accent); background: transparent

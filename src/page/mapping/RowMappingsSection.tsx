@@ -171,7 +171,9 @@ function RowMappingsSection({ rowMappings = EMPTY_ROWS, initialRowMappings = EMP
     const nextIndex = rows.reduce((max, r) => Math.max(max, r._index), -1) + 1;
 
     const { data: exportSettingsList = [] } = useGetLightExportSettings();
-    const { data: linkedExportSetting } = useGetExportSettingById(exportSettingId ?? undefined);
+    const { data: linkedExportSetting } = useGetExportSettingById(exportSettingId ?? undefined, {
+      meta: { waitForLoading: true },
+    });
 
     const exportSettingOptions: ArtComboBoxOption[] = exportSettingsList.map((es) => ({
       label: es.name,

@@ -274,7 +274,10 @@ function ArtDataTable<T>({
 
   return (
     <div className={cn('art-data-table-wrapper', className)}>
-      <div className="art-data-table-scroll art-scrollable" style={{ '--art-rows': pageSize } as React.CSSProperties}>
+      <div
+        className="art-data-table-scroll art-scrollable"
+        style={{ '--art-rows': pageSize, '--art-row-height': rowHeight ? `${rowHeight}px` : undefined } as React.CSSProperties}
+      >
         <table
           className="art-data-table"
           style={tableMinWidth ? { minWidth: tableMinWidth } : undefined}

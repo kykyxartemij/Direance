@@ -143,3 +143,27 @@ a:hover {
   content: '';
   animation: global-loader-dots 1.4s steps(1, end) infinite;
 }
+
+/* ==== GlobalLoadingOverlay ==== */
+/* Background/dependent fetches (meta.waitForLoading) — blurs the still-visible page
+   instead of unmounting it like GlobalPageLoader does on first load. */
+
+.global-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  backdrop-filter: blur(0px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, backdrop-filter 0.2s ease;
+}
+
+.global-loading-overlay.is-active {
+  opacity: 1;
+  backdrop-filter: blur(3px);
+  pointer-events: auto;
+}

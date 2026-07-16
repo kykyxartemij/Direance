@@ -112,6 +112,37 @@ export function useGetLogoById(id: string) {
 
 ---
 
+## Rendering bytes — always `ArtImage`, never raw `next/image`
+
+`src/components/ui/ArtImage.tsx` is the one place that knows how to render a byte-backed image on this site. It's built directly for the `enabled: false` / bytes-on-demand pattern above — don't reach for `next/image` or a hand-rolled placeholder `<div>` for logos, avatars, or any other DB-stored image.
+
+```tsx
+const query = useGetLogoById(id, { enabled: false });
+const src = query.data?.data ? `data:${query.data.mime ?? 'image/webp'};base64,${query.data.data}` : null;
+
+<ArtImage
+  src={src}
+  alt={name ?? 'Logo'}
+  width={80}
+  height={48}
+  isLoading={query.isFetching}
+  onRequestLoad={() => query.refetch()}
+/>
+```
+
+What it handles so callers don't have to:
+
+- **Three states, one component** — shimmer (`isLoading`) → click-to-load empty box (`onRequestLoad`, no separate "Load" button) → the image, once `src` resolves from the query.
+- **No flicker** — renders via `fill` inside a CSS-sized frame instead of `width`/`height` attrs, so the box is pixel-locked to the same size across all three states. (Fixed a real bug: `width`/`height` attrs + Tailwind's `img{height:auto}` preflight fought each other and the loaded image would flash bigger than the loading/empty box.)
+- **`unoptimized` defaults to `true`** — bytes always arrive as `data:` URIs (see above), which `next/image`'s optimizer can't do anything useful with anyway.
+- **`fit`** (`'contain' | 'cover'`, default `contain`) and **`rounded`** (default `true`) cover the usual layout knobs without inline styles.
+
+Use `onRequestLoad` whenever the underlying query is `enabled: false` — the empty box becomes the fetch trigger itself (reload icon, "Click to load"), so there's no separate button sitting next to a gray rectangle. Omit it for images that are always eager-loaded (`emptyLabel` alone covers the "nothing uploaded" case, upload icon).
+
+See `src/page/profile/ProfilePage.tsx` (`LogoRow`) and `src/page/export-settings/ExportSettingsFormPage.tsx` (`LogoSection`) for both usages side by side.
+
+---
+
 ## Sharp processing (BE)
 
 Always process before storing. Never save raw upload bytes. Output is always **WebP** — better compression than PNG/JPEG (~30% smaller on disk), supports transparency, supported in all modern browsers (Safari 14+).

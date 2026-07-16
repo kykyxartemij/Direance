@@ -166,7 +166,9 @@ export default function Dashboard({ reportType }: DashboardProps) {
   const defaultExportSettingId = reports.find((r) => r.mapping?.exportSetting?.id)?.mapping?.exportSetting?.id ?? null;
   const [selectedExportSettingId, setSelectedExportSettingId] = useState<string | null>(defaultExportSettingId);
   const { data: exportSettingsList = [] } = useGetLightExportSettings();
-  const { data: selectedExportSetting } = useGetExportSettingById(selectedExportSettingId ?? undefined);
+  const { data: selectedExportSetting } = useGetExportSettingById(selectedExportSettingId ?? undefined, {
+    meta: { waitForLoading: true },
+  });
 
   if (reports.length === 0) {
     return (

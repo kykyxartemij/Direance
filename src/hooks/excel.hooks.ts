@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type UseMutationOptions } from '@tanstack/react-query';
 import { exportToExcel } from '@/page/dashboard/exportExcel';
 import type { ApiError } from '@/models/api-error';
 import type { ExportSettingResolvedModel } from '@/models/export-settings.models';
@@ -26,10 +26,16 @@ export type ExportExcelInput = {
 
 // ==== Mutations ====
 
-export function useExportExcel() {
+export function useExportExcel(
+  options?: Omit<UseMutationOptions<void, ApiError, ExportExcelInput>, 'mutationFn'>
+) {
   const queryClient = useQueryClient();
   return useMutation<void, ApiError, ExportExcelInput>({
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['excel-export'] }),
+    ...options,
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: ['excel-export'] });
+      options?.onSuccess?.(...args);
+    },
     mutationFn: ({
       headers,
       rows,

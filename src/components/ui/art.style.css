@@ -240,7 +240,13 @@
     background: var(--surface);
     border: 1px solid var(--border);
   }
-  .art-combobox-option { @apply px-3 py-2 rounded-md cursor-pointer text-sm transition-colors; }
+  /* content-visibility skips layout/paint for options scrolled out of view.
+     contain-intrinsic-size = measured row height (px-3 py-2 + text-sm line-height). */
+  .art-combobox-option {
+    @apply px-3 py-2 rounded-md cursor-pointer text-sm transition-colors;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 36px;
+  }
   .art-combobox-option--muted { @apply cursor-default; color: var(--text-muted); }
 
   /* ==== Option inner row ==== */
@@ -802,7 +808,14 @@
   .art-data-sort-icon--asc { transform: rotate(180deg); }
 
   /* Data rows — default background; variant classes override it */
-  .art-data-tr { background: var(--surface); }
+  /* content-visibility: auto skips render/layout work for off-screen rows.
+     contain-intrinsic-size falls back to 44px (natural row height from
+     .art-data-td padding) when rowHeight prop unset, so scrollbar doesn't jump. */
+  .art-data-tr {
+    background: var(--surface);
+    content-visibility: auto;
+    contain-intrinsic-size: auto var(--art-row-height, 44px);
+  }
   .art-data-tr--base     { background: var(--bg); }
   .art-data-tr--elevated { background: color-mix(in srgb, var(--border) 25%, var(--surface)); }
 
@@ -1088,6 +1101,30 @@ input:focus, textarea:focus { outline: none; border-color: var(--art-field-focus
 
 @keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
 @keyframes art-spin { to { transform: rotate(360deg); } }
+
+/* ==== ArtImage ==== */
+
+.art-image-frame { position: relative; display: block; overflow: hidden; }
+.art-image--contain { object-fit: contain; }
+.art-image--cover { object-fit: cover; }
+.art-image--rounded { border-radius: 6px; }
+
+.art-image-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  box-sizing: border-box;
+}
+.art-image-empty .art-empty-state { padding: 0; }
+
+.art-image-empty--clickable { cursor: pointer; transition: background-color 120ms ease; }
+.art-image-empty--clickable:hover { background: var(--border); }
+.art-image-empty--clickable:active { background: color-mix(in srgb, white 18%, var(--border)); }
 
 /* ==== Excel Grid ==== */
 

@@ -4,7 +4,7 @@ import { requireAuth, tryAuth } from '@/auth';
 import { Permission } from '@/lib/permissions';
 import { handleApiError, type HttpMethod } from '@/lib/errorHandler';
 import { runWithAuth } from '@/lib/requestContext';
-import { assertInstanceCapacity } from '@/lib/rateLimiter';
+import { assertInstanceCapacity, assertIpCapacity, assertUserCapacity } from '@/lib/rateLimiter';
 
 // ==== Types ====
 
@@ -23,7 +23,7 @@ export type Handler<TParams extends Record<string, string> = Record<string, stri
 
 // ==== withHandler ====
 
-// assertInstanceCapacity → requireAuth → seed request context → body → try/catch.
+// Cheapest checks first: instance/IP trip-wires → auth → user trip-wire → body.
 // Pass { permission } to gate.
 export function withHandler<
   TParams extends Record<string, string> = Record<string, string>,
@@ -35,7 +35,9 @@ export function withHandler<
     const ctx = (routeCtx ?? { params: Promise.resolve({}) }) as RouteCtx<TParams>;
     try {
       assertInstanceCapacity();
+      assertIpCapacity(req);
       const auth = await requireAuth(opts.permission);
+      assertUserCapacity(auth.userId); // catches IP-rotation abuse — userId stays fixed across VPN/proxy hops
       return await runWithAuth(auth, () => body(req, ctx));
     } catch (error) {
       return handleApiError(error, req.method as HttpMethod, req.nextUrl.pathname);
@@ -45,10 +47,8 @@ export function withHandler<
 
 // ==== withPublicHandler ====
 
-// assertInstanceCapacity → optional auth seed → body → try/catch.
-// Runs instance capacity guard automatically (in-memory, no DB).
-// For IP-level protection on sensitive public endpoints, also call checkPublicRequestLimit in the body.
-// Read identity in the body with getAuthOptional() (null when anonymous).
+// Same trip-wires as withHandler, auth optional. Sensitive public routes still need
+// checkPublicRequestLimit in the body — this is not the authoritative limit.
 export function withPublicHandler<
   TParams extends Record<string, string> = Record<string, string>,
 >(
@@ -58,7 +58,9 @@ export function withPublicHandler<
     const ctx = (routeCtx ?? { params: Promise.resolve({}) }) as RouteCtx<TParams>;
     try {
       assertInstanceCapacity();
+      assertIpCapacity(req);
       const auth = await tryAuth(); // null if not signed in
+      if (auth) assertUserCapacity(auth.userId); // signed-in caller — same IP-rotation gap as withHandler
       return auth
         ? await runWithAuth(auth, () => body(req, ctx))
         : await body(req, ctx);

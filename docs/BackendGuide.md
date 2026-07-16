@@ -1,6 +1,8 @@
 # Backend Guide
 
-Read alongside `UncontrolledInputsGuide.md`.
+Read alongside `UncontrolledInputsGuide.md`. Every rule below traces through real handlers —
+mainly `src/services/mapping.service.ts`, with `invite.service.ts`, `connection.service.ts` and
+`currency.service.ts` for the patterns mapping doesn't cover. Open them side by side.
 
 ## Quick reference
 
@@ -10,7 +12,7 @@ Read alongside `UncontrolledInputsGuide.md`.
 | Handler | Every handler is `withHandler(body[, { permission }])` — never a raw `try/catch` |
 | Auth | `getAuth()` inside a handler; `requireAuth()` only seeds it once, in the wrapper |
 | Route file | Thin adapter only — all logic in service |
-| Handler order | 1. auth (wrapper) → 2. validate request → 3. checks (rate limit, DB limit) → 4. work |
+| Handler order | 1. auth (wrapper) → 2. validate/parse request → 3. checks, cheapest first → 4. work |
 | Error handling | `withHandler` owns the `try/catch` → `handleApiError` — never hand-write it |
 | ID from route | `parseIdFromRoute(await params)` — never raw `params.id` |
 | Yup validation | Always `{ abortEarly: false }` |
@@ -19,88 +21,104 @@ Read alongside `UncontrolledInputsGuide.md`.
 | Update | `updateManyAndReturn` — ownership in WHERE clause (Prisma native) |
 | Delete | `deleteManyAndReturn` — ownership in WHERE clause (custom extension) |
 | Upsert | `upsertAndReturn` — single roundtrip, returns `wasUpdated: boolean` (custom extension) |
+| Relations | FK assigned directly (`{ ...data, userId }`) — Prisma `connect` never used |
 | Ownership fail | Throw 404, not 403 — no info disclosure |
 | DB calls | Encode logic in WHERE — no pre-fetch to check ownership |
 | ID lookup | `findFirstOrThrow` — auto-throws P2025 → 404 |
+| In-memory guards | `assertInstanceCapacity`/`assertIpCapacity`/`assertUserCapacity` — automatic in `withHandler`, per-instance trip-wires, not authoritative |
+| DB-cost checks | `checkUserRequestLimit`/`checkPublicRequestLimit` move inside `cached()` when it wraps the *entire* unit of work — never for mutations, never for paged `total`/count |
 | Pagination | `Promise.all([data, count])` — never sequential awaits |
 | FTS | `findManyFts` / `countFts` — never raw `$queryRaw` for search |
 | Select | Always explicit `select` — never bare `findMany` |
+| External APIs | BE always proxies (currency CDN, Merit/Odoo) — client never calls out directly |
 | File upload | FormData + sharp — see `ImagesGuide.md` |
 
 ---
 
-## withHandler — the standard route wrapper
+## The pipeline
 
-**Every service handler is `withHandler` (or `withPublicHandler`) — required.** It owns
-the entire request lifecycle in one place: auth, the permission gate, rate-limit /
-error-handling and the ambient request context. A hand-written `try/catch` still works,
-but it repeats that lifecycle in every handler and makes the code harder — the wrapper
-keeps the body pure, the order consistent, and a route can't ship without auth.
-
-### What it does
-
-`withHandler` wraps your handler with the whole request lifecycle so the body stays pure:
+Every handler body runs the same steps, in this order. Skipping or reordering one is the most
+common review comment on a new route — treat this as the checklist.
 
 ```
-requireAuth (401/403)  →  seed ambient request context  →  run your body  →  try/catch → handleApiError
+1. withHandler          entry point — auth, permission gate, try/catch already done
+2. getAuth()             read the identity the wrapper resolved
+3. validate/parse        Yup validators + route/query parsing — no DB yet
+4. checks, cheapest first  rate limit → custom guards → DB limit → permission/ownership
+5. the Prisma call        cache wrap, select tier, FTS, batch loader, CRUD extension
+6. (FTS only) DB setup   prisma/fts.sql — one-time per searchable table
+7. aftermath             invalidateCache() + reseed the by-id entry
+8. paged responses       Promise.all([data, count]) + related-model selects
 ```
 
-The body you write is a **standard Next.js route handler** — `(req, { params })`. No
-custom ctx object, nothing new to learn. Identity comes from `getAuth()`.
+Steps 1–4 exist to protect step 5. Every check up to that point is there because the real
+Prisma call is the most expensive thing in the pipeline — cheap checks fail the request before
+it costs anything, and the call itself is the one thing that gets cached.
 
-### The handler does its work in a fixed order
+---
 
-Inside the body, always in this sequence (the wrapper has already done auth):
+## Step 1 — layering: route.ts → service.ts → withHandler
 
-1. **Auth check** — done *for you* by the wrapper before the body runs (`requireAuth`,
-   plus the optional `{ permission }` gate). Read the result with `getAuth()`.
-2. **Request validation** — parse + validate the input (`parseIdFromRoute`, Yup
-   `validate(..., { abortEarly: false })`). Cheap, no DB. Reject malformed input here.
-3. **Additional checks** — anything that hits the DB or external state: rate limit
-   (`checkUserRequestLimit`), storage limit (`checkUserDbLimits`), and any custom guard.
-   These run **after** validation so a bad request never costs a DB round-trip.
-4. **The actual work** — DB read/write, cache, response.
-
-> Why 2 before 3: validation is free, the checks cost DB calls. Validate first, fail
-> cheap. Doing the checks first (the old order) wasted round-trips on invalid requests.
+Next.js gives every route file (`route.ts`) a fixed job: bind an HTTP verb to a function. It's
+a **path-through, not a place for logic** — the file exists because Next.js routing requires
+it, nothing more.
 
 ```ts
-// service.ts
-export const updateMapping = withHandler<{ id: string }>(async (req, { params }) => {
-  const { userId, permissions } = getAuth();
-  const id = parseIdFromRoute(await params);
-
-  const data = await UpdateMappingValidator.validate(await req.json(), { abortEarly: false });
-
-  await checkUserRequestLimit(req, userId, permissions);   // limit checks AFTER validate
-  await checkUserDbLimits(userId, permissions);
-  // ... DB, cache
-  return NextResponse.json(mapping);
-});
-
-// route.ts — unchanged, thin binding
+// route.ts — the entire file. No logic, no imports beyond the service.
 export const PATCH = (req: NextRequest, ctx: { params: Promise<{ id: string }> }) =>
   updateMapping(req, ctx);
 ```
 
-`updateMapping` is the function `withHandler` *returns* (already async). You only write
-the body; its `async` is required because it `await`s. Keeping the wrapper at the service
-export makes it **impossible to ship a route without auth, rate-limit and error-handling**
-— don't move it into `route.ts`.
+`updateMapping` is defined in `service.ts` and already wrapped in `withHandler` — that's the
+real handler. Two consequences of keeping the wrapper at the **service** export, not the route:
+
+- A service function can be called directly from a server component or another service (no
+  HTTP round-trip — see Reference → Data flow), and it's still fully protected.
+- A route **cannot** ship without auth, rate-limiting and error-handling, because those live in
+  the thing the route file imports, not in the route file itself.
+
+### `withHandler`, the entry point
+
+**Every service handler is `withHandler` (or `withPublicHandler`) — required.** It owns the
+whole request lifecycle in one place: auth, the permission gate, error handling and the ambient
+request context, so the body itself stays pure business logic.
+
+```
+assertInstanceCapacity → assertIpCapacity → requireAuth → assertUserCapacity → seed context → body → try/catch → handleApiError
+```
+
+The three `assert*Capacity` calls are automatic — you never call them yourself, `withHandler`
+does it before your body runs at all. They're in-memory, per-instance trip-wires (`src/lib/rateLimiter.ts`),
+not the authoritative limit — see Step 4 for the real, cluster-accurate checks you do call
+explicitly. Three reasons there are three of them, not one:
+
+- `assertInstanceCapacity` — global per-instance count, catches raw volume before spending a
+  cycle on anything, including auth.
+- `assertIpCapacity` — pre-auth, per IP (only identity available before `requireAuth` runs).
+- `assertUserCapacity` — post-auth, per `userId`. Catches what the IP guard structurally can't:
+  one account cycling IPs (VPN/proxy hop) resets the IP counter every time, but `userId` doesn't.
+
+The body you write is a **standard Next.js route handler** — `(req, { params })`. No custom ctx
+object.
+
+```ts
+// service.ts
+export const updateMapping = withHandler<{ id: string }>(async (req, { params }) => {
+  // steps 2–8 go here
+});
+```
+
+`updateMapping` is the function `withHandler` *returns* (already async) — you only write the
+body, `async` is required because it `await`s.
 
 ### Permission-gated routes
 
-Pass `{ permission }` as the second arg — it goes straight to `requireAuth(permission)`,
-which throws **403** if the user lacks it. This is how endpoints that are only accessible
-with a permission are declared:
+Pass `{ permission }` as the second arg — it goes straight to `requireAuth(permission)`, which
+throws **403** if the user lacks it:
 
 ```ts
 export const getAdminStats = withHandler(
-  async (req) => {
-    const { userId, permissions } = getAuth();
-    // ...
-    return NextResponse.json(stats);
-  },
+  async (req) => { /* ... */ },
   { permission: Permission.CAN_ACCESS_STATS },   // ← gate. 403 if missing.
 );
 ```
@@ -111,166 +129,64 @@ export const getAdminStats = withHandler(
 | Must hold a permission | `withHandler(body, { permission: Permission.X })` |
 | Public, optional user | `withPublicHandler(body)` |
 
-### Permission + ownership in one query — no extra DB call
-
-The `isGlobal` mapping update is the canonical example. A user may edit their own
-mappings; only `CAN_MODIFY_GLOBAL` holders may touch global ones. **Don't fetch-then-check
-— resolve the permission in JS and encode ownership into the `where`:**
-
-```ts
-export const updateMapping = withHandler<{ id: string }>(async (req, { params }) => {
-  const { userId, permissions } = getAuth();
-  const id = parseIdFromRoute(await params);
-  const data = await UpdateMappingValidator.validate(await req.json(), { abortEarly: false });
-  await checkUserRequestLimit(req, userId, permissions);
-  await checkUserDbLimits(userId, permissions);
-
-  const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
-
-  // Guard — pure permission check, no DB
-  if (!canModifyGlobal && data.isGlobal)
-    throw new ApiError('Only CAN_MODIFY_GLOBAL can modify global mappings.', 403);
-
-  // WHERE encodes ownership + visibility in one shot
-  const where = canModifyGlobal
-    ? { id, OR: [{ userId }, { isGlobal: true }] }   // own + global
-    : { id, userId, isGlobal: false };                // own non-global only
-
-  const results = await prisma.fieldMapping.updateManyAndReturn({ where, data, select: MAPPING_SELECT });
-  if (results.length === 0) throw new ApiError('Mapping not found', 404);
-  // ↑ covers doesn't-exist, wrong-owner, no-permission — all 404, no info disclosure
-
-  return NextResponse.json(results[0]);
-});
-```
-
-One query does ownership + visibility + permission. See
-[updateManyAndReturn](#updatemanyandreturn--deletemanyandreturn) below for the full rule.
-
 ---
 
-## Auth — `requireAuth()` vs `getAuth()`
+## Step 2 — `getAuth()`
 
-**Same data (`{ userId, permissions }`), different usage.** Know which to call:
+**Same underlying data (`{ userId, permissions }`) as `requireAuth()`, different usage.**
 
 | Function | Where | Behavior |
 |----------|-------|-----------|
-| `requireAuth()` | the **edge** — the wrapper calls it once per request, you don't | resolves the session; **throws** 401 if anonymous, 403 if missing permission. The source of truth. |
-| `getAuth()` | **your handler body + anything downstream** | reads the identity `withHandler` already seeded into the ambient request context. No session call. Throws only if used outside a request. |
-| `getAuthOptional()` | `withPublicHandler` bodies / maybe-anonymous code | returns `AuthCtx \| null` — never throws. |
+| `requireAuth()` | the **edge** — the wrapper calls it once per request, you don't | resolves the session; **throws** 401 if anonymous, 403 if missing permission |
+| `getAuth()` | **your handler body + anything downstream** | reads the identity `withHandler` already seeded. No session call. Throws only if used outside a request |
+| `getAuthOptional()` | `withPublicHandler` bodies / maybe-anonymous code | returns `AuthCtx \| null` — never throws |
 
-Rule: in a handler you call **`getAuth()`** — never `requireAuth()` directly. The wrapper
-already ran `requireAuth` (and the `{ permission }` gate); your body just reads the result.
+Rule: in a handler you call **`getAuth()`** — never `requireAuth()` directly.
 
 ```ts
-const { userId, permissions } = getAuth();   // in any withHandler body / downstream service
+const { userId, permissions } = getAuth();   // first line of every withHandler body
 const auth = getAuthOptional();              // AuthCtx | null — in withPublicHandler bodies
 ```
 
 > Permissions are embedded in the JWT at sign-in — no DB call on subsequent requests.
 > Permission changes take effect on next sign-in.
 
-### Ambient request context (how `getAuth()` works)
+### How it works — ambient request context
 
 `withHandler` seeds a per-request store (`src/lib/requestContext.ts`, backed by Node
-`AsyncLocalStorage`) with the authed identity. Any service in the call tree then reads it
-via `getAuth()` without threading `userId`/`permissions` through every signature.
+`AsyncLocalStorage`) with the authed identity. Any service in the call tree reads it via
+`getAuth()` without threading `userId`/`permissions` through every signature.
 
-- **Write-once:** a `withHandler`-wrapped fn called from inside another won't overwrite
-  the outer identity — auth can't be swapped mid-request.
+- **Write-once:** a `withHandler`-wrapped fn called from inside another won't overwrite the
+  outer identity — auth can't be swapped mid-request.
 - **`withPublicHandler`:** same standard body, auth optional. Uses `tryAuth()` (soft
   `requireAuth` — returns `null` instead of throwing), seeds context if signed in, runs
   anonymous requests anyway. Read with `getAuthOptional()`.
-- **Never call `getAuth()` outside a request** (cron jobs, scripts) — it throws. Pass
-  identity explicitly there.
-- Store **only** ambient, derived-once, read-only, widely-needed data (auth). Business
-  inputs (`id`, request body) stay explicit arguments.
-
-> `AsyncLocalStorage` is a Node built-in, not a Next.js feature, but runs fine on the Node
-> runtime. Next has no first-class request container — this is the standard answer.
+- **Never call `getAuth()` outside a request** (cron jobs, scripts) — it throws. Pass identity
+  explicitly there.
+- Store **only** ambient, derived-once, read-only, widely-needed data (auth). Business inputs
+  (`id`, request body) stay explicit arguments.
 
 ---
 
-## Data flow & route protection
+## Step 3 — validate / parse the request
 
-Client-side data takes one path; server-side code skips the HTTP hop entirely:
+Everything here is free — no DB. It exists to protect step 4/5 from doing expensive work on a
+request that was never going to succeed.
 
-```
-React component → React Query hook (src/hooks/*.hooks.ts) → fetchClient (src/lib/fetchClient.ts)
-  → /api/**/route.ts → service (withHandler) → Prisma → Neon DB
-```
-
-| Caller | How it reads data |
-|--------|-------------------|
-| Client component | `fetchClient` → API route → service → Prisma |
-| Server component / server action | call the service directly — no HTTP round-trip |
-
-`fetchClient` (axios) exists for two things raw `fetch` lacks: it strips `Content-Type` on
-`FormData` so the browser sets the multipart boundary, and it normalizes 4xx/5xx into
-`ApiError { message, status, code, details }` so hooks don't each parse errors.
-
-**Protection layers:**
-- **Per route, in the service** — `withHandler` (auth required) vs `withPublicHandler`
-  (auth optional). This is the primary mechanism — prefer it.
-- **Globally, in middleware** — `authorized()` in `src/auth.config.ts` decides which paths
-  the edge middleware lets through before they ever reach a route. Add a path to a public
-  allowlist there to skip the sign-in redirect:
+### Yup validators (`src/models/*.models.ts`)
 
 ```ts
-// src/auth.config.ts
-authorized({ auth, request: { nextUrl } }) {
-  const publicRoutes = ['/about', '/api/webhook'];
-  if (publicRoutes.some(r => nextUrl.pathname.startsWith(r))) return true;
-  return !!auth?.user;   // everything else requires sign-in
-}
+const data = await UpdateMappingValidator.validate(await req.json(), { abortEarly: false });
 ```
 
----
-
-## Error handling
-
-You never call `handleApiError` yourself — `withHandler` owns the `try/catch` and reports
-errors automatically. In the body you just **throw**; the wrapper maps it:
-
-| Thrown | Status |
-|--------|--------|
-| `ApiError(msg, status)` | `.status` |
-| Yup `ValidationError` | 400 + `details.fieldErrors` |
-| Prisma P2025 / P2003 | 404 |
-| Prisma P2002 | 409 |
-| Unknown | 500 |
-
-```ts
-throw new ApiError('Mapping not found', 404);
-throw new ApiError('Limit reached: max 20 mappings', 403);
-```
-
----
-
-## parseIdFromRoute
-
-```ts
-// ❌ Raw string — skips UUID check, malformed input reaches Prisma, ensures no broken BE calls
-// ✅
-const id = parseIdFromRoute(await params); // validates UUID format, throws 400 on malformed input
-```
-
----
-
-## Yup validation
-
-```ts
-// Always abortEarly: false — collect all field errors at once
-const data = await MyValidator.validate(body, { abortEarly: false });
-```
-
-Validators live in model files (`src/models/*.models.ts`) alongside their types.
-
----
-
-## Shared validators — BE + FE
-
-Define once in model file (`src/models/*.models.ts`), import on both sides. FE may reuse or define its own stricter version.
+- Always pass `{ abortEarly: false }` — collects all field errors at once, not just the first.
+- Live in model files, next to the type they validate. See Validation Architecture in
+  the project rules in CLAUDE.md for the BE/FE split (models = API contract, page/component = form-only rules).
+- **Shared BE + FE — nice to have, not required.** A model validator *can* be reused on the FE
+  as-is. In practice BE and FE shapes diverge often enough (HTTP-semantics fields on BE,
+  FE-only fields like `confirmPassword`) that most forms end up with their own local `schema`.
+  Reuse it when it lines up, don't force it when it doesn't.
 
 ```ts
 // src/models/report.models.ts
@@ -285,9 +201,7 @@ const { file } = await ExcelUploadValidator.validate(
 );
 ```
 
----
-
-## FormData uploads
+### FormData uploads
 
 ```ts
 // FE — never set Content-Type (browser sets multipart boundary automatically)
@@ -304,42 +218,381 @@ const { file } = await ExcelUploadValidator.validate(
 
 For image/binary uploads stored as `Bytes` in DB — see `ImagesGuide.md`.
 
----
-
-## Caching
+### Route/query parsing — same tier as validators, still free
 
 ```ts
-// Every Prisma read goes through cached()
+const id = parseIdFromRoute(await params);
+// validates UUID format, throws 400 on malformed input
+// ❌ raw params.id — skips the UUID check, malformed input reaches Prisma
+
+const searchParams = new URL(req.url).searchParams;
+const { page, pageSize } = await parsePaginationFromUrl(searchParams);
+// URL is 1-indexed → internal page is 0-indexed; createPaginatedResponse() converts back
+
+const freeText = parseFreeTextFromUrl(searchParams);
+// feeds findManyFts / countFts — see Step 5
+```
+
+---
+
+## Step 4 — checks, cheapest first
+
+Once step 3 confirms the request is well-formed, run the checks that cost something —
+**cheapest first, so an abusive or over-limit caller is rejected before the more expensive
+checks (and the DB call itself) ever run.**
+
+```
+rate limit  →  custom guards (e.g. assertLimit)  →  DB storage limit  →  permission/ownership
+```
+
+### 1. Rate limit — cheap, applies almost everywhere
+
+```ts
+await checkUserRequestLimit(req, userId, permissions);   // mutations — always unconditional, see below for reads
+```
+
+Backed by a Postgres `check_rate_limit()` function (`src/lib/rateLimiter.ts`, body in
+`prisma/functions.sql`) — one indexed DB call, works across all Vercel instances (not an
+in-memory window).
+
+**For reads, this check lives inside the `cached()` call in Step 5, not here.** A cache hit
+costs zero DB, so the check only runs when there's an actual query to protect. See Step 5,
+"Cache-wrapping the DB-cost check," for the exact placement and the paged/mutation exceptions.
+This section is the reference for mutations, where the check is always unconditional since a
+write happens regardless of cache state.
+
+Applies to reads too, not just mutations — the deciding question isn't "does this write to the
+DB," it's **"does a hit cost us something real."** A DB write is one way to cost something; so
+is an outbound call to a third-party API using the caller's own credentials. `connection.service.ts`
+is the clearest example of both ends:
+
+```ts
+// fetchProfitConnectionsByIds — hits our DB (via batch loader) + calls Merit/Odoo. Rate-limited.
+await checkUserRequestLimit(req, userId, permissions);
+
+// testPnlConnection — pure external call, no DB read/write of ours at all. No rate limit —
+// auth alone (from withHandler) is the only gate. The call costs the caller's own external
+// service, not us, and there's nothing here to cache or abuse for DB cost.
+export const testPnlConnection = withHandler(async (req) => {
+  const { type, config, secret } = await TestConnectionValidator.validate(await req.json(), { abortEarly: false });
+  await testPnlConnectionDriver({ type, config, secret: secret as ConnectionSecret });
+  return new NextResponse(null, { status: 204 });
+});
+```
+
+Keep the rate limit when the endpoint can be turned into an amplification or probing vector
+(hammering a third party through our server, or using a user-supplied `config.url` to probe
+internal hosts) — skip it when the call genuinely costs us nothing beyond the request itself.
+
+`fetchProfitConnectionsByIds` above is also a deliberate exception to the cache-wrap move: the
+check applies once per request, but the real cost is per-id inside a batch loader (Step 5) — N
+possible cache misses, each triggering its own Postgres/external call. One request-level check
+doesn't map cleanly onto that per-id cost, so it stays unconditional rather than guessing at
+which granularity is "right." Left as an open judgment call, not mechanically converted.
+
+### 2. Custom guards — endpoint-specific, still before the expensive checks
+
+Anything that doesn't fit `checkUserRequestLimit`/`checkUserDbLimits` but still needs to run
+before the DB write. `prisma.invite.assertLimit()` (`invite.service.ts`) is the reference case
+— see Lazy cleanup below.
+
+### 3. DB storage limit — before CREATE and UPDATE only
+
+```ts
+await checkUserDbLimits(userId, permissions);
+```
+
+Not on DELETE (frees space, nothing to guard) and not on pure reads. Skipped entirely on
+endpoints with no DB write of ours — `testPnlConnection` above needs neither this nor the rate
+limit's DB-cost reasoning, since there's no storage being touched.
+
+### 4. Permission + ownership, resolved in JS, encoded into the query
+
+The last check before the Prisma call. It decides **what the caller is actually allowed to
+do**, not just whether they're allowed to call the endpoint at all. Never fetch-then-check.
+Resolve the permission in JS and encode ownership into the `where` so one query does auth,
+ownership and visibility together, one round trip instead of a fetch plus a check plus a write.
+Same reason every check in this step exists: minimize what crosses the wire (Network Transfer
+rule). The mapping CRUD trio is the canonical example, same shape repeated for create, update,
+delete:
+
+```ts
+export const createMapping = withHandler(async (req) => {
+  const { userId, permissions } = getAuth();
+  const data = await CreateMappingValidator.validate(await req.json(), { abortEarly: false });
+
+  await checkUserRequestLimit(req, userId, permissions);
+  await checkUserDbLimits(userId, permissions);
+
+  const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
+  if (!canModifyGlobal && data.isGlobal) throw new ApiError('Only users with permission CAN_MODIFY_GLOBAL can create global mappings.', 403);
+
+  const mapping = await prisma.fieldMapping.create({
+    data: { ...data, userId },   // FK assigned directly — Prisma `connect` never used, extra round trip
+    select: MAPPING_SELECT,
+  });
+  // ... invalidate + reseed, see Step 7
+});
+
+export const updateMapping = withHandler<{ id: string }>(async (req, { params }) => {
+  const { userId, permissions } = getAuth();
+  const id = parseIdFromRoute(await params);
+  const data = await UpdateMappingValidator.validate(await req.json(), { abortEarly: false });
+
+  await checkUserRequestLimit(req, userId, permissions);
+  await checkUserDbLimits(userId, permissions);
+
+  const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
+  if (!canModifyGlobal && data.isGlobal) throw new ApiError('Only users with permission CAN_MODIFY_GLOBAL can modify global mappings.', 403);
+  const where = canModifyGlobal
+    ? { id, OR: [{ userId }, { isGlobal: true }] }
+    : { id, userId, isGlobal: false };
+
+  const results = await prisma.fieldMapping.updateManyAndReturn({ where, data, select: MAPPING_SELECT });
+  if (results.length === 0) throw new ApiError('Mapping not found', 404);
+  // ... invalidate + reseed, see Step 7
+});
+
+export const deleteMapping = withHandler<{ id: string }>(async (req, { params }) => {
+  const { userId, permissions } = getAuth();
+  const id = parseIdFromRoute(await params);
+  await checkUserRequestLimit(req, userId, permissions);
+
+  const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
+  const where = canModifyGlobal
+    ? { id, OR: [{ userId }, { isGlobal: true }] }
+    : { id, userId, isGlobal: false };
+
+  const deleted = await prisma.fieldMapping.deleteManyAndReturn({ where, select: { isGlobal: true } });
+  if (deleted.length === 0) throw new ApiError('Mapping not found', 404);
+  // ... invalidate, see Step 7
+});
+```
+
+The `where` is doing three jobs in one round trip: does the row exist, does the caller own it
+or is it global, is the caller allowed to touch a global row. `results.length === 0` covers all
+three failure modes identically — **404 for all of them, never 403 for "exists but not
+yours."** Distinguishing the two would leak record existence to an attacker probing ids; a
+plain "not found" costs the attacker nothing to learn from, which is also less to send over the
+wire (Network Transfer rule) than a more specific error body would be.
+
+### Lazy cleanup (`withLazyCleanup`) — the custom-guard example
+
+TTL'd tables (invites, tokens) **clean themselves on access** instead of accumulating —
+matches the "lazy cleanup instead of accumulation" rule. `withLazyCleanup`
+(`src/lib/prismaLazyCleanup.ts`) adds raw helpers whose single query DELETEs expired rows in a
+CTE, then reads/counts only the live ones.
+
+```ts
+// model definition — compose onto the base client
+invite: {
+  ...withCrud<InviteModel>(base, '"Invite"'),
+  ...withLazyCleanup<InviteModel>(base, '"Invite"', {
+    ttl:   { field: 'createdAt', days: 14 },   // expiry window
+    limit: 50,                                  // optional per-scope cap
+    limitExceededMessage: 'Too many invites. Try again after some expire.',
+  }),
+},
+```
+
+```ts
+// invite.service.ts — sendInvite: custom guard sits right where step 4 says it should
+await checkUserRequestLimit(req, inviterId, inviterPerms);
+await prisma.invite.assertLimit();   // custom guard — DELETE expired, then 429 if still over cap
+```
+
+| Method | What it does |
+|--------|--------------|
+| `findFirstWithCleanup({ where, select })` | DELETE expired + return one live row (or null) in one query |
+| `findManyWithCleanup({ where, select, orderBy, take, skip })` | DELETE expired + return live rows |
+| `assertLimit(where?)` | DELETE expired, then throw **429 `LIMIT_EXCEEDED`** if remaining ≥ `limit` |
+| `cleanupExpired()` | DELETE expired, return count. Auto-registered for cron |
+| `runAllCleanups()` (module fn) | run every registered `cleanupExpired` — the cron entry point |
+
+- **Why a CTE with `AND NOT (expired)`:** the `DELETE` and `SELECT` run on the same pre-DELETE
+  snapshot, so without the guard just-deleted rows would still show up.
+- **Lazy first, cron as backstop:** reads clean their own scope on every access; the cron
+  (`runAllCleanups`) sweeps tables that aren't being read so nothing lingers forever.
+
+---
+
+## Step 5 — the Prisma call
+
+Everything above exists to protect this. It's the most expensive step in the pipeline, and the
+only one that gets cached.
+
+### Custom Prisma extensions — where each one lives
+
+All raw-SQL capability the codebase adds on top of Prisma ORM, in one place:
+
+| Extension | File | Adds |
+|-----------|------|------|
+| `withCrud` | `src/lib/prismaCrud.ts` | `deleteManyAndReturn`, `upsertAndReturn` |
+| `withFts` | `src/lib/prismaFts.ts` | `findManyFts`, `countFts` |
+| `withLazyCleanup` | `src/lib/prismaLazyCleanup.ts` | `findFirstWithCleanup`, `findManyWithCleanup`, `assertLimit`, `cleanupExpired` |
+
+`updateManyAndReturn` is the one exception — it's Prisma-native (5.x), not a custom extension.
+
+### Cache wrapping — `cached` / `populateCache`
+
+**Every Prisma read goes through `cached()`.** Cache keys always come from `CACHE_KEYS.*`
+(`src/lib/cacheKeys.ts`) — never a raw string array, so every consumer invalidates the same tag.
+
+```ts
 const mappings = await cached(
   () => prisma.fieldMapping.findMany({ where, select }),
   CACHE_KEYS.mapping.paged(userId, page, pageSize),
 );
+```
 
-// After mutation: invalidate, then seed by-ID to avoid extra DB call on next GET
-invalidateCache(...CACHE_KEYS.mapping.invalidate());
-await cached(() => Promise.resolve(mapping), CACHE_KEYS.mapping.byId(mapping.id));
+`populateCache` — for when you need the DB's current value right now (e.g. an existence check
+right after a write, where a stale cache hit would be wrong), but the result still has to end
+up cached — otherwise the very next call pays the same DB/network cost again for no reason. It
+fetches fresh, invalidates the stale entry, and seeds the cache with the new value in one call:
 
-// populateCache — fetch fresh, invalidate stale entry, seed cache with new value.
-// Use when you need the fresh DB value AND want it in cache (e.g. existence check after write).
+```ts
 const existing = await populateCache(
   () => prisma.user.findUnique({ where: { email }, select: { id: true } }),
   CACHE_KEYS.user.byEmail(email),
 );
 ```
 
----
+### Cache-wrapping the DB-cost check
 
-## updateManyAndReturn / deleteManyAndReturn
+`checkUserRequestLimit`/`checkPublicRequestLimit` cost one Postgres call, same as the read
+they're guarding. Placed **inside** the `cached()` callback, the check only runs when there's
+an actual DB call to protect, a cache hit costs zero DB either way:
+
+```ts
+// getConnectionById — the whole rule in one example
+const connection = await cached(
+  async () => {
+    await checkUserRequestLimit(req, userId, permissions);   // only pays on a real miss
+    return prisma.connection.findFirstOrThrow({ where: { id, userId }, select: CONNECTION_SELECT });
+  },
+  CACHE_KEYS.connection.byId(userId, id),
+);
+```
+
+**Only valid when the `cached()` call covers 100% of the request's DB cost** — the moment
+something else in the handler hits the DB regardless of cache state, moving the check inside
+stops protecting that other work. Three consequences:
+
+- **Never for mutations.** A write always happens — there's no cache branch that skips it, so
+  there's nothing to gate the check on. Stays unconditional, before any work (Step 4 above).
+- **`acceptInvite` vs `lookupInvite` (`invite.service.ts`) is the clean contrast.**
+  `lookupInvite`'s `cached()` call *is* the entire handler — check moves inside.
+  `acceptInvite`'s `cached()` call only wraps the token lookup; a `populateCache` existence
+  check and a `$transaction` (user create + invite delete) still run after it regardless of
+  whether that lookup was cached. The check stays unconditional, at the top:
+
+  ```ts
+  // acceptInvite — real work follows the cache lookup either way, check can't move
+  export const acceptInvite = withPublicHandler(async (req) => {
+    const data = await AcceptInviteValidator.validate(await req.json(), { abortEarly: false });
+    await checkPublicRequestLimit(req);   // unconditional — populateCache + $transaction come next regardless
+
+    const invite = await cached(/* token lookup only */);
+    // ...populateCache existence check, then $transaction — real DB cost either way
+  });
+
+  // lookupInvite — cached() is the entire unit of work, check moves inside
+  export const lookupInvite = withPublicHandler(async (req) => {
+    const token = req.nextUrl.searchParams.get('token') ?? '';
+    if (!token) throw new ApiError('Token is required', 400);
+
+    const invite = await cached(async () => {
+      await checkPublicRequestLimit(req);
+      return prisma.invite.findFirstWithCleanup({ where: { token }, select: { /* ... */ } });
+    }, CACHE_KEYS.invite.byToken(token));
+
+    if (!invite) throw new ApiError('Invite link is invalid, expired, or already used', 400);
+    return NextResponse.json({ email: invite.email });
+  });
+  ```
+
+- **Paged reads: check goes in the `data` branch only, never `total`.** `total`/count is
+  page-invariant, the same cache entry serves every page of the same filter (Step 8). Checking
+  in both branches makes a single GET silently consume 1 or 2 units of the rate-limit budget
+  depending on what happened to be cached, not something to leave implicit. `data` is the
+  branch that varies per page and carries the larger cost, so that's where the check goes:
+
+  ```ts
+  const [data, total] = await Promise.all([
+    cached(async () => {
+      await checkUserRequestLimit(req, userId, permissions);
+      return prisma.fieldMapping.findManyFts({ freeText, userId, where, select: MAPPING_SELECT_PAGED, orderBy: { name: 'asc' }, skip: page * pageSize, take: pageSize });
+    }, CACHE_KEYS.mapping.paged(userId, page, pageSize, freeText)),
+
+    cached(() => prisma.fieldMapping.countFts({ freeText, userId, where }), CACHE_KEYS.mapping.count(userId, freeText)),
+  ]);
+  ```
+
+### Select projections — three tiers, always explicit
+
+Never bare `findMany` — always pass `select`. The three tiers exist to bound Network Transfer:
+each one should only carry what the screen that calls it actually renders.
+
+```ts
+const MAPPING_SELECT_LIGHT = { id: true, name: true, reportType: true } as const;
+const MAPPING_SELECT_PAGED = { ...MAPPING_SELECT_LIGHT, isGlobal: true, exportSetting: { select: { id: true, name: true } } } as const;
+const MAPPING_SELECT       = { ...MAPPING_SELECT_PAGED, config: true, exportSetting: { select: { id: true, name: true, mappedValues: true, hasTotalColumn: true } } } as const;
+//                                                        ↑ heavy fields (JSON) — full only
+// Bytes (logos/files) never appear in any select tier — dedicated endpoint only
+```
+
+| Tier | Fields | Use |
+|------|--------|-----|
+| `_LIGHT` | id + name (+ a type/discriminator field if the dropdown needs to branch on it, e.g. connections) | Dropdowns, combobox options — retrieves the **whole** collection unpaginated, so keep it minimal |
+| `_PAGED` | + display fields + light relation selects | Paged list rows — the search/browse view |
+| Full (`_SELECT`) | + heavy fields (JSON, full relations) | `getById`, edit, detail view — never used for a list |
+
+For a small collection, `_PAGED` and full can end up nearly identical — still worth defining
+separately, so the tiers don't have to be re-split later if the collection grows or a heavy
+field gets added.
+
+### `findFirstOrThrow` — single-record lookups
+
+Prefer `OrThrow` variants for all single-record lookups. Two things this buys over a plain
+`findFirst` + manual null check:
+
+- Prisma throws P2025 straight into `withHandler`'s `catch` → `handleApiError` maps it to 404 —
+  no `if (!x) throw ApiError(...)` boilerplate repeated in every service.
+- The throw happens **before** `cached()` would resolve, so a miss is never memoized as a
+  cached `null` — the failure propagates as an error every time instead of being cached and
+  silently reused.
+
+```ts
+const mapping = await prisma.fieldMapping.findFirstOrThrow({
+  where: { id, OR: [{ userId }, { isGlobal: true }] },
+  select: MAPPING_SELECT,
+});
+
+// findFirst OK for: optional relations (a real "may or may not exist" read)
+// count() OK for: pagination totals, row limit checks
+```
+
+**Never pre-check existence before a create.** A `findFirst` "does this email already exist?"
+before `create` is a wasted round-trip (Network Transfer rule) and opens a race window.
+
+```ts
+// ❌ extra DB call, and a race window between check and create
+const existing = await prisma.user.findUnique({ where: { email } });
+if (existing) throw new ApiError('Email taken', 409);
+await prisma.user.create({ data });
+
+// ✅ one call — the @unique constraint throws P2002 → handleApiError maps to 409
+await prisma.user.create({ data });
+```
+
+Requires the `@unique` (or `@@unique`) constraint in the schema — the DB is the source of
+truth, not a JS pre-check.
+
+### `updateManyAndReturn` / `deleteManyAndReturn`
 
 > Ownership check lives in WHERE, not in code. One round trip. No TOCTOU.
 
 ```ts
-// ❌ Two-step — race condition, extra DB call, leaks existence to attacker
-const existing = await prisma.fieldMapping.findFirst({ where: { id } });
-if (!existing) throw new ApiError('Not found', 404);
-if (existing.userId !== userId) throw new ApiError('Forbidden', 403); // tells attacker record exists
-await prisma.fieldMapping.update({ where: { id }, data });
-
 // ✅ Update — Prisma native (5.x)
 const results = await prisma.fieldMapping.updateManyAndReturn({
   where: { id, userId }, // wrong owner → results.length === 0, same as not found
@@ -356,44 +609,23 @@ const deleted = await prisma.fieldMapping.deleteManyAndReturn({
 if (deleted.length === 0) throw new ApiError('Mapping not found', 404);
 ```
 
-Never distinguish "not found" from "wrong owner" — 404 for both = no info disclosure.
+Postgres doesn't support `DELETE ... RETURNING` natively in Prisma ORM — `withCrud` adds it via
+`$queryRaw`. Accepts Prisma-style `where` (equality + OR), `select`, and optional `limit`.
+Return type is inferred from `select` — no manual generics at the call site.
 
-```
-// ❌ "This item doesn't belong to you" — tells attacker the record exists
-// ✅ 404 "Not found" for both missing and unauthorized — simpler code, no info leak
-```
+Plain `update()` is the better call when `where` is just `{ id: userId }` straight from the
+session, no ownership to encode. That's `patchMe` in `user.service.ts`. Everywhere else,
+`updateManyAndReturn` is the standard even though `deleteManyAndReturn` (no native
+`updateAndReturn` to pair with) is the only reason both ended up as `*ManyAndReturn`. Known
+imperfect, kept anyway, update and delete stay symmetric across services.
 
-### One DB call — encode logic in WHERE
+### `createBatchLoader` — N cache-aware lookups, 1 DB call
 
-Permissions come from JWT, ownership from the `where` clause. Zero extra DB calls needed.
-
-The mapping update is a good example: instead of fetching the mapping first, checking `isGlobal`, verifying `userId`, then updating — all logic is resolved upfront in JS and encoded into a single `where`:
-
-```ts
-const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
-
-// Guard — no DB call, pure permission check
-if (!canModifyGlobal && data.isGlobal) {
-  throw new ApiError('Only users with CAN_MODIFY_GLOBAL can modify global mappings.', 403);
-}
-
-// WHERE encodes all ownership + visibility rules in one shot
-const where = canModifyGlobal
-  ? { id, OR: [{ userId }, { isGlobal: true }] }  // can touch own + global
-  : { id, userId, isGlobal: false };               // own non-global only
-
-const results = await prisma.fieldMapping.updateManyAndReturn({ where, data, select });
-if (results.length === 0) throw new ApiError('Mapping not found', 404);
-// ↑ covers: doesn't exist, wrong owner, no permission — all 404, no info disclosure
-```
-
-No "fetch then check then act". One query does all three.
-
-### Batch fetch by ids — `createBatchLoader` + per-id cache
-
-N individual cache-aware lookups, 1 DB call on a shared cache miss. `createBatchLoader`
-(`src/lib/batchLoader.ts`) coalesces every key requested in the same microtask into one
-`findMany`, then hands each caller back its own row from the result map:
+Same category as the permission/ownership `where` above — it's another place where the query
+has to enforce scoping the URL alone doesn't. Use when a handler needs several rows by id in
+the same request (`fetchProfitConnectionsByIds`, right after its rate-limit + validation
+checks). `createBatchLoader` (`src/lib/batchLoader.ts`) coalesces every key requested in the
+same microtask into one `findMany`, then hands each caller back its own row:
 
 ```ts
 const loadRow = createBatchLoader(
@@ -424,155 +656,50 @@ Each `ids.map` iteration calls `cached()` independently — on a full cache hit,
 runs at all. Only the misses hit `findMany`, and they collapse into one query no matter how
 many ids miss in the same request.
 
-**Caveat — every filter the handler is scoped to must also be in the batch `where`.** This
-endpoint is already pinned to `reportType: 'pnl'` (it's `fetchProfitConnectionsByIds`, a
-separate function from the financial-position one — see Validation Architecture in
-CLAUDE.md). If `reportType` were left out of `where`, a `financial_position` connection id
-passed to this endpoint would still match the `findMany` and leak through — the URL/endpoint
-choice alone isn't enough, the DB query has to enforce it too.
+**Caveat — every filter the handler is scoped to must also be in the batch `where`.** The
+example above is pinned to `reportType: 'pnl'` (`fetchProfitConnectionsByIds`, a separate
+function from the financial-position one — see the Validation Architecture rule in CLAUDE.md). If
+`reportType` were left out of `where`, a `financial_position` connection id passed to this
+endpoint would still match the `findMany` and leak through — the URL/endpoint choice alone
+isn't enough, the DB query has to enforce it too. Same principle as the permission `where` in
+Step 4: don't trust the caller's framing of the request, encode the real scope into the query.
 
-### deleteManyAndReturn (custom extension)
+### `upsertAndReturn` (custom extension)
 
-Postgres doesn't support `DELETE ... RETURNING` natively in Prisma ORM. `withCrud` in `src/lib/prismaCrud.ts` adds it as a Prisma extension using `$queryRaw` internally. Accepts Prisma-style `where` (equality + OR), `select`, and optional `limit`. Return type is inferred from `select` — no manual generics at the call site.
-
-### upsertAndReturn (custom extension)
-
-Single-roundtrip INSERT ... ON CONFLICT DO UPDATE ... RETURNING. Detects insert vs update via the Postgres `xmax` trick — no extra query needed.
+Single-roundtrip `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`. Detects insert vs update via
+the Postgres `xmax` trick — no extra query needed.
 
 ```ts
-const [{ createdAt, wasUpdated }] = await prisma.invite.upsertAndReturn({
-  where:  { email },                        // conflict key
-  create: { email, token, invitedBy, permissions },
-  update: { token, invitedBy, permissions, createdAt: new Date() }, // reset clock
-  select: { createdAt: true },
+// invite.service.ts — sendInvite
+const [{ id, wasUpdated }] = await prisma.invite.upsertAndReturn({
+  where:  { email: data.email },                                          // conflict key
+  create: { email: data.email, token, invitedBy: inviterId, permissions: data.permissions },
+  update: { token, invitedBy: inviterId, permissions: data.permissions }, // createdAt untouched — trigger owns it
+  select: { id: true },
 });
 // wasUpdated: true = row existed (UPDATE), false = fresh row (INSERT)
 ```
 
-**Raw SQL + DB-level behavior (resolved):** `withCrud` uses raw `$queryRaw`, so JS-side
-Prisma features (`@updatedAt`, `@default(cuid()/uuid())`, middleware) don't run. Instead of
-JS workarounds, all auto-behavior is pushed to Postgres so raw paths get it for free:
+Every model has both `createdAt` and `updatedAt` by convention — never reset `createdAt`
+manually in an `update`, that's what `updatedAt` (auto-touched by the DB trigger) is for.
+
+**Raw SQL + DB-level behavior:** `withCrud` uses raw `$queryRaw`, so JS-side Prisma features
+(`@updatedAt`, `@default(cuid()/uuid())`, middleware) don't run there. All auto-behavior is
+instead pushed to Postgres so raw paths get it for free:
 
 | Need | Schema | DB mechanism |
 |------|--------|--------------|
-| `updatedAt` auto-touch | `@default(now())` | `set_updated_at` trigger (`functions.sql`) fires on UPDATE |
+| `updatedAt` auto-touch | `@default(now())` | `set_updated_at` trigger (`prisma/functions.sql`) fires on UPDATE |
 | Generated id | `@default(dbgenerated("gen_random_uuid()"))` | column DEFAULT — don't pass `id` in `create` |
 | `createdAt` | `@default(now())` | column DEFAULT on INSERT |
 
-So `@updatedAt` is no longer a caveat — the trigger keeps it fresh on every write, raw or
-native. Never use JS-side `@updatedAt` / `@default(cuid())` (see CLAUDE.md "Raw SQL +
-Prisma Middleware"). Still JS-only: Prisma `$extends({ query })` middleware and nested
-writes don't fire on raw paths — split into separate writes when needed.
+Never use JS-side `@updatedAt` / `@default(cuid())` (see the "Raw SQL + Prisma Middleware"
+rule in CLAUDE.md). Still JS-only: Prisma `$extends({ query })` middleware and nested writes don't
+fire on raw paths — split into separate writes when needed.
 
----
+### `findManyFts` / `countFts` — full-text search
 
-## Lazy cleanup (withLazyCleanup)
-
-TTL'd tables (invites, tokens) **clean themselves on access** instead of accumulating —
-matches the "lazy cleanup instead of accumulation" rule. `withLazyCleanup` in
-`src/lib/prismaLazyCleanup.ts` adds raw helpers whose single query DELETEs expired rows in
-a CTE, then reads/counts only the live ones.
-
-```ts
-// model definition — compose onto the base client
-invite: {
-  ...withCrud<InviteModel>(base, '"Invite"'),
-  ...withLazyCleanup<InviteModel>(base, '"Invite"', {
-    ttl:   { field: 'createdAt', days: 14 },   // expiry window
-    limit: 50,                                  // optional per-scope cap
-    limitExceededMessage: 'Too many invites. Try again after some expire.',
-  }),
-},
-```
-
-| Method | What it does |
-|--------|--------------|
-| `findFirstWithCleanup({ where, select })` | DELETE expired + return one live row (or null) in one query |
-| `findManyWithCleanup({ where, select, orderBy, take, skip })` | DELETE expired + return live rows |
-| `assertLimit(where?)` | DELETE expired, then throw **429 `LIMIT_EXCEEDED`** if remaining ≥ `limit` |
-| `cleanupExpired()` | DELETE expired, return count. Auto-registered for cron |
-| `runAllCleanups()` (module fn) | run every registered `cleanupExpired` — the cron entry point |
-
-- **Why a CTE with `AND NOT (expired)`:** the `DELETE` and `SELECT` run on the same
-  pre-DELETE snapshot, so without the guard just-deleted rows would still show up.
-- **Lazy first, cron as backstop:** reads clean their own scope on every access; the cron
-  (`runAllCleanups`) sweeps tables that aren't being read so nothing lingers forever.
-- Call `assertLimit()` in step 3 (checks), before creating a new row.
-
----
-
-## findFirstOrThrow
-
-Prefer `OrThrow` variants for all single-record lookups — Prisma throws P2025 → `handleApiError` maps to 404. No manual null check needed.
-
-```ts
-const mapping = await prisma.fieldMapping.findFirstOrThrow({
-  where: { id, OR: [{ userId }, { isGlobal: true }] },
-  select: MAPPING_SELECT,
-});
-
-// findFirst OK for: optional relations (a real "may or may not exist" read)
-// count() OK for: pagination totals, row limit checks
-```
-
-**Never pre-check existence before a create.** A `findFirst` "does this email already
-exist?" before `create` is a wasted round-trip (Network transfer rule). Let the DB throw
-and map it:
-
-```ts
-// ❌ extra DB call, and a race window between check and create
-const existing = await prisma.user.findUnique({ where: { email } });
-if (existing) throw new ApiError('Email taken', 409);
-await prisma.user.create({ data });
-
-// ✅ one call — the @unique constraint throws P2002 → handleApiError maps to 409
-await prisma.user.create({ data });
-```
-
-Requires the `@unique` (or `@@unique`) constraint in the schema — the DB is the source of
-truth, not a JS pre-check. Same principle as encoding ownership in the `where`: let one
-query enforce the rule instead of fetch-then-act.
-
----
-
-## Pagination
-
-```ts
-const { page, pageSize } = await parsePaginationFromUrl(new URL(req.url).searchParams);
-// parsePaginationFromUrl: URL is 1-indexed → internal is 0-indexed
-// createPaginatedResponse: converts back to 1-indexed automatically
-
-const where = { OR: [{ userId }, { isGlobal: true }] };
-const [data, total] = await Promise.all([ // always parallel
-  cached(
-    () => prisma.fieldMapping.findManyFts({
-      freeText,
-      userId,
-      where,
-      select: MAPPING_SELECT_PAGED,
-      orderBy: { name: 'asc' },
-      skip: page * pageSize,
-      take: pageSize,
-    }),
-    CACHE_KEYS.mapping.paged(userId, page, pageSize, freeText),
-  ),
-  cached(
-    () => prisma.fieldMapping.countFts({ freeText, userId, where }),
-    CACHE_KEYS.mapping.count(userId, freeText),
-  ),
-]);
-
-return NextResponse.json(createPaginatedResponse(data, page, pageSize, total));
-```
-
-> Never `findMany` without pagination for user-facing lists — no `getAll`. Even 1,000 rows is a problem.
-> Exception: `_LIGHT` queries (id + name only) are acceptable unpaginated — low cost, used for dropdowns.
-
----
-
-## Full-text search (findManyFts / countFts)
-
-FTS is handled by the `withFts` Prisma extension (`src/lib/prismaFts.ts`). Use `findManyFts` / `countFts` — never write raw FTS SQL yourself.
+Use `findManyFts` / `countFts` — never write raw FTS SQL in a service.
 
 **Decision tree (handled automatically by the extension):**
 
@@ -590,59 +717,222 @@ await prisma.model.findManyFts({ freeText, userId, where, select, orderBy, skip,
 await prisma.model.countFts({ freeText, userId, where });
 ```
 
-The extension requires per-table DB setup: `search_vector` GIN index (tsvector) + trigram GIN index on the search column.
+Setting up a new searchable field/table is a DB-level step — see Step 6 below.
 
-### $queryRaw — when to use
+`$queryRaw` is used internally by `withFts` and `withCrud`. In service code, avoid it directly.
+If a complex query can't be expressed in Prisma ORM: check if `withFts` or `withCrud` already
+covers it; if truly unique (e.g. `checkDbConsumption` measuring raw storage across multiple
+models), use `$queryRaw` directly; if the raw query is reusable, wrap it as a custom Prisma
+extension (same pattern as `withFts`) so it gets Prisma-style typed props, caching, and test
+isolation.
 
-`$queryRaw` is used internally by `withFts` and `withCrud`. In service code, avoid it directly. If a complex query can't be expressed in Prisma ORM:
+### External calls — always proxied through the BE
 
-- Check if `withFts` or `withCrud` already covers it.
-- If truly unique (e.g., `checkDbConsumption` measuring raw storage across multiple models), use `$queryRaw` directly.
-- If the raw query is reusable, wrap it as a custom Prisma extension (same pattern as `withFts`) so it gets Prisma-style typed props, caching, and test isolation.
-
----
-
-## Rate limiting + DB limits
-
-In a `withHandler` body — step 3, after request validation:
-
-```ts
-const { userId, permissions } = getAuth();
-
-// Every mutating endpoint
-await checkUserRequestLimit(req, userId, permissions);
-
-// Before CREATE and UPDATE (not DELETE)
-await checkUserDbLimits(userId, permissions);
-```
-
-> Rate limiter uses in-memory sliding window. On Vercel (serverless), each cold start resets the window. Acceptable for single-instance; replace with Upstash Redis for multi-instance production.
-
----
-
-## Select projections
-
-Three tiers per resource — always explicit select, never bare `findMany`:
+The same rule as everything else in this step: never let the client reach an external API
+directly. `currency.service.ts` is the plain case — no auth-sensitive secret involved, just a
+public CDN, and it's still fetched server-side and cached, never called from the browser:
 
 ```ts
-const MODEL_SELECT_LIGHT = { id: true, name: true } as const;
-const MODEL_SELECT_PAGED = { ...MODEL_SELECT_LIGHT, isGlobal: true, reportType: true } as const;
-const MODEL_SELECT       = { ...MODEL_SELECT_PAGED, config: true } as const;
-//                                                   ↑ heavy fields (JSON) — full only
-// Bytes (logos/files) never appear in any select tier — dedicated endpoint only
+async function fetchCurrencyList(): Promise<Record<string, string>> {
+  const res = await fetch(CDN_LIST_URL);
+  if (!res.ok) throw new Error(`Currency list fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export const getCurrencyList = withHandler(async () => {
+  const data = await cached(fetchCurrencyList, CACHE_KEYS.currency.list(), CUSTOM_TTL);
+  return NextResponse.json(data);
+});
 ```
 
-| Tier | Fields | Use |
-|------|--------|-----|
-| `_LIGHT` | id + name only | Dropdowns, combobox options |
-| `_PAGED` | + display fields (flags, refs) | Paged list rows |
-| Full (`_SELECT`) | + heavy fields (JSON, relations) | Detail / edit — no `Bytes` ever |
+Two reasons, both apply even when there's no secret to hide: **security** — the client never
+gets a direct network path to a third party through our app, so there's no user-supplied URL or
+credential it could point at something else (see the Odoo `config.url` probing case in Step 4);
+**Network Transfer** — one server-side cached fetch serves every user hitting it within the TTL,
+instead of every browser round-tripping to the CDN itself. `connection.service.ts`'s
+Merit/Odoo drivers follow the same rule for calls that *do* carry user credentials.
 
 ---
 
-## Prisma relations (cool example)
+## Step 6 — FTS DB setup (one-time per searchable table)
 
-Prisma can express complex joins as pure TypeScript. This "find similar videos" query shows how deep relation traversal looks — no raw SQL needed:
+`findManyFts`/`countFts` only work once the table has a `search_vector` column, its GIN index,
+a trigram index, and a trigger that keeps `search_vector` current. All of this lives in
+`prisma/fts.sql` — run it once against the DB after `prisma db push` adds the table, and again
+any time you add a new searchable table (re-running is safe, every statement uses
+`IF NOT EXISTS` / `CREATE OR REPLACE`).
+
+To add FTS to a new table, append a block to `prisma/fts.sql` following the existing pattern
+(this is exactly how `User`, searched by name/email, was added alongside `FieldMapping` and
+`ExportSetting`):
+
+```sql
+-- ==== <TableName> ====
+
+ALTER TABLE "TableName"
+  ADD COLUMN IF NOT EXISTS search_vector tsvector NOT NULL DEFAULT ''::tsvector;
+
+CREATE INDEX IF NOT EXISTS "TableName_search_vector_idx"
+  ON "TableName" USING GIN (search_vector);
+
+CREATE INDEX IF NOT EXISTS "TableName_name_trgm_idx"
+  ON "TableName" USING GIN (name gin_trgm_ops);
+
+DROP TRIGGER IF EXISTS table_name_fts_update ON "TableName";
+CREATE TRIGGER table_name_fts_update
+  BEFORE INSERT OR UPDATE OF name ON "TableName"
+  FOR EACH ROW EXECUTE FUNCTION update_name_search_vector();
+
+-- Backfill existing rows
+UPDATE "TableName"
+  SET search_vector = to_tsvector('english', COALESCE(name, ''))
+  WHERE search_vector = ''::tsvector;
+```
+
+The trigger function (`update_name_search_vector`) and the `pg_trgm` extension are shared —
+defined once near the top of `fts.sql`, don't redefine per table. The trigger fires
+`BEFORE INSERT OR UPDATE OF name`, so `search_vector` only recomputes when `name` actually
+changes, not on every column update. If a table needs more than one searched column, extend the
+shared trigger function rather than writing a per-table one.
+
+---
+
+## Step 7 — aftermath: invalidate, then reseed
+
+After any create/update/delete: invalidate the tags that could now be stale, then immediately
+reseed the by-id cache entry with the value you already have in hand — avoids an extra DB call
+on the next GET for that record.
+
+```ts
+invalidateCache(...CACHE_KEYS.mapping.invalidate(userId));
+if (data.isGlobal) invalidateCache(...CACHE_KEYS.mapping.invalidateAll());
+await cached(() => Promise.resolve(mapping), CACHE_KEYS.mapping.byId(userId, mapping.id));
+```
+
+- Invalidate the **narrowest** tag that covers what changed first (`mapping.invalidate(userId)`
+  clears that user's lists/paged/count), then the broader one only if the mutation could affect
+  other users' views (`isGlobal` toggled → also clear `invalidateAll()`).
+- The reseed always uses the value already returned by `updateManyAndReturn` /
+  `deleteManyAndReturn` / `create` — never a fresh `findFirst` just to populate cache.
+- Delete has no reseed step — there's nothing to cache, only the invalidate calls.
+
+---
+
+## Step 8 — paged responses + related models
+
+Paged list endpoints run two Prisma calls in **parallel**, never sequential. The DB-cost check
+goes in the `data` branch only, see Step 5, "Cache-wrapping the DB-cost check":
+
+```ts
+const where = { OR: [{ userId }, { isGlobal: true }] };
+const [data, total] = await Promise.all([
+  cached(
+    async () => {
+      await checkUserRequestLimit(req, userId, permissions);
+      return prisma.fieldMapping.findManyFts({
+        freeText, userId, where,
+        select: MAPPING_SELECT_PAGED,
+        orderBy: { name: 'asc' },
+        skip: page * pageSize,
+        take: pageSize,
+      });
+    },
+    CACHE_KEYS.mapping.paged(userId, page, pageSize, freeText),
+  ),
+  cached(
+    () => prisma.fieldMapping.countFts({ freeText, userId, where }),
+    CACHE_KEYS.mapping.count(userId, freeText),
+  ),
+]);
+
+return NextResponse.json(createPaginatedResponse(data, page, pageSize, total));
+```
+
+**Related models in `_PAGED`/full selects use a light nested `select`, never a bare
+`include`.** A mapping row needs its export setting's name for the list column, not the whole
+row:
+
+```ts
+const MAPPING_SELECT_PAGED = {
+  id: true, name: true, isGlobal: true, reportType: true,
+  exportSetting: { select: { id: true, name: true } },   // light — just what the row needs
+} as const;
+
+const MAPPING_SELECT = {
+  ...MAPPING_SELECT_PAGED,
+  config: true,
+  exportSetting: { select: { id: true, name: true, mappedValues: true, hasTotalColumn: true } }, // full, detail view only
+} as const;
+```
+
+Same Network Transfer rule as top-level selects: the paged tier's relation select stays as
+narrow as the list UI actually renders; the full tier widens it for the detail view.
+
+> Never `findMany` without pagination for user-facing lists — no `getAll`. Even 1,000 rows is a
+> problem. Exception: `_LIGHT` queries (id + name only) are acceptable unpaginated — low cost,
+> used for dropdowns.
+
+---
+
+## Reference
+
+### Error handling
+
+You never call `handleApiError` yourself — `withHandler` owns the `try/catch` and reports
+errors automatically. In the body you just **throw**; the wrapper maps it:
+
+| Thrown | Status |
+|--------|--------|
+| `ApiError(msg, status)` | `.status` |
+| Yup `ValidationError` | 400 + `details.fieldErrors` |
+| Prisma P2025 / P2003 | 404 |
+| Prisma P2002 | 409 |
+| Unknown | 500 |
+
+```ts
+throw new ApiError('Mapping not found', 404);
+throw new ApiError('Limit reached: max 20 mappings', 403);
+```
+
+### Data flow & route protection
+
+Client-side data takes one path; server-side code skips the HTTP hop entirely:
+
+```
+React component → React Query hook (src/hooks/*.hooks.ts) → fetchClient (src/lib/fetchClient.ts)
+  → /api/**/route.ts → service (withHandler) → Prisma → Neon DB
+```
+
+| Caller | How it reads data |
+|--------|-------------------|
+| Client component | `fetchClient` → API route → service → Prisma |
+| Server component / server action | call the service directly — no HTTP round-trip |
+
+`fetchClient` (axios) exists for two things raw `fetch` lacks: it strips `Content-Type` on
+`FormData` so the browser sets the multipart boundary, and it normalizes 4xx/5xx into
+`ApiError { message, status, code, details }` so hooks don't each parse errors.
+
+**Protection layers:**
+- **Per route, in the service** — `withHandler` (auth required) vs `withPublicHandler` (auth
+  optional). This is the primary mechanism — prefer it.
+- **Globally, in middleware** — `authorized()` in `src/auth.config.ts` decides which paths the
+  edge middleware lets through before they ever reach a route. Add a path to a public allowlist
+  there to skip the sign-in redirect:
+
+```ts
+// src/auth.config.ts
+authorized({ auth, request: { nextUrl } }) {
+  const publicRoutes = ['/about', '/api/webhook'];
+  if (publicRoutes.some(r => nextUrl.pathname.startsWith(r))) return true;
+  return !!auth?.user;   // everything else requires sign-in
+}
+```
+
+### Prisma relations (cool example)
+
+Not a pattern currently used anywhere in the codebase, but worth keeping in mind — Prisma can
+express complex joins as pure TypeScript. This "find similar videos" query shows how deep
+relation traversal looks — no raw SQL needed:
 
 ```ts
 // Find videos sharing at least one genre with videoId

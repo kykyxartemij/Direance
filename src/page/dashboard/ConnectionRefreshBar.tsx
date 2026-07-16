@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useReports } from '@/providers/ReportProvider';
-import { useGetLightConnections, useRefreshConnectionReports } from '@/hooks/connection.hooks';
+import { useGetLightConnections, useRefreshPnlConnectionById, useRefreshFinancialPositionConnectionById } from '@/hooks/connection.hooks';
 import ArtButton from '@/components/ui/ArtButton';
 import PnlFilterForm from '@/page/connections/PnlFilterForm';
 import FinancialPositionFilterForm from '@/page/connections/FinancialPositionFilterForm';
@@ -27,7 +27,9 @@ export default function ConnectionRefreshBar({ reportType }: Props) {
   const { reports } = useReports();
   const { data: allConnections = [] } = useGetLightConnections();
   const connections = allConnections.filter((c) => c.reportType === reportType);
-  const { mutate: refresh, isPending } = useRefreshConnectionReports();
+  const { mutate: refreshPnl, isPending: refreshingPnl } = useRefreshPnlConnectionById();
+  const { mutate: refreshFinancialPosition, isPending: refreshingFinancialPosition } = useRefreshFinancialPositionConnectionById();
+  const isPending = refreshingPnl || refreshingFinancialPosition;
 
   const [pnlValuesMap, setPnlValuesMap] = useState<Record<string, PnlFilterValues>>({});
   const [finPosValuesMap, setFinPosValuesMap] = useState<Record<string, FinancialPositionFilterValues>>({});
@@ -38,10 +40,11 @@ export default function ConnectionRefreshBar({ reportType }: Props) {
   if (activeConnectionReports.length === 0) return null;
 
   function handleSubmit(reportId: string, connectionId: string) {
-    const filters = reportType === 'pnl'
-      ? buildPnlFetchFilters(pnlValuesMap[connectionId] ?? defaultPnlFilterValues())
-      : buildFinancialPositionFetchFilters(finPosValuesMap[connectionId] ?? defaultFinancialPositionFilterValues());
-    refresh([{ reportId, connectionId, filters }]);
+    if (reportType === 'pnl') {
+      refreshPnl({ reportId, connectionId, ...buildPnlFetchFilters(pnlValuesMap[connectionId] ?? defaultPnlFilterValues()) });
+    } else {
+      refreshFinancialPosition({ reportId, connectionId, ...buildFinancialPositionFetchFilters(finPosValuesMap[connectionId] ?? defaultFinancialPositionFilterValues()) });
+    }
   }
 
   return (
@@ -61,7 +64,6 @@ export default function ConnectionRefreshBar({ reportType }: Props) {
             </div>
             {reportType === 'pnl' ? (
               <PnlFilterForm
-                connectionType={conn.type}
                 values={pnlValuesMap[conn.id] ?? defaultPnlFilterValues()}
                 onChange={(key, value) =>
                   setPnlValuesMap((prev) => ({ ...prev, [conn.id]: { ...(prev[conn.id] ?? defaultPnlFilterValues()), [key]: value } }))
@@ -69,7 +71,6 @@ export default function ConnectionRefreshBar({ reportType }: Props) {
               />
             ) : (
               <FinancialPositionFilterForm
-                connectionType={conn.type}
                 values={finPosValuesMap[conn.id] ?? defaultFinancialPositionFilterValues()}
                 onChange={(key, value) =>
                   setFinPosValuesMap((prev) => ({ ...prev, [conn.id]: { ...(prev[conn.id] ?? defaultFinancialPositionFilterValues()), [key]: value } }))

@@ -2,7 +2,7 @@
 import 'server-only';
 import crypto from 'crypto';
 import type { RawReport } from './index';
-import { MERIT_BASE_URLS, type MeritSecret, type PnlFetchFiltersModel, type FinancialPositionFetchFiltersModel } from '@/models/connection.models';
+import { MERIT_BASE_URLS, type MeritConfig, type MeritSecret, type PnlFetchFiltersModel, type FinancialPositionFetchFiltersModel } from '@/models/connection.models';
 import { ApiError } from '@/models/api-error';
 
 // ==== Merit.ee driver ====
@@ -12,9 +12,10 @@ import { ApiError } from '@/models/api-error';
 // v1), the ONLY accepted fields are:
 //   getprofitrep:  EndDate (Str), PerCount (Int), DepFilter (Str, optional)
 //   getbalancerep: EndDate (Str), PerCount (Int) — no DepFilter
-// There is no SumPeriods, date-range, journal, or account-prefix concept on
-// Merit's side at all — those are Odoo-only (see odoo.ts). Do not add them
-// back here without a doc reference confirming the real param name.
+// DepFilter lives on MeritConfig (connection-level, P&L connections only) —
+// see connection.models.ts. dateTo/dateFrom/periods are the universal fetch
+// filters (see PnlFetchFiltersModel); this driver translates dateTo->EndDate
+// and periods->PerCount directly, deriving periods from dateFrom when given.
 //
 // Auth: POST JSON body, auth params in URL query string.
 // Docs: https://api.merit.ee/connecting-robots/reference-manual/authentication/
@@ -32,6 +33,20 @@ function toMeritDate(iso: string): string {
 
 function defaultEndDate(): string {
   return toMeritDate(new Date().toISOString().slice(0, 10));
+}
+
+// Whole calendar months between two ISO dates, minimum 1.
+function monthsBetween(fromIso: string, toIso: string): number {
+  const from = new Date(fromIso);
+  const to   = new Date(toIso);
+  const months = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
+  return Math.max(1, months);
+}
+
+function resolvePeriod(filters: { dateTo?: string; dateFrom?: string; periods?: number }): { endDate: string; perCount: number } {
+  const endDate = filters.dateTo ? toMeritDate(filters.dateTo) : defaultEndDate();
+  const perCount = filters.periods ?? (filters.dateFrom && filters.dateTo ? monthsBetween(filters.dateFrom, filters.dateTo) : 1);
+  return { endDate, perCount };
 }
 
 function meritTimestamp(): string {
@@ -102,17 +117,16 @@ function flattenMeritRows(data: unknown): Record<string, unknown>[] {
   });
 }
 
-export async function runMeritPnlDriver({ type, secret, filters }: MeritDriverInput<PnlFetchFiltersModel>): Promise<RawReport> {
+export async function runMeritPnlDriver({ type, config, secret, filters }: MeritDriverInput<PnlFetchFiltersModel>): Promise<RawReport> {
   const { apiKey, apiId } = secret as MeritSecret;
+  const { depFilter }     = config as MeritConfig;
   const baseUrl           = MERIT_BASE_URLS[type];
-
-  const endDate  = filters.endDate ? toMeritDate(filters.endDate) : defaultEndDate();
-  const perCount = filters.perCount ?? 1;
+  const { endDate, perCount } = resolvePeriod(filters);
 
   const data = await meritPost(baseUrl, 'getprofitrep', apiId, apiKey, {
     EndDate: endDate,
     PerCount: perCount,
-    DepFilter: filters.depFilter ?? '',
+    DepFilter: depFilter ?? '',
   });
 
   return {
@@ -124,9 +138,7 @@ export async function runMeritPnlDriver({ type, secret, filters }: MeritDriverIn
 export async function runMeritFinancialPositionDriver({ type, secret, filters }: MeritDriverInput<FinancialPositionFetchFiltersModel>): Promise<RawReport> {
   const { apiKey, apiId } = secret as MeritSecret;
   const baseUrl           = MERIT_BASE_URLS[type];
-
-  const endDate  = filters.endDate ? toMeritDate(filters.endDate) : defaultEndDate();
-  const perCount = filters.perCount ?? 1;
+  const { endDate, perCount } = resolvePeriod(filters);
 
   const data = await meritPost(baseUrl, 'getbalancerep', apiId, apiKey, { EndDate: endDate, PerCount: perCount });
 

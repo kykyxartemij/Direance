@@ -10,15 +10,8 @@ const MIN_FTS_LENGTH = 5;
 
 // ==== Helpers ====
 
-/**
- * Combined FTS + trigram query in a single SQL statement.
- *
- * Layer 1 — tsvector + plainto_tsquery: stemming, word order agnostic, phrase-aware.
- * Layer 2 — pg_trgm similarity > 0.2: typo tolerance, partial matches.
- * Results ranked by tsvector rank so exact word matches surface first.
- *
- * Requires per-table: search_vector GIN index + searchColumn gin_trgm_ops index.
- */
+// Combined FTS (tsvector, stemming/phrase-aware) + trigram (similarity > 0.2, typo-tolerant)
+// query, ranked by tsvector rank. Requires per-table search_vector GIN + searchColumn gin_trgm_ops index.
 async function resolveFtsIds(
   client: PrismaClient,
   table: string,
@@ -38,15 +31,8 @@ async function resolveFtsIds(
   return rows.map((r) => r.id);
 }
 
-/**
- * Caches resolveFtsIds for FTS_CACHE_TTL seconds, tagged with collectionCacheKey.
- * Cache key is scoped per user when userId is provided — keeps each user's session
- * results warm without eviction from other users' unrelated searches.
- * CRUD mutations that call invalidateCache(...CACHE_KEYS.x.invalidate())
- * automatically bust this cache — no extra invalidation needed.
- */
-// cache() deduplicates concurrent calls with the same args within one request —
-// findManyFts + countFts called in Promise.all both hit this; only one FTS query fires.
+// Caches resolveFtsIds for FTS_CACHE_TTL sec, tagged with collectionCacheKey (busted automatically by
+// invalidateCache(...CACHE_KEYS.x.invalidate())). cache() also dedupes findManyFts + countFts within one request.
 const resolveFtsIdsCached = cache(async function (
   client: PrismaClient,
   table: string,
@@ -71,22 +57,11 @@ const resolveFtsIdsCached = cache(async function (
 // ==== Factory ====
 
 /**
- * Returns { findManyFts, countFts } to register on a Prisma $extends model block.
- *
- * @param client               Base PrismaClient (same instance as the one being extended)
- * @param model                Base model delegate, e.g. base.exportSetting
- * @param table                PostgreSQL table name, e.g. '"ExportSetting"'
- * @param collectionCacheKey   First element of CACHE_KEYS.x.invalidate(), e.g. 'exportSetting'
- * @param searchColumn         Primary FTS column (tsvector + trigram), e.g. 'name'
- * @param extraSearchColumns   Additional columns searched via contains only (no tsvector).
- *                             Use for structured values like email where tsvector breaks on special chars.
- *
- * Decision tree (same for both methods):
- *   empty                   → no filter, return all               0 extra DB calls
- *   1–4 chars               → contains on all columns, OR'd          0 extra DB calls
- *   valid UUID              → exact id filter                      0 extra DB calls
- *   5+ chars                → FTS + trigram on searchColumn,
- *                             contains on extraSearchColumns, OR'd    1 extra DB call
+ * Registers { findManyFts, countFts } on a Prisma $extends model block.
+ * extraSearchColumns are matched via contains only (no tsvector) — for structured values like
+ * email where tsvector breaks on special chars.
+ * Decision tree (both methods): empty → no filter; 1-4 chars → contains, OR'd; valid UUID →
+ * exact id filter; 5+ chars → FTS+trigram on searchColumn, contains on extraSearchColumns, OR'd.
  */
 export function withFts<
   TModel extends {

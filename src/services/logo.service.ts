@@ -36,14 +36,16 @@ const LOGO_SELECT = {
 
 export const getLightLogos = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
-  await checkUserRequestLimit(req, userId, permissions);
 
   const logos = await cached(
-    () => prisma.logo.findMany({
-      where: { userId },
-      select: LOGO_SELECT_LIGHT,
-      orderBy: { createdAt: 'desc' },
-    }),
+    async () => {
+      await checkUserRequestLimit(req, userId, permissions);
+      return prisma.logo.findMany({
+        where: { userId },
+        select: LOGO_SELECT_LIGHT,
+        orderBy: { createdAt: 'desc' },
+      });
+    },
     CACHE_KEYS.logo.light(userId),
   );
 
@@ -52,9 +54,8 @@ export const getLightLogos = withHandler(async (req) => {
 
 export const getLogoById = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
-  await checkUserRequestLimit(req, userId, permissions);
-
   const id = parseIdFromRoute(await params);
+  await checkUserRequestLimit(req, userId, permissions);
 
   const logo = await prisma.logo.findFirst({
     where: { id, userId },
@@ -67,9 +68,8 @@ export const getLogoById = withHandler<{ id: string }>(async (req, { params }) =
 
 export const getLogoByExportSettingId = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
-  await checkUserRequestLimit(req, userId, permissions);
-
   const id = parseIdFromRoute(await params);
+  await checkUserRequestLimit(req, userId, permissions);
 
   const row = await prisma.exportSetting.findFirst({
     where: { id, userId },
@@ -110,9 +110,8 @@ export const createLogo = withHandler(async (req) => {
 
 export const deleteLogo = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
-  await checkUserRequestLimit(req, userId, permissions);
-
   const id = parseIdFromRoute(await params);
+  await checkUserRequestLimit(req, userId, permissions);
 
   const { count } = await prisma.logo.deleteMany({ where: { id, userId } });
   if (count === 0) throw new ApiError('Logo not found', 404);

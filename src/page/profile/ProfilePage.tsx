@@ -1,11 +1,11 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import Image from 'next/image';
+import { useRef } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { useGetLightLogos, useCreateLogo, useDeleteLogo, useGetLogoById } from '@/hooks/logo.hooks';
 import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
 import ArtButton from '@/components/ui/ArtButton';
+import ArtImage from '@/components/ui/ArtImage';
 import { ArtConfirmDialog } from '@/components/ui/ArtDialog';
 
 // ==== User info section ====
@@ -47,27 +47,20 @@ function LogoRow({
   onDelete: () => void;
   deleting: boolean;
 }) {
-  const [load, setLoad] = useState(false);
-  const query = useGetLogoById(load ? id : '');
+  const query = useGetLogoById(id, { enabled: false });
   const src = query.data?.data ? `data:${query.data.mime ?? 'image/webp'};base64,${query.data.data}` : null;
 
   return (
     <div className="flex items-center gap-4 py-2" style={{ borderTop: '1px solid var(--border)' }}>
-      <div style={{ width: 80, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--border)', borderRadius: 4 }}>
-        {src ? (
-          <Image src={src} alt={name ?? 'Logo'} width={80} height={48} unoptimized style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-        ) : (
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            {query.isFetching ? '…' : 'preview'}
-          </span>
-        )}
-      </div>
+      <ArtImage
+        src={src}
+        alt={name ?? 'Logo'}
+        width={80}
+        height={48}
+        isLoading={query.isFetching}
+        onRequestLoad={() => query.refetch()}
+      />
       <span className="flex-1 text-sm" style={{ color: 'var(--text)' }}>{name ?? '(unnamed)'}</span>
-      {!src && (
-        <ArtButton type="button" variant="outlined" size="sm" loading={query.isFetching} onClick={() => setLoad(true)}>
-          Load
-        </ArtButton>
-      )}
       <ArtConfirmDialog
         title="Delete logo"
         description={`Delete "${name ?? 'this logo'}"? Any ExportSetting using it will lose the logo reference.`}

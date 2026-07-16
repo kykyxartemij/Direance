@@ -3,11 +3,8 @@ import type { ArtColor } from '@/components/ui/art.types';
 
 // ==== Value category ====
 
-/**
- * Named value category with a color. Stored as JSON array on ExportSetting.
- * When a Mapping row's display name matches a category name (case-insensitive),
- * the category color overrides any row-level color and the picker is locked.
- */
+// Stored as JSON array on ExportSetting. When a Mapping row's display name matches a
+// category name (case-insensitive), the category color overrides row-level color and locks the picker.
 export type MappedValueModel = {
   name: string;
   color: ArtColor;
@@ -23,16 +20,12 @@ const MappedValueValidator = yup.object({
 // ==== Header layout types ====
 
 export type HeaderItemModel = {
-  /** Excel cell address, e.g. "A1", "B2" */
   cell: string;
-  /** Display text or <Placeholder> to fill at export time */
-  content: string;
+  content: string; // display text, or <Placeholder> filled at export time
 };
 
 export type HeaderLayoutModel = {
-  /** Cell where the logo image is placed, e.g. "A1" */
   logoCell?: string;
-  /** Cell where the DataTable begins, e.g. "B4" */
   dataStartCell?: string;
   items?: HeaderItemModel[];
 };
@@ -50,15 +43,12 @@ export type ExportSettingModel = {
   headerLayout?: HeaderLayoutModel | null;
   applyHeaderToAllSheets: boolean;
   includeOriginalSheets: boolean;
-  /** Named value categories (name + color) — shown as Display Name options in Row Mappings */
-  mappedValues: MappedValueModel[];
-  /** When true, exported workbook gets a Σ Total column summing all value columns. */
-  hasTotalColumn: boolean;
-  /** Logo metadata — bytes served separately via GET /api/export-settings/:id/logo */
-  logo?: { id: string; mime: string; name: string } | null;
+  mappedValues: MappedValueModel[]; // shown as Display Name options in Row Mappings
+  hasTotalColumn: boolean; // exported workbook gets a Σ Total column summing all value columns
+  logo?: { id: string; mime: string; name: string } | null; // bytes served separately via GET /api/export-settings/:id/logo
 };
 
-/** Runtime-only — logo bytes merged in for export */
+// Runtime-only — logo bytes merged in for export
 export type ExportSettingResolvedModel = ExportSettingModel & {
   logoData?: string | null;
   logoMime?: string | null;

@@ -9,13 +9,8 @@ export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 // ==== Handler ====
 
 /**
- * Centralized error → NextResponse mapper. The (method, url) pair is the request
- * context used for logging. Always pass the API helper output as `url` so the
- * logged context updates automatically when the URL definition changes.
- *
- * Example:
- *   handleApiError(error, 'POST', API.invite.send())
- *   handleApiError(error, 'PATCH', API.mapping.byId(id))
+ * Centralized error → NextResponse mapper. Always pass the API helper output as `url`
+ * (e.g. API.invite.send()) so the logged context updates automatically when the URL definition changes.
  */
 export function handleApiError(error: unknown, method: HttpMethod, url: string) {
   console.error(`${method} ${url} error:`, error);

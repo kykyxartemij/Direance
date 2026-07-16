@@ -19,22 +19,11 @@ export function runAllCleanups(): Promise<{ table: string; deleted: number }[]> 
 
 type LazyCleanupConfig = {
   ttl: { field: string; days: number };
-  /** 0 or omit = no limit. assertLimit() throws 429 when count >= limit. */
-  limit?: number;
+  limit?: number; // 0 or omit = no limit. assertLimit() throws 429 when count >= limit
   limitExceededMessage?: string;
 };
 
-/**
- * @example
- * invite: {
- *   ...withCrud<InviteModel>(base, '"Invite"'),
- *   ...withLazyCleanup<InviteModel>(base, '"Invite"', {
- *     ttl:   { field: 'createdAt', days: 14 },
- *     limit: 50,
- *     limitExceededMessage: 'Too many invites. Try again after some expire.',
- *   }),
- * }
- */
+/** Registers { cleanupExpired, assertLimit, findFirstWithCleanup, findManyWithCleanup } on a Prisma $extends model block. */
 export function withLazyCleanup<TModel extends object>(
   client: PrismaClient,
   table: string,

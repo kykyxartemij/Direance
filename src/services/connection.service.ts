@@ -13,15 +13,18 @@ import { parseIdFromRoute } from '@/models';
 import {
   CreateConnectionValidator,
   UpdateConnectionValidator,
+  TestConnectionValidator,
   PnlFetchManyValidator,
   FinancialPositionFetchManyValidator,
+  PnlFetchValidator,
+  FinancialPositionFetchValidator,
   type ConnectionType,
   type ConnectionSecret,
 } from '@/models/connection.models';
 import { parsePaginationFromUrl, createPaginatedResponse } from '@/models/paginated-response.model';
 import { parseFreeTextFromUrl } from '@/lib/normalizeText';
 import { encryptSecret, decryptSecret } from '@/lib/crypto';
-import { runPnlConnectionDriver, runFinancialPositionConnectionDriver } from '@/lib/connections';
+import { runPnlConnectionDriver, runFinancialPositionConnectionDriver, testPnlConnectionDriver, testFinancialPositionConnectionDriver } from '@/lib/connections';
 import { MAPPING_SELECT } from '@/services/mapping.service';
 
 // ==== Select ====
@@ -57,18 +60,20 @@ const CONNECTION_SELECT = {
 } as const;
 
 // ==== HTTP handlers ====
+// #region Connections
 
 export const getLightConnections = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
-  await checkUserRequestLimit(req, userId, permissions);
 
   const list = await cached(
-    () =>
-      prisma.connection.findMany({
+    async () => {
+      await checkUserRequestLimit(req, userId, permissions);
+      return prisma.connection.findMany({
         where: { userId },
         select: CONNECTION_SELECT_LIGHT,
         orderBy: { name: 'asc' },
-      }),
+      });
+    },
     CACHE_KEYS.connection.light(userId),
   );
 
@@ -77,7 +82,6 @@ export const getLightConnections = withHandler(async (req) => {
 
 export const getPagedConnections = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
-  await checkUserRequestLimit(req, userId, permissions);
 
   const searchParams = new URL(req.url).searchParams;
   const { page, pageSize } = await parsePaginationFromUrl(searchParams);
@@ -86,8 +90,9 @@ export const getPagedConnections = withHandler(async (req) => {
   const where = { userId };
   const [data, total] = await Promise.all([
     cached(
-      () =>
-        prisma.connection.findManyFts({
+      async () => {
+        await checkUserRequestLimit(req, userId, permissions);
+        return prisma.connection.findManyFts({
           freeText,
           userId,
           where,
@@ -95,7 +100,8 @@ export const getPagedConnections = withHandler(async (req) => {
           orderBy: { name: 'asc' },
           skip: page * pageSize,
           take: pageSize,
-        }),
+        });
+      },
       CACHE_KEYS.connection.paged(userId, page, pageSize, freeText),
     ),
     cached(
@@ -109,16 +115,16 @@ export const getPagedConnections = withHandler(async (req) => {
 
 export const getConnectionById = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
-  await checkUserRequestLimit(req, userId, permissions);
-
   const id = parseIdFromRoute(await params);
 
   const connection = await cached(
-    () =>
-      prisma.connection.findFirstOrThrow({
+    async () => {
+      await checkUserRequestLimit(req, userId, permissions);
+      return prisma.connection.findFirstOrThrow({
         where: { id, userId },
         select: CONNECTION_SELECT,
-      }),
+      });
+    },
     CACHE_KEYS.connection.byId(userId, id),
   );
 
@@ -183,9 +189,8 @@ export const updateConnection = withHandler<{ id: string }>(async (req, { params
 
 export const deleteConnection = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
-  await checkUserRequestLimit(req, userId, permissions);
-
   const id = parseIdFromRoute(await params);
+  await checkUserRequestLimit(req, userId, permissions);
 
   const { count } = await prisma.connection.deleteMany({ where: { id, userId } });
   if (count === 0) throw new ApiError('Connection not found', 404);
@@ -194,7 +199,16 @@ export const deleteConnection = withHandler<{ id: string }>(async (req, { params
   return new NextResponse(null, { status: 204 });
 });
 
-// ==== Fetch by ids — Profit & Loss (BE proxies external API call) ====
+// #endregion
+// #region Pnl
+
+// ==== Fetch — Profit & Loss (BE proxies external API call) ====
+
+export const testPnlConnection = withHandler(async (req) => {
+  const { type, config, secret } = await TestConnectionValidator.validate(await req.json(), { abortEarly: false });
+  await testPnlConnectionDriver({ type, config, secret: secret as ConnectionSecret });
+  return new NextResponse(null, { status: 204 });
+});
 
 export const fetchProfitConnectionsByIds = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
@@ -235,7 +249,44 @@ export const fetchProfitConnectionsByIds = withHandler(async (req) => {
   return NextResponse.json(Object.fromEntries(entries));
 });
 
-// ==== Fetch by ids — Financial Position (BE proxies external API call) ====
+export const fetchProfitConnectionById = withHandler<{ id: string }>(async (req, { params }) => {
+  const { userId, permissions } = getAuth();
+  const id = parseIdFromRoute(await params);
+  const filters = await PnlFetchValidator.validate(await req.json(), { abortEarly: false });
+
+  const result = await cached(
+    async () => {
+      await checkUserRequestLimit(req, userId, permissions);
+      const row = await prisma.connection.findFirstOrThrow({
+        where: { id, userId, reportType: 'pnl' },
+        select: { type: true, config: true, secret: true, mapping: { select: MAPPING_SELECT } },
+      });
+      const secret = await decryptSecret<ConnectionSecret>(row.secret);
+      const report = await runPnlConnectionDriver({
+        type: row.type as ConnectionType,
+        config: row.config as Record<string, unknown>,
+        secret,
+        filters,
+      });
+      return { ...report, mapping: row.mapping };
+    },
+    CACHE_KEYS.connection.fetch(userId, 'pnl', id, filters),
+  );
+
+  return NextResponse.json(result);
+});
+
+// #endregion
+// #region Financial Position
+
+
+// ==== Fetch — Financial Position (BE proxies external API call) ====
+
+export const testFinancialPositionConnection = withHandler(async (req) => {
+  const { type, config, secret } = await TestConnectionValidator.validate(await req.json(), { abortEarly: false });
+  await testFinancialPositionConnectionDriver({ type, config, secret: secret as ConnectionSecret });
+  return new NextResponse(null, { status: 204 });
+});
 
 export const fetchFinancialPositionConnectionsByIds = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
@@ -275,3 +326,32 @@ export const fetchFinancialPositionConnectionsByIds = withHandler(async (req) =>
 
   return NextResponse.json(Object.fromEntries(entries));
 });
+
+export const fetchFinancialPositionConnectionById = withHandler<{ id: string }>(async (req, { params }) => {
+  const { userId, permissions } = getAuth();
+  const id = parseIdFromRoute(await params);
+  const filters = await FinancialPositionFetchValidator.validate(await req.json(), { abortEarly: false });
+
+  const result = await cached(
+    async () => {
+      await checkUserRequestLimit(req, userId, permissions);
+      const row = await prisma.connection.findFirstOrThrow({
+        where: { id, userId, reportType: 'financial_position' },
+        select: { type: true, config: true, secret: true, mapping: { select: MAPPING_SELECT } },
+      });
+      const secret = await decryptSecret<ConnectionSecret>(row.secret);
+      const report = await runFinancialPositionConnectionDriver({
+        type: row.type as ConnectionType,
+        config: row.config as Record<string, unknown>,
+        secret,
+        filters,
+      });
+      return { ...report, mapping: row.mapping };
+    },
+    CACHE_KEYS.connection.fetch(userId, 'financial_position', id, filters),
+  );
+
+  return NextResponse.json(result);
+});
+
+// #endregion

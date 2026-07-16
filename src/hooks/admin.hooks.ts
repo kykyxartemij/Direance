@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type UseQueryOptions } from '@tanstack/react-query';
 import fetchClient from '@/lib/fetchClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
@@ -9,12 +9,13 @@ import type { DbStats } from '@/models/admin.models';
 
 // ==== Queries ====
 
-export function useGetDbStats() {
+export function useGetDbStats(options?: Omit<UseQueryOptions<DbStats, ApiError>, 'queryKey' | 'queryFn'>) {
   return useQuery<DbStats, ApiError>({
     queryKey: queryKeys.admin.dbStats(),
     queryFn: async () => {
       const { data } = await fetchClient.get<DbStats>(API.admin.dbStats());
       return data;
     },
+    ...options,
   });
 }

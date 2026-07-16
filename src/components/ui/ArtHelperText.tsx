@@ -1,8 +1,5 @@
 'use client';
 
-// ==== Shared helper/error text block for form fields ====
-// errorText renders red, above helperText, when both are present.
-
 interface ArtHelperTextProps {
   errorText?: string;
   helperText?: string;

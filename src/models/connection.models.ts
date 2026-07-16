@@ -1,14 +1,12 @@
 import * as yup from 'yup';
 import { REPORT_TYPES, type ReportType } from '@/models/mapping.models';
+import type { MappingModel } from '@/models/mapping.models';
 export type { ReportType };
 
+// #region Connections
+
 // ==== Type registry ====
-// Add new driver types here. yup uses these for oneOf validation;
-// drivers in src/lib/connections/ implement per-type fetch.
-// merit_estonia / merit_poland are separate types, not one 'merit' + a
-// country config field — each is a distinct base URL (see MERIT_BASE_URLS)
-// and the connection picker should let you pick the country directly instead
-// of a generic "Merit" entry with a buried country dropdown.
+// merit_estonia/merit_poland are separate types, not one 'merit' + country field — distinct base URLs, see MERIT_BASE_URLS.
 
 export const CONNECTION_TYPES = ['merit_estonia', 'merit_poland', 'odoo'] as const;
 export type ConnectionType = (typeof CONNECTION_TYPES)[number];
@@ -28,12 +26,12 @@ export const MERIT_BASE_URLS: Record<'merit_estonia' | 'merit_poland', string> =
   merit_poland:  'https://program.360ksiegowosc.pl/api/v1',
 };
 
-// No Merit-specific config fields remain — country is now encoded in `type`
-// itself (merit_estonia vs merit_poland), not a buried config.country value.
-export type MeritConfig = Record<string, never>;
+// depFilter/journalIds/accountPrefix are driver-native knobs, set once per
+// connection — not fetch-time filters (those stay universal, see PnlFetchFiltersModel).
+export type MeritConfig = { depFilter?: string };
 export type MeritSecret = { apiKey: string; apiId: string };
 
-export type OdooConfig = { url: string; db: string; username: string };
+export type OdooConfig = { url: string; db: string; username: string; journalIds?: number[]; accountPrefix?: string };
 export type OdooSecret = { password: string };
 
 export type ConnectionConfig = MeritConfig | OdooConfig;
@@ -62,8 +60,9 @@ export type ConnectionModel = {
 
 // ==== Validators ====
 
-// No Merit-specific config fields — country lives in `type`, not config.
-const MeritConfigValidator = yup.object({});
+const MeritConfigValidator = yup.object({
+  depFilter: yup.string().trim().optional(),
+});
 
 const MeritSecretValidator = yup.object({
   apiKey: yup.string().trim().min(1, 'API key is required').required('API key is required'),
@@ -74,6 +73,8 @@ const OdooConfigValidator = yup.object({
   url: yup.string().trim().url('Must be a valid URL').required('URL is required'),
   db: yup.string().trim().min(1, 'Database is required').required('Database is required'),
   username: yup.string().trim().min(1, 'Username is required').required('Username is required'),
+  journalIds: yup.array(yup.number().required()).optional(),
+  accountPrefix: yup.string().trim().optional(),
 });
 
 const OdooSecretValidator = yup.object({
@@ -119,67 +120,86 @@ export const UpdateConnectionValidator = yup.object({
 export type CreateConnectionModel = yup.InferType<typeof CreateConnectionValidator>;
 export type UpdateConnectionModel = Partial<CreateConnectionModel> & { id: string };
 
+// No name/isDefault/mappingId/reportType — those are storage concerns, not auth.
+export const TestConnectionValidator = yup.object({
+  type:   yup.string().oneOf(CONNECTION_TYPES, 'Invalid type').required('Type is required'),
+  config: ConfigValidator,
+  secret: SecretValidator,
+});
+
+export type TestConnectionModel = yup.InferType<typeof TestConnectionValidator>;
+
+// ==== Fetch response — external service data ====
+// Live driver output (src/lib/connections/*), not persisted connection config.
+
+export type ConnectionSheet = {
+  name: string;
+  rows: Record<string, unknown>[];
+};
+
+// Per-connection result of POST /api/connections/fetch/pnl or fetch/financial-position.
+export type ConnectionFetchResult = {
+  sheets: ConnectionSheet[];
+  fetchedAt: string;
+  mapping: MappingModel | null; // joined on the connection row server-side — null when none is linked
+};
+
+export type ConnectionFetchManyResponse = Record<string, ConnectionFetchResult>; // keyed by connection id
+
+// #endregion
+// #region Pnl
+
 // ==== Fetch filters — Profit & Loss ====
-// Sent on POST /api/connections/fetch/pnl. Two fully separate validators/types
-// exist (this one and the Financial Position one below) on purpose — they are
-// not the same request shape wearing one schema, they're independent contracts.
-// Per Merit's actual API spec (getprofitrep/getbalancerep — see
-// https://api.merit.ee/connecting-robots/reference-manual/reports/), Merit only
-// ever accepts EndDate + PerCount (+ DepFilter, P&L only). There is no
-// SumPeriods, date-range, journal, or account-prefix concept on Merit's side —
-// dateFrom/dateTo/extras.journalIds/extras.accountPrefix are Odoo-only
-// (account.move.line domain filters, see odoo.ts). depFilter is Merit-only.
-// The overlap of perCount/endDate vs dateFrom/dateTo in one type is a real
-// external-API fact (two different drivers can serve the same report type),
-// not a shared/generic filter model.
+// Universal across drivers: dateTo (period end), periods (count back from dateTo),
+// dateFrom (explicit range start, alternative to periods). Every driver interprets
+// all three fields — Merit maps periods->PerCount/dateTo->EndDate directly and
+// derives periods from dateFrom when given; Odoo maps dateFrom/dateTo to its
+// domain directly and derives dateFrom from periods when given. See lib/connections/*.
 
 export type PnlFetchFiltersModel = {
-  /** Range start date YYYY-MM-DD (Odoo only). */
-  dateFrom?: string;
-  /** Range end date YYYY-MM-DD (Odoo only). */
   dateTo?: string;
-  /** Number of periods to fetch (Merit: PerCount). */
-  perCount?: number;
-  /** Period end date YYYY-MM-DD (Merit: EndDate). */
-  endDate?: string;
-  /** Department filter (Merit: DepFilter). P&L only — getbalancerep has no equivalent. */
-  depFilter?: string;
-  /** Free-form extras the driver may understand (Odoo: journalIds, accountPrefix). */
-  extras?: Record<string, unknown>;
+  dateFrom?: string;
+  periods?: number;
 };
 
 export const PnlFetchManyValidator = yup.object({
-  ids:       yup.array(yup.string().required()).min(1, 'ids is required').required('ids is required'),
-  dateFrom:  yup.string().optional(),
-  dateTo:    yup.string().optional(),
-  perCount:  yup.number().integer().min(1).optional(),
-  endDate:   yup.string().optional(),
-  depFilter: yup.string().optional(),
-  extras:    yup.object().optional(),
+  ids:      yup.array(yup.string().required()).min(1, 'ids is required').required('ids is required'),
+  dateTo:   yup.string().optional(),
+  dateFrom: yup.string().optional(),
+  periods:  yup.number().integer().min(1).optional(),
 });
 
+// Single-connection fetch — id comes from the route, not the body. Same
+// filter fields as PnlFetchManyValidator minus `ids`.
+export const PnlFetchValidator = yup.object({
+  dateTo:   yup.string().optional(),
+  dateFrom: yup.string().optional(),
+  periods:  yup.number().integer().min(1).optional(),
+});
+
+// #endregion
+// #region Financial Position
+
 // ==== Fetch filters — Financial Position ====
-// Sent on POST /api/connections/fetch/financial-position. No sumPeriods —
-// that concept doesn't exist for a balance-sheet-style report.
+// Balance sheet is as-of, not range — no dateFrom. dateTo (balance date) and
+// periods (count back from dateTo) are universal, same translation rule as Pnl.
 
 export type FinancialPositionFetchFiltersModel = {
-  /** Range start date YYYY-MM-DD (Odoo). */
-  dateFrom?: string;
-  /** Range end date YYYY-MM-DD (Odoo). */
   dateTo?: string;
-  /** Number of periods to fetch (Merit: PerCount). */
-  perCount?: number;
-  /** Balance date YYYY-MM-DD (Merit: EndDate). */
-  endDate?: string;
-  /** Free-form extras the driver may understand (journalIds, accountPrefix, etc.) */
-  extras?: Record<string, unknown>;
+  periods?: number;
 };
 
 export const FinancialPositionFetchManyValidator = yup.object({
-  ids:      yup.array(yup.string().required()).min(1, 'ids is required').required('ids is required'),
-  dateFrom: yup.string().optional(),
-  dateTo:   yup.string().optional(),
-  perCount: yup.number().integer().min(1).optional(),
-  endDate:  yup.string().optional(),
-  extras:   yup.object().optional(),
+  ids:     yup.array(yup.string().required()).min(1, 'ids is required').required('ids is required'),
+  dateTo:  yup.string().optional(),
+  periods: yup.number().integer().min(1).optional(),
 });
+
+// Single-connection fetch — id comes from the route, not the body. Same
+// filter fields as FinancialPositionFetchManyValidator minus `ids`.
+export const FinancialPositionFetchValidator = yup.object({
+  dateTo:  yup.string().optional(),
+  periods: yup.number().integer().min(1).optional(),
+});
+
+// #endregion

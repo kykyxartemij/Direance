@@ -31,11 +31,8 @@ export async function computeUserDbConsumption(userId: string): Promise<DbConsum
 // ==== Checks ====
 
 /**
- * Enforce total DB storage per user before any write.
- * Measures all user-owned content: mapping configs + export setting logos + header layouts.
- * Call on CREATE and UPDATE (not DELETE — size only decreases there).
- * No-op when user has NO_DB_SIZE_LIMITS.
- * Side-effect: primes the consumption cache so GET /api/user/me/consumption is zero-cost after any write.
+ * Call on CREATE and UPDATE (not DELETE — size only decreases there). No-op when user has
+ * NO_DB_SIZE_LIMITS. Also primes the consumption cache so GET /api/user/me/consumption is zero-cost after.
  */
 export async function checkUserDbLimits(userId: string, permissions: string[]): Promise<void> {
   if (hasPermission({ permissions }, Permission.NO_DB_SIZE_LIMITS)) return;

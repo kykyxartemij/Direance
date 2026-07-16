@@ -36,10 +36,12 @@ const USER_SELECT = {
 
 export const getMe = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
-  await checkUserRequestLimit(req, userId, permissions);
 
   const user = await cached(
-    () => prisma.user.findUniqueOrThrow({ where: { id: userId }, select: USER_SELECT }),
+    async () => {
+      await checkUserRequestLimit(req, userId, permissions);
+      return prisma.user.findUniqueOrThrow({ where: { id: userId }, select: USER_SELECT });
+    },
     CACHE_KEYS.user.byId(userId),
   );
 
@@ -67,10 +69,12 @@ export const patchMe = withHandler(async (req) => {
 
 export const getDbConsumption = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
-  await checkUserRequestLimit(req, userId, permissions);
 
   const data = await cached(
-    () => computeUserDbConsumption(userId),
+    async () => {
+      await checkUserRequestLimit(req, userId, permissions);
+      return computeUserDbConsumption(userId);
+    },
     CACHE_KEYS.user.dbConsumption(userId),
   );
 
@@ -90,7 +94,6 @@ export const deleteMe = withHandler(async (req) => {
 export const getPagedUsers = withHandler(
   async (req) => {
     const { userId, permissions } = getAuth();
-    await checkUserRequestLimit(req, userId, permissions);
 
     const searchParams = new URL(req.url).searchParams;
     const { page, pageSize } = await parsePaginationFromUrl(searchParams);
@@ -98,14 +101,17 @@ export const getPagedUsers = withHandler(
 
     const [data, total] = await Promise.all([
       cached(
-        () => prisma.user.findManyFts({
-          freeText,
-          userId,
-          select: USER_SELECT,
-          orderBy: { email: 'asc' },
-          skip: page * pageSize,
-          take: pageSize,
-        }),
+        async () => {
+          await checkUserRequestLimit(req, userId, permissions);
+          return prisma.user.findManyFts({
+            freeText,
+            userId,
+            select: USER_SELECT,
+            orderBy: { email: 'asc' },
+            skip: page * pageSize,
+            take: pageSize,
+          });
+        },
         CACHE_KEYS.user.paged(userId, page, pageSize, freeText),
       ),
       cached(

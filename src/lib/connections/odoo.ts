@@ -14,6 +14,18 @@ import { ApiError } from '@/models/api-error';
 // the two report types independently changeable as Odoo support grows
 // (e.g. Financial Position will eventually need a real balance-sheet query,
 // not the same account.move.line pull as P&L).
+//
+// dateTo/dateFrom/periods are the universal fetch filters (see
+// PnlFetchFiltersModel) — Odoo maps dateFrom/dateTo straight to the domain
+// (exact, no approximation) and derives dateFrom from periods when given.
+// journalIds/accountPrefix are connection-level knobs (OdooConfig), not
+// fetch filters — set once per connection.
+
+function monthsAgo(iso: string, months: number): string {
+  const d = new Date(iso);
+  d.setMonth(d.getMonth() - months);
+  return d.toISOString().slice(0, 10);
+}
 
 type OdooDriverInput<F> = {
   config: Record<string, unknown>;
@@ -40,24 +52,37 @@ async function rpc(url: string, service: string, method: string, args: unknown[]
   return data.result;
 }
 
-async function fetchAccountMoveLines(
-  config: Record<string, unknown>,
-  secret: unknown,
-  filters: { dateFrom?: string; dateTo?: string; extras?: Record<string, unknown> },
-): Promise<Record<string, unknown>[]> {
+async function authenticate(config: Record<string, unknown>, secret: unknown): Promise<{ url: string; db: string; uid: number; password: string }> {
   const { url, db, username } = config as unknown as OdooConfig;
   const { password } = secret as OdooSecret;
 
   const uid = await rpc(url, 'common', 'authenticate', [db, username, password, {}]);
   if (!uid || typeof uid !== 'number') throw new ApiError('Odoo authentication failed', 401);
 
-  const extras = (filters.extras ?? {}) as { journalIds?: number[]; accountPrefix?: string };
+  return { url, db, uid, password };
+}
+
+// Auth-only, no data pulled — used by testConnectionDriver (src/lib/connections/index.ts)
+// to validate credentials before a connection is ever saved.
+export async function testOdooConnection(config: Record<string, unknown>, secret: unknown): Promise<void> {
+  await authenticate(config, secret);
+}
+
+async function fetchAccountMoveLines(
+  config: Record<string, unknown>,
+  secret: unknown,
+  filters: { dateTo?: string; dateFrom?: string; periods?: number },
+): Promise<Record<string, unknown>[]> {
+  const { url, db, uid, password } = await authenticate(config, secret);
+  const { journalIds, accountPrefix } = config as OdooConfig;
+
+  const dateFrom = filters.dateFrom ?? (filters.periods && filters.dateTo ? monthsAgo(filters.dateTo, filters.periods) : undefined);
 
   const domain: unknown[] = [];
-  if (filters.dateFrom)            domain.push(['date', '>=', filters.dateFrom]);
+  if (dateFrom)                    domain.push(['date', '>=', dateFrom]);
   if (filters.dateTo)              domain.push(['date', '<=', filters.dateTo]);
-  if (extras.journalIds?.length)   domain.push(['journal_id', 'in', extras.journalIds]);
-  if (extras.accountPrefix)        domain.push(['account_id.code', '=like', `${extras.accountPrefix}%`]);
+  if (journalIds?.length)          domain.push(['journal_id', 'in', journalIds]);
+  if (accountPrefix)               domain.push(['account_id.code', '=like', `${accountPrefix}%`]);
 
   const rows = await rpc(url, 'object', 'execute_kw', [
     db, uid, password,

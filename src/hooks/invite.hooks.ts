@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type UseQueryOptions, type UseMutationOptions } from '@tanstack/react-query';
 import fetchClient from '@/lib/fetchClient';
 import { API } from '@/lib/apiUrl';
 import { queryKeys } from '@/lib/queryKeys';
@@ -10,17 +10,23 @@ import type { ApiError } from '@/models/api-error';
 
 // ==== Queries ====
 
-export function useGetInviteLimits() {
+export function useGetInviteLimits(
+  options?: Omit<UseQueryOptions<InviteLimitsModel, ApiError>, 'queryKey' | 'queryFn'>
+) {
   return useQuery<InviteLimitsModel, ApiError>({
     queryKey: queryKeys.invite.limits(),
     queryFn: async () => {
       const { data } = await fetchClient.get<InviteLimitsModel>(API.invite.limits());
       return data;
     },
+    ...options,
   });
 }
 
-export function useLookupInvite(token: string) {
+export function useLookupInvite(
+  token: string,
+  options?: Omit<UseQueryOptions<{ email: string }, ApiError>, 'queryKey' | 'queryFn'>
+) {
   return useQuery<{ email: string }, ApiError>({
     queryKey: queryKeys.invite.lookup(token),
     queryFn: async () => {
@@ -29,6 +35,7 @@ export function useLookupInvite(token: string) {
     },
     enabled: !!token,
     retry: false,
+    ...options,
   });
 }
 
@@ -38,29 +45,45 @@ export function useLookupInvite(token: string) {
 // Success messages stay at the call site because they often need request-time data
 // (e.g. the invited email) that the hook can't formulate generically.
 
-export function useSendInvite() {
+export function useSendInvite(
+  options?: Omit<UseMutationOptions<void, ApiError, SendInviteModel>, 'mutationFn'>
+) {
   const queryClient = useQueryClient();
   const { enqueueError } = useArtSnackbar();
   return useMutation<void, ApiError, SendInviteModel>({
+    ...options,
     mutationFn: async (body) => {
       await fetchClient.post(API.invite.send(), body);
     },
-    onSuccess: () => {
+    onSuccess: (data, ...rest) => {
       // BE already invalidated cache; bust the client copy so the stats panel re-fetches.
       queryClient.invalidateQueries({ queryKey: queryKeys.invite.limits() });
+      options?.onSuccess?.(data, ...rest);
     },
-    onError: (err) => enqueueError(err, 'Failed to send invite'),
+    onError: (err, ...rest) => {
+      enqueueError(err, 'Failed to send invite');
+      options?.onError?.(err, ...rest);
+    },
   });
 }
 
-export function useAcceptInvite() {
+export function useAcceptInvite(
+  options?: Omit<UseMutationOptions<void, ApiError, AcceptInviteModel>, 'mutationFn'>
+) {
   const queryClient = useQueryClient();
   const { enqueueError } = useArtSnackbar();
   return useMutation<void, ApiError, AcceptInviteModel>({
+    ...options,
     mutationFn: async (body) => {
       await fetchClient.post(API.invite.accept(), body);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.invite.limits() }),
-    onError: (err) => enqueueError(err, 'Failed to accept invite'),
+    onSuccess: (data, ...rest) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.invite.limits() });
+      options?.onSuccess?.(data, ...rest);
+    },
+    onError: (err, ...rest) => {
+      enqueueError(err, 'Failed to accept invite');
+      options?.onError?.(err, ...rest);
+    },
   });
 }

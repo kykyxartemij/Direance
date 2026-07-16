@@ -46,20 +46,20 @@ export const MAPPING_SELECT = {
 
 export const getLightMappings = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
-  await checkUserRequestLimit(req, userId, permissions);
-
   const reportType = new URL(req.url).searchParams.get('reportType') ?? undefined;
 
   const mappings = await cached(
-    () =>
-      prisma.fieldMapping.findMany({
+    async () => {
+      await checkUserRequestLimit(req, userId, permissions);
+      return prisma.fieldMapping.findMany({
         where: {
           OR: [{ userId }, { isGlobal: true }],
           ...(reportType ? { reportType } : {}),
         },
         select: MAPPING_SELECT_LIGHT,
         orderBy: { name: 'asc' },
-      }),
+      });
+    },
     CACHE_KEYS.mapping.light(userId, reportType),
   );
 
@@ -68,7 +68,6 @@ export const getLightMappings = withHandler(async (req) => {
 
 export const getPagedMappings = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
-  await checkUserRequestLimit(req, userId, permissions);
 
   const searchParams = new URL(req.url).searchParams;
   const { page, pageSize } = await parsePaginationFromUrl(searchParams);
@@ -77,8 +76,9 @@ export const getPagedMappings = withHandler(async (req) => {
   const where = { OR: [{ userId }, { isGlobal: true }] };
   const [data, total] = await Promise.all([
     cached(
-      () =>
-        prisma.fieldMapping.findManyFts({
+      async () => {
+        await checkUserRequestLimit(req, userId, permissions);
+        return prisma.fieldMapping.findManyFts({
           freeText,
           userId,
           where,
@@ -86,7 +86,8 @@ export const getPagedMappings = withHandler(async (req) => {
           orderBy: { name: 'asc' },
           skip: page * pageSize,
           take: pageSize,
-        }),
+        });
+      },
       CACHE_KEYS.mapping.paged(userId, page, pageSize, freeText),
     ),
     cached(
@@ -100,16 +101,16 @@ export const getPagedMappings = withHandler(async (req) => {
 
 export const getMappingById = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
-  await checkUserRequestLimit(req, userId, permissions);
-
   const id = parseIdFromRoute(await params);
 
   const mapping = await cached(
-    () =>
-      prisma.fieldMapping.findFirstOrThrow({
+    async () => {
+      await checkUserRequestLimit(req, userId, permissions);
+      return prisma.fieldMapping.findFirstOrThrow({
         where: { id, OR: [{ userId }, { isGlobal: true }] },
         select: MAPPING_SELECT,
-      }),
+      });
+    },
     CACHE_KEYS.mapping.byId(userId, id),
   );
 
@@ -171,9 +172,8 @@ export const updateMapping = withHandler<{ id: string }>(async (req, { params })
 
 export const deleteMapping = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
-  await checkUserRequestLimit(req, userId, permissions);
-
   const id = parseIdFromRoute(await params);
+  await checkUserRequestLimit(req, userId, permissions);
 
   const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
   const where = canModifyGlobal

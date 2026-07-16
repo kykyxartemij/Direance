@@ -14,6 +14,20 @@ export const RATE_LIMITS = {
   privileged_multiplier: 5,
 } as const;
 
+// ==== Helpers ====
+
+function getIp(req: NextRequest): string {
+  return req.headers.get('x-forwarded-for')?.split(',')[0].trim()
+    ?? req.headers.get('x-real-ip')
+    ?? 'unknown';
+}
+
+function windowSec(windowMs: number): number {
+  return Math.floor(windowMs / 1000);
+}
+
+// #region per Instance
+ 
 // ==== Instance capacity guard ====
 // Protects this Vercel instance from being overloaded. Shared across all traffic
 // (auth + public) — called once per request by withHandler / withPublicHandler before
@@ -30,27 +44,77 @@ function checkMemGlobal(): boolean {
 export function assertInstanceCapacity(): void {
   if (!checkMemGlobal()) throw new ApiError('Server busy, please try again shortly', 429);
 }
+// Backstop for the per-key maps below — getIp()/userId are attacker-influenced (spoofable
+// x-forwarded-for, or just many accounts). The sweep in each guard is the real cleanup;
+// this only guards the burst that happens inside a single sweep window.
+const MEM_MAP_CAP = 5_000;
 
-// ==== Helpers ====
-
-function getIp(req: NextRequest): string {
-  return req.headers.get('x-forwarded-for')?.split(',')[0].trim()
-    ?? req.headers.get('x-real-ip')
-    ?? 'unknown';
+function sweepExpired(map: Map<string, { count: number; windowStart: number }>, windowMs: number, now: number): void {
+  for (const [key, entry] of map) {
+    if (now - entry.windowStart > windowMs) map.delete(key);
+  }
 }
 
-function windowSec(windowMs: number): number {
-  return Math.floor(windowMs / 1000);
+// ==== IP capacity guard ====
+// Pre-auth trip-wire, per IP — rejects a flood before it costs a Postgres call.
+// Not authoritative; checkUserRequestLimit / checkPublicRequestLimit are.
+
+const _ipMem = new Map<string, { count: number; windowStart: number }>();
+let _ipLastSweep = 0;
+
+function checkMemIp(ip: string): boolean {
+  const now = Date.now();
+  if (now - _ipLastSweep > RATE_LIMITS.ip_ops.windowMs) {
+    sweepExpired(_ipMem, RATE_LIMITS.ip_ops.windowMs, now);
+    _ipLastSweep = now;
+  }
+  if (_ipMem.size > MEM_MAP_CAP) _ipMem.clear();
+
+  const entry = _ipMem.get(ip);
+  if (!entry || now - entry.windowStart > RATE_LIMITS.ip_ops.windowMs) {
+    _ipMem.set(ip, { count: 0, windowStart: now });
+  }
+  return ++_ipMem.get(ip)!.count <= RATE_LIMITS.ip_ops.max * RATE_LIMITS.privileged_multiplier;
 }
+
+export function assertIpCapacity(req: NextRequest): void {
+  if (!checkMemIp(getIp(req))) throw new ApiError('Too many requests from this IP', 429);
+}
+
+// ==== User capacity guard ====
+// Same idea, keyed by userId — catches IP-rotation abuse assertIpCapacity can't (VPN/proxy
+// hop resets the IP counter, not userId).
+
+const _userMem = new Map<string, { count: number; windowStart: number }>();
+let _userLastSweep = 0;
+
+function checkMemUser(userId: string): boolean {
+  const now = Date.now();
+  if (now - _userLastSweep > RATE_LIMITS.user_ops.windowMs) {
+    sweepExpired(_userMem, RATE_LIMITS.user_ops.windowMs, now);
+    _userLastSweep = now;
+  }
+  if (_userMem.size > MEM_MAP_CAP) _userMem.clear();
+
+  const entry = _userMem.get(userId);
+  if (!entry || now - entry.windowStart > RATE_LIMITS.user_ops.windowMs) {
+    _userMem.set(userId, { count: 0, windowStart: now });
+  }
+  return ++_userMem.get(userId)!.count <= RATE_LIMITS.user_ops.max * RATE_LIMITS.privileged_multiplier;
+}
+
+export function assertUserCapacity(userId: string): void {
+  if (!checkMemUser(userId)) throw new ApiError('Too many requests', 429);
+}
+
+// #endregion
+// #region DB limits
 
 // ==== Public API ====
 
 /**
- * Rate-limit a mutating request (POST / PATCH / DELETE).
- * Call after requireAuth(), before doing work.
- * Throws ApiError(429) if any limit is exceeded.
- * NO_DB_REQUEST_LIMITS and IS_ADMIN bypass all limits — full pass-through.
- * Backed by Postgres — works across all Vercel instances.
+ * Call after requireAuth(), before doing work. Backed by Postgres, so limits hold across
+ * Vercel instances. NO_DB_REQUEST_LIMITS/IS_ADMIN get privileged_multiplier'd limits, not a full bypass.
  */
 export async function checkUserRequestLimit(req: NextRequest, userId: string, permissions: string[]): Promise<void> {
   const ip = getIp(req);
@@ -78,11 +142,7 @@ export async function checkUserRequestLimit(req: NextRequest, userId: string, pe
   if (!row.global_ok) throw new ApiError('Server busy, please try again shortly', 429);
 }
 
-/**
- * Rate-limit a public (unauthenticated) request by IP + global.
- * No user check — no session required.
- * Call at the top of public endpoints (acceptInvite, lookupInvite, etc.).
- */
+/** Call at the top of public endpoints (acceptInvite, lookupInvite, etc.) — no session required. */
 export async function checkPublicRequestLimit(req: NextRequest): Promise<void> {
   const ip = getIp(req);
   const [row] = await prisma.$queryRaw<[{ ip_ok: boolean; global_ok: boolean }]>`
@@ -94,11 +154,7 @@ export async function checkPublicRequestLimit(req: NextRequest): Promise<void> {
   if (!row.global_ok) throw new ApiError('Server busy, please try again shortly', 429);
 }
 
-/**
- * Rate-limit a login attempt by email.
- * Returns false if the limit is exceeded.
- * Call inside Credentials authorize() — return null to deny.
- */
+/** Call inside Credentials authorize() — return null to deny when this returns false. */
 export async function checkLoginLimit(email: string): Promise<boolean> {
   const [row] = await prisma.$queryRaw<[{ ok: boolean }]>`
     SELECT check_rate_limit(${`login:${email.toLowerCase()}`}::text, ${RATE_LIMITS.login_attempts.max}::int, ${windowSec(RATE_LIMITS.login_attempts.windowMs)}::int) AS ok

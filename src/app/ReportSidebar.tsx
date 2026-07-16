@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useGetLightConnections, useFetchFromConnectionsByIds } from '@/hooks/connection.hooks';
+import { useGetLightConnections, useFetchPnlConnectionsByIds, useFetchFinancialPositionConnectionsByIds } from '@/hooks/connection.hooks';
 import { useReports } from '@/providers/ReportProvider';
 import { useAuth } from '@/providers/AuthProvider';
 import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
@@ -93,7 +93,8 @@ interface ConnectionRowProps {
 function ConnectionRow({ connection, loadedReportId, onToggle, toggling }: ConnectionRowProps) {
   const { reports, replaceReportSheets } = useReports();
   const { enqueueError } = useArtSnackbar();
-  const { mutateAsync: fetchMany } = useFetchFromConnectionsByIds();
+  const { mutateAsync: fetchPnl } = useFetchPnlConnectionsByIds();
+  const { mutateAsync: fetchFinancialPosition } = useFetchFinancialPositionConnectionsByIds();
   const [refreshing, setRefreshing] = useState(false);
   const report = loadedReportId ? reports.find((r) => r.id === loadedReportId) : undefined;
 
@@ -101,10 +102,9 @@ function ConnectionRow({ connection, loadedReportId, onToggle, toggling }: Conne
     if (!report) return;
     setRefreshing(true);
     try {
-      const filters = connection.reportType === 'pnl'
-        ? buildPnlFetchFilters(defaultPnlFilterValues())
-        : buildFinancialPositionFetchFilters(defaultFinancialPositionFilterValues());
-      const result = await fetchMany({ ids: [connection.id], ...filters });
+      const result = connection.reportType === 'pnl'
+        ? await fetchPnl({ ids: [connection.id], ...buildPnlFetchFilters(defaultPnlFilterValues()) })
+        : await fetchFinancialPosition({ ids: [connection.id], ...buildFinancialPositionFetchFilters(defaultFinancialPositionFilterValues()) });
       const data = result[connection.id];
       replaceReportSheets(report.id, data.sheets, data.fetchedAt);
     } catch (err) {
@@ -179,7 +179,8 @@ export default function ReportSidebar() {
   const { reports, addReportFromSheets, removeReport, setActive, setMapping } = useReports();
   const { data: connections = [] } = useGetLightConnections();
   const { enqueueError } = useArtSnackbar();
-  const { mutateAsync: fetchMany } = useFetchFromConnectionsByIds();
+  const { mutateAsync: fetchPnl } = useFetchPnlConnectionsByIds();
+  const { mutateAsync: fetchFinancialPosition } = useFetchFinancialPositionConnectionsByIds();
 
   // Track which connection → loaded report id
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -199,10 +200,9 @@ export default function ReportSidebar() {
 
     void Promise.all(defaults.map(async (c) => {
       try {
-        const filters = c.reportType === 'pnl'
-          ? buildPnlFetchFilters(defaultPnlFilterValues())
-          : buildFinancialPositionFetchFilters(defaultFinancialPositionFilterValues());
-        const result = await fetchMany({ ids: [c.id], ...filters });
+        const result = c.reportType === 'pnl'
+          ? await fetchPnl({ ids: [c.id], ...buildPnlFetchFilters(defaultPnlFilterValues()) })
+          : await fetchFinancialPosition({ ids: [c.id], ...buildFinancialPositionFetchFilters(defaultFinancialPositionFilterValues()) });
         const data = result[c.id];
         const id = addReportFromSheets(`${c.name}-${data.fetchedAt.slice(0, 10)}`, data.sheets, {
           connectionId: c.id,
@@ -212,16 +212,15 @@ export default function ReportSidebar() {
         if (data.mapping) setMapping(id, data.mapping);
       } catch { /* silent — auto-load failure doesn't block */ }
     }));
-  }, [connections, reports, addReportFromSheets, setMapping, fetchMany]);
+  }, [connections, reports, addReportFromSheets, setMapping, fetchPnl, fetchFinancialPosition]);
 
   async function toggleConnection(connection: ConnectionLightModel, load: boolean) {
     setTogglingId(connection.id);
     try {
       if (load) {
-        const filters = connection.reportType === 'pnl'
-          ? buildPnlFetchFilters(defaultPnlFilterValues())
-          : buildFinancialPositionFetchFilters(defaultFinancialPositionFilterValues());
-        const result = await fetchMany({ ids: [connection.id], ...filters });
+        const result = connection.reportType === 'pnl'
+          ? await fetchPnl({ ids: [connection.id], ...buildPnlFetchFilters(defaultPnlFilterValues()) })
+          : await fetchFinancialPosition({ ids: [connection.id], ...buildFinancialPositionFetchFilters(defaultFinancialPositionFilterValues()) });
         const data = result[connection.id];
         const id = addReportFromSheets(`${connection.name}-${data.fetchedAt.slice(0, 10)}`, data.sheets, {
           connectionId: connection.id,

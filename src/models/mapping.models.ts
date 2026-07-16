@@ -22,17 +22,13 @@ export const REPORT_TYPE_OPTIONS: { label: string; value: string }[] = REPORT_TY
 export type TableRegion = {
   descriptionColumn: number;
   valueColumns: number[];
-  /** 0-indexed first data row for this region. The row just before it is used for column naming.
-   *  Defaults to sourceLayout.headerRow + 1 when not set. */
-  startRow?: number;
+  startRow?: number; // 0-indexed first data row; row just before is used for column naming. Defaults to sourceLayout.headerRow + 1
 };
 
 export type TotalColumnDef = {
-  /** Stable client-side identity — set on creation, persisted in config JSON, used as React key. */
-  _id?: string;
+  _id?: string; // Stable client-side identity — set on creation, persisted in config JSON, used as React key
   label: string;
-  /** Value column indices (0-based, relative to output value headers) to sum. Empty = all */
-  sourceValueIndices: number[];
+  sourceValueIndices: number[]; // 0-based, relative to output value headers. Empty = all
 };
 
 export type SourceLayout = {
@@ -70,9 +66,7 @@ export type ExportSettings = {
 };
 
 export type MappingConfig = {
-  /** Source currency — the currency values appear in the Excel file */
   fromCurrency?: string;
-  /** Target/display currency */
   currency: string;
   sourceLayout: SourceLayout;
   sheetLayouts?: Record<string, SourceLayout>;
@@ -95,8 +89,7 @@ export type MappingModel = {
   isGlobal: boolean;
   reportType: ReportType;
   config: MappingConfig;
-  /** Populated via Prisma relation — minimal fields for RowMappings + Dashboard color rule */
-  exportSetting?: {
+  exportSetting?: { // populated via Prisma relation — minimal fields for RowMappings + Dashboard color rule
     id: string;
     name: string;
     mappedValues: import('@/models/export-settings.models').MappedValueModel[];

@@ -3,12 +3,13 @@
 import { useImperativeHandle, useReducer, useState } from 'react';
 import * as XLSX from 'xlsx';
 import type { SourceLayout, SheetConfig, TotalColumnMode, ReportType } from '@/models/mapping.models';
-import type { ConnectionSheet } from '@/providers/ReportProvider';
+import type { ConnectionSheet } from '@/models/connection.models';
 import ArtCollapse from '@/components/ui/ArtCollapse';
 import ArtUpload from '@/components/ui/ArtUpload';
 import ArtButton from '@/components/ui/ArtButton';
 import ArtSelect from '@/components/ui/ArtSelect';
-import { useGetLightConnections, useFetchFromConnectionsByIds } from '@/hooks/connection.hooks';
+import ArtTabs from '@/components/ui/ArtTabs';
+import { useGetLightConnections, useFetchPnlConnectionsByIds, useFetchFinancialPositionConnectionsByIds } from '@/hooks/connection.hooks';
 import { defaultPnlFilterValues, buildPnlFetchFilters } from '@/page/connections/pnlFilterFields';
 import { defaultFinancialPositionFilterValues, buildFinancialPositionFetchFilters } from '@/page/connections/financialPositionFilterFields';
 import { autoDetectLayout } from './applyMapping';
@@ -74,7 +75,7 @@ function ReadonlySummary({
   return (
     <div className="flex flex-col gap-3 rounded p-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
       <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-        Source Layout requires a real Excel file to edit. Upload below to enable region/column editing.
+        Below is the stored layout. To edit regions or columns, load a real file first.
       </p>
 
       {sheets.length === 0 ? (
@@ -165,9 +166,17 @@ function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSh
     });
     const { workbook, sheetLayouts, autoDetectedLayouts, sheetsConfig, warning } = state;
 
+    const [sourceMode, setSourceMode] = useState<'upload' | 'connection'>('upload');
     const [connectionId, setConnectionId] = useState<string | null>(null);
+    const [sourceLabel, setSourceLabel] = useState<string | null>(null);
     const { data: connections = [] } = useGetLightConnections();
-    const { mutateAsync: fetchMany, isPending: fetching } = useFetchFromConnectionsByIds();
+    const { mutateAsync: fetchPnl, isPending: fetchingPnl } = useFetchPnlConnectionsByIds({
+      meta: { waitForLoading: true },
+    });
+    const { mutateAsync: fetchFinancialPosition, isPending: fetchingFinancialPosition } = useFetchFinancialPositionConnectionsByIds({
+      meta: { waitForLoading: true },
+    });
+    const fetching = fetchingPnl || fetchingFinancialPosition;
     const connectionOptions = connections.flatMap((c) =>
       c.reportType === reportType ? [{ label: c.name, value: c.id }] : []
     );
@@ -224,6 +233,7 @@ function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSh
       try {
         const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellStyles: true });
         processWorkbook(wb);
+        setSourceLabel(file.name);
       } catch (err) {
         dispatch({ type: 'SET_WARNING', warning: `Failed to parse Excel file: ${(err as Error).message}` });
       }
@@ -232,12 +242,13 @@ function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSh
     async function handleFetchFromConnection() {
       if (!connectionId || !reportType) return;
       try {
-        const filters = reportType === 'pnl'
-          ? buildPnlFetchFilters(defaultPnlFilterValues())
-          : buildFinancialPositionFetchFilters(defaultFinancialPositionFilterValues());
-        const result = await fetchMany({ ids: [connectionId], ...filters });
+        const result = reportType === 'pnl'
+          ? await fetchPnl({ ids: [connectionId], ...buildPnlFetchFilters(defaultPnlFilterValues()) })
+          : await fetchFinancialPosition({ ids: [connectionId], ...buildFinancialPositionFetchFilters(defaultFinancialPositionFilterValues()) });
         const wb = buildWorkbookFromSheets(result[connectionId].sheets);
         processWorkbook(wb);
+        const connectionName = connections.find((c) => c.id === connectionId)?.name ?? 'connection';
+        setSourceLabel(`Connection: ${connectionName}`);
       } catch (err) {
         dispatch({ type: 'SET_WARNING', warning: `Failed to fetch from connection: ${(err as Error).message}` });
       }
@@ -245,6 +256,7 @@ function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSh
 
     function clearWorkbook() {
       dispatch({ type: 'CLEAR_WORKBOOK' });
+      setSourceLabel(null);
     }
 
     function handleSheetLayoutChange(sheetName: string, newLayout: SourceLayout) {
@@ -270,12 +282,30 @@ function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSh
             />
           )}
 
-          {reportType && !workbook && (
+          {reportType && (
+            <ArtTabs
+              tabs={[
+                { value: 'upload', label: 'Upload file' },
+                { value: 'connection', label: 'From connection' },
+              ]}
+              value={sourceMode}
+              onChange={(v) => setSourceMode(v as 'upload' | 'connection')}
+            />
+          )}
+
+          {sourceMode === 'upload' || !reportType ? (
+            <ArtUpload
+              label={workbook ? 'Replace Excel file' : 'Upload Excel to edit Source Layout'}
+              hint="Excel (.xlsx, .xls)"
+              accept=".xlsx,.xls"
+              onChange={handleFileChange}
+            />
+          ) : (
             <div className="flex items-end gap-3">
               <div style={{ flex: 1 }}>
                 <ArtSelect
-                  label="Or fetch sample from connection"
-                  helperText="Pulls the latest data using default filters — only to populate Source Layout, not stored."
+                  label="Connection"
+                  helperText="Pulls latest data with default filters, only to populate Source Layout — not stored."
                   options={connectionOptions}
                   selected={connectionOptions.find((o) => o.value === connectionId) ?? null}
                   onChange={(opt) => setConnectionId((opt?.value as string) ?? null)}
@@ -296,23 +326,16 @@ function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSh
             </div>
           )}
 
-          <div className="flex items-start gap-3">
-            <div style={{ flex: 1 }}>
-              <ArtUpload
-                label={workbook ? 'Replace Excel file' : 'Upload Excel to edit Source Layout'}
-                hint="Excel (.xlsx, .xls)"
-                accept=".xlsx,.xls"
-                onChange={handleFileChange}
-              />
+          {workbook && sourceLabel?.startsWith('Connection:') && (
+            <div className="flex items-center justify-between rounded px-3 py-2 text-xs" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+              <span style={{ color: 'var(--text-muted)' }}>
+                Loaded: <strong style={{ color: 'var(--text)' }}>{sourceLabel}</strong>
+              </span>
+              <ArtButton type="button" variant="ghost" size="sm" onClick={clearWorkbook}>
+                Clear loaded source
+              </ArtButton>
             </div>
-            {workbook && (
-              <div style={{ paddingTop: 28 }}>
-                <ArtButton type="button" variant="ghost" size="sm" onClick={clearWorkbook}>
-                  Remove file
-                </ArtButton>
-              </div>
-            )}
-          </div>
+          )}
 
           {warning && (
             <p className="text-xs" style={{ color: 'var(--art-warning)' }}>

@@ -215,6 +215,42 @@ const data = await formRef.current.getFormData();
 
 ---
 
+## Pattern C — dual-source picker (existing vs. new), staged until Save
+
+When a field can come from two sources — pick an existing record, or create a new one — use an `ArtTabs` switch between them, not both inputs stacked in the same view. `SourceLayoutFormSection` (Upload file / From connection) and `ExportSettingsFormPage`'s `LogoSection` (Pick existing / Upload new) both follow this:
+
+```tsx
+const [mode, setMode] = useState<'existing' | 'upload'>('existing');
+
+<ArtTabs
+  tabs={[
+    { value: 'existing', label: 'Pick existing' },
+    { value: 'upload', label: 'Upload new' },
+  ]}
+  value={mode}
+  onChange={(v) => setMode(v as 'existing' | 'upload')}
+/>
+
+{mode === 'existing' ? <ArtComboBox ... /> : <ArtUpload ... />}
+```
+
+`mode` is a plain local `useState`, not derived or effect-synced from the staged value — it's a UI choice, not data. Initialize it once from the current staged kind if relevant; don't keep it in sync afterward.
+
+**Nothing commits until the parent form's Save runs.** The section holds only a staged value (`{ kind: 'unchanged' | 'pickedId' | 'file' | 'unlink', ... }`) and calls `onChange` — no separate confirm button, no per-field "unlink" action button. Clearing a combo directly stages `unlink`; the regular Save button at the bottom of the form is what persists it. Undo is just picking again — don't build a separate "Undo" banner for something a normal re-selection already reverses.
+
+**Pending state goes in `helperText`, never a hand-written caption.** `ArtComboBox`, `ArtUpload`, and friends all take `helperText` — use it to say "saves when you press Save below" or "will be unlinked on Save", not a `<span>` sitting next to the field:
+
+```tsx
+// ❌ manual caption
+<ArtComboBox ... />
+<span className="text-sm">Picked: {name} (saves on submit)</span>
+
+// ✅ helperText
+<ArtComboBox ... helperText={`Picked "${name}" — saves when you press Save below`} />
+```
+
+---
+
 ## What stays controlled
 
 These always need `useState` — or `watch()` in RHF — because there is no DOM property to read back:

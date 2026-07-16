@@ -1,8 +1,7 @@
 'use client';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
-import { useReports, type ConnectionSheet } from '@/providers/ReportProvider';
+import { useQuery, useMutation, useQueryClient, type UseQueryOptions, type UseMutationOptions } from '@tanstack/react-query';
+import { useReports } from '@/providers/ReportProvider';
 import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
 import fetchClient from '@/lib/fetchClient';
 import { queryKeys } from '@/lib/queryKeys';
@@ -11,35 +10,41 @@ import type {
   ConnectionModel,
   ConnectionLightModel,
   ConnectionType,
+  ConnectionConfig,
+  ConnectionSecret,
   CreateConnectionModel,
   UpdateConnectionModel,
   PnlFetchFiltersModel,
   FinancialPositionFetchFiltersModel,
+  ConnectionSheet,
+  ConnectionFetchManyResponse,
 } from '@/models/connection.models';
-import type { MappingModel } from '@/models/mapping.models';
 import type { PaginatedResponse } from '@/models/paginated-response.model';
 import type { ApiError } from '@/models/api-error';
 
-// Two independent request shapes — see connection.models.ts. Not one shared
-// FetchFiltersModel; this union exists only so a single hook can route to
-// whichever of the two BE endpoints matches.
-type ConnectionFetchFilters =
-  | ({ reportType: 'pnl' } & PnlFetchFiltersModel)
-  | ({ reportType: 'financial_position' } & FinancialPositionFetchFiltersModel);
+// #region Connections
 
 // ==== Queries ====
 
-export function useGetLightConnections() {
+export function useGetLightConnections(
+  options?: Omit<UseQueryOptions<ConnectionLightModel[], ApiError>, 'queryKey' | 'queryFn'>
+) {
   return useQuery<ConnectionLightModel[], ApiError>({
     queryKey: queryKeys.connection.light(),
     queryFn: async () => {
       const { data } = await fetchClient.get<ConnectionLightModel[]>(API.connection.light());
       return data;
     },
+    ...options,
   });
 }
 
-export function useGetPagedConnections(page: number, pageSize: number, freeText?: string) {
+export function useGetPagedConnections(
+  page: number,
+  pageSize: number,
+  freeText?: string,
+  options?: Omit<UseQueryOptions<PaginatedResponse<ConnectionModel>, ApiError>, 'queryKey' | 'queryFn'>
+) {
   return useQuery<PaginatedResponse<ConnectionModel>, ApiError>({
     queryKey: queryKeys.connection.paged(page, pageSize, freeText),
     queryFn: async () => {
@@ -48,10 +53,14 @@ export function useGetPagedConnections(page: number, pageSize: number, freeText?
       );
       return data;
     },
+    ...options,
   });
 }
 
-export function useGetConnectionById(id: string | undefined) {
+export function useGetConnectionById(
+  id: string | undefined,
+  options?: Omit<UseQueryOptions<ConnectionModel, ApiError>, 'queryKey' | 'queryFn'>
+) {
   return useQuery<ConnectionModel, ApiError>({
     queryKey: queryKeys.connection.byId(id!),
     queryFn: async () => {
@@ -59,138 +68,188 @@ export function useGetConnectionById(id: string | undefined) {
       return data;
     },
     enabled: !!id,
+    ...options,
   });
 }
 
 // ==== Mutations ====
 
-export function useCreateConnection() {
+export function useCreateConnection(
+  options?: Omit<UseMutationOptions<ConnectionModel, ApiError, CreateConnectionModel>, 'mutationFn'>
+) {
   const queryClient = useQueryClient();
   return useMutation<ConnectionModel, ApiError, CreateConnectionModel>({
+    ...options,
     mutationFn: async (body) => {
       const { data } = await fetchClient.post<ConnectionModel>(API.connection.list(), body);
       return data;
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.connection.invalidate.all() });
+    onSuccess: (data, ...rest) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.connection.invalidate.lists() });
       queryClient.setQueryData<ConnectionModel>(queryKeys.connection.byId(data.id), data);
+      options?.onSuccess?.(data, ...rest);
     },
   });
 }
 
-export function useUpdateConnection() {
+export function useUpdateConnection(
+  options?: Omit<UseMutationOptions<ConnectionModel, ApiError, { id: string; body: Omit<UpdateConnectionModel, 'id'> }>, 'mutationFn'>
+) {
   const queryClient = useQueryClient();
   return useMutation<ConnectionModel, ApiError, { id: string; body: Omit<UpdateConnectionModel, 'id'> }>({
+    ...options,
     mutationFn: async ({ id, body }) => {
       const { data } = await fetchClient.patch<ConnectionModel>(API.connection.byId(id), body);
       return data;
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.connection.invalidate.all() });
+    onSuccess: (data, ...rest) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.connection.invalidate.lists() });
       queryClient.setQueryData<ConnectionModel>(queryKeys.connection.byId(data.id), data);
+      options?.onSuccess?.(data, ...rest);
     },
   });
 }
 
-export function useDeleteConnection() {
+export function useDeleteConnection(
+  options?: Omit<UseMutationOptions<void, ApiError, string>, 'mutationFn'>
+) {
   const queryClient = useQueryClient();
   return useMutation<void, ApiError, string>({
+    ...options,
     mutationFn: async (id) => {
       await fetchClient.delete(API.connection.byId(id));
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.connection.invalidate.all() });
+    onSuccess: (data, id, ...rest) => {
+      queryClient.removeQueries({ queryKey: queryKeys.connection.byId(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.connection.invalidate.lists() });
+      options?.onSuccess?.(data, id, ...rest);
     },
   });
 }
 
-// ==== Fetch many connection sheets by ids (batch — 1 request per reportType, BE coalesces DB) ====
-// Two BE endpoints (financial-position / pnl) behind one call — the only
-// branching FE does is picking the URL for the reportType already on the
-// filters; no merit/odoo knowledge here at all.
+// #endregion
+// #region Pnl
 
+type RefreshResult = { reportId: string; sheets: ConnectionSheet[]; fetchedAt: string };
+type TestConnectionInput = { type: ConnectionType; config: ConnectionConfig; secret: ConnectionSecret };
+
+// ==== Fetch many connection sheets by ids (batch — 1 request per hook call, BE coalesces DB) ====
 // mapping comes joined on the connection row server-side — no separate
 // getMappingById round trip. null when the connection has no mapping linked.
-type FetchManyResult = Record<string, { sheets: ConnectionSheet[]; fetchedAt: string; mapping: MappingModel | null }>;
+type FetchPnlConnectionsInput = { ids: string[] } & PnlFetchFiltersModel;
 
-async function fetchConnectionsByIds(ids: string[], filters: ConnectionFetchFilters): Promise<FetchManyResult> {
-  const url = filters.reportType === 'pnl' ? API.connection.fetchProfit() : API.connection.fetchFinancialPosition();
-  const { data } = await fetchClient.post<FetchManyResult>(url, { ids, ...filters });
-  return data;
-}
-
-type FetchManyInput = { ids: string[] } & ConnectionFetchFilters;
-
-export function useFetchFromConnectionsByIds() {
-  return useMutation<FetchManyResult, ApiError, FetchManyInput>({
-    mutationFn: ({ ids, ...filters }) => fetchConnectionsByIds(ids, filters),
+export function useFetchPnlConnectionsByIds(
+  options?: Omit<UseMutationOptions<ConnectionFetchManyResponse, ApiError, FetchPnlConnectionsInput>, 'mutationFn'>
+) {
+  return useMutation<ConnectionFetchManyResponse, ApiError, FetchPnlConnectionsInput>({
+    ...options,
+    mutationFn: async ({ ids, ...filters }) => {
+      const { data } = await fetchClient.post<ConnectionFetchManyResponse>(API.connection.fetchProfit(), { ids, ...filters });
+      return data;
+    },
   });
 }
 
-// ==== Refresh connection reports ====
-// All business logic lives here: fetch each target, replace sheets, surface
-// success/error via snackbar. Component calls mutate() with no try/catch.
+// ==== Refresh connection report (single target — every caller refreshes one connection at a time) ====
+type RefreshPnlTarget = { reportId: string; connectionId: string } & PnlFetchFiltersModel;
 
-type RefreshTarget = { reportId: string; connectionId: string; filters: ConnectionFetchFilters };
-type RefreshResult = { reportId: string; sheets: ConnectionSheet[]; fetchedAt: string };
-
-export function useRefreshConnectionReports() {
+export function useRefreshPnlConnectionById(
+  options?: Omit<UseMutationOptions<RefreshResult, ApiError, RefreshPnlTarget>, 'mutationFn'>
+) {
   const queryClient = useQueryClient();
   const { replaceReportSheets } = useReports();
   const { enqueueError, enqueueSuccess } = useArtSnackbar();
 
-  return useMutation<RefreshResult[], ApiError, RefreshTarget[]>({
-    mutationFn: (targets) =>
-      Promise.all(targets.map(async (t) => {
-        const data = await fetchConnectionsByIds([t.connectionId], t.filters);
-        return { reportId: t.reportId, ...data[t.connectionId] };
-      })),
-    onSuccess: (results) => {
-      for (const r of results) replaceReportSheets(r.reportId, r.sheets, r.fetchedAt);
-      enqueueSuccess(`Refreshed ${results.length} report${results.length > 1 ? 's' : ''}`);
-      queryClient.invalidateQueries({ queryKey: ['placeholder'] })
+  return useMutation<RefreshResult, ApiError, RefreshPnlTarget>({
+    ...options,
+    mutationFn: async ({ reportId, connectionId, ...filters }) => {
+      const { data } = await fetchClient.post<ConnectionFetchManyResponse>(API.connection.fetchProfit(), { ids: [connectionId], ...filters });
+      return { reportId, ...data[connectionId] };
     },
-    onError: (err) => {
-      enqueueError(err as Error, 'Failed to refresh');
-    },
-  });
-}
-
-// ==== Import from connection ====
-
-type ConnectionImportInput = {
-  connectionId: string;
-  connectionName: string;
-  connectionType: ConnectionType | undefined;
-  filters: ConnectionFetchFilters;
-  skipMapping: boolean;
-};
-
-export function useImportFromConnection() {
-  const router = useRouter();
-  const queryClient = useQueryClient();
-  const { addReportFromSheets, setMapping } = useReports();
-  const { enqueueError } = useArtSnackbar();
-
-  return useMutation({
-    mutationFn: async ({ connectionId, connectionName, connectionType, filters, skipMapping }: ConnectionImportInput) => {
-      const result = await fetchConnectionsByIds([connectionId], filters);
-      const data = result[connectionId];
-      const fileName = `${connectionName}-${new Date(data.fetchedAt).toISOString().slice(0, 10)}`;
-      const id = addReportFromSheets(fileName, data.sheets, {
-        connectionId,
-        connectionType,
-        fetchedAt: data.fetchedAt,
-      });
-      if (!skipMapping && data.mapping) setMapping(id, data.mapping);
-      return { skipMapping, hasMappingId: !!data.mapping };
-    },
-    onSuccess: ({ skipMapping, hasMappingId }) => {
+    onSuccess: (result, ...rest) => {
+      replaceReportSheets(result.reportId, result.sheets, result.fetchedAt);
+      enqueueSuccess('Refreshed report');
       queryClient.invalidateQueries({ queryKey: ['placeholder'] });
-      router.push(skipMapping || !hasMappingId ? '/' : '/upload/mapping');
+      options?.onSuccess?.(result, ...rest);
     },
-    onError: (err) => {
-      enqueueError(err as Error, 'Failed to import from connection');
+    onError: (err, ...rest) => {
+      enqueueError(err as Error, 'Failed to refresh');
+      options?.onError?.(err, ...rest);
     },
   });
 }
+
+// ==== Test connection (no data saved — validates credentials against the real external API) ====
+
+export function useTestPnlConnection(
+  options?: Omit<UseMutationOptions<void, ApiError, TestConnectionInput>, 'mutationFn'>
+) {
+  return useMutation<void, ApiError, TestConnectionInput>({
+    ...options,
+    mutationFn: async (body) => {
+      await fetchClient.post(API.connection.testProfit(), body);
+    },
+  });
+}
+
+// #endregion
+// #region Financial Position
+
+// ==== Fetch many connection sheets by ids (batch — 1 request per hook call, BE coalesces DB) ====
+type FetchFinancialPositionConnectionsInput = { ids: string[] } & FinancialPositionFetchFiltersModel;
+
+export function useFetchFinancialPositionConnectionsByIds(
+  options?: Omit<UseMutationOptions<ConnectionFetchManyResponse, ApiError, FetchFinancialPositionConnectionsInput>, 'mutationFn'>
+) {
+  return useMutation<ConnectionFetchManyResponse, ApiError, FetchFinancialPositionConnectionsInput>({
+    ...options,
+    mutationFn: async ({ ids, ...filters }) => {
+      const { data } = await fetchClient.post<ConnectionFetchManyResponse>(API.connection.fetchFinancialPosition(), { ids, ...filters });
+      return data;
+    },
+  });
+}
+
+// ==== Refresh connection report (single target — every caller refreshes one connection at a time) ====
+type RefreshFinancialPositionTarget = { reportId: string; connectionId: string } & FinancialPositionFetchFiltersModel;
+
+export function useRefreshFinancialPositionConnectionById(
+  options?: Omit<UseMutationOptions<RefreshResult, ApiError, RefreshFinancialPositionTarget>, 'mutationFn'>
+) {
+  const queryClient = useQueryClient();
+  const { replaceReportSheets } = useReports();
+  const { enqueueError, enqueueSuccess } = useArtSnackbar();
+
+  return useMutation<RefreshResult, ApiError, RefreshFinancialPositionTarget>({
+    ...options,
+    mutationFn: async ({ reportId, connectionId, ...filters }) => {
+      const { data } = await fetchClient.post<ConnectionFetchManyResponse>(API.connection.fetchFinancialPosition(), { ids: [connectionId], ...filters });
+      return { reportId, ...data[connectionId] };
+    },
+    onSuccess: (result, ...rest) => {
+      replaceReportSheets(result.reportId, result.sheets, result.fetchedAt);
+      enqueueSuccess('Refreshed report');
+      queryClient.invalidateQueries({ queryKey: ['placeholder'] });
+      options?.onSuccess?.(result, ...rest);
+    },
+    onError: (err, ...rest) => {
+      enqueueError(err as Error, 'Failed to refresh');
+      options?.onError?.(err, ...rest);
+    },
+  });
+}
+
+// ==== Test connection (no data saved — validates credentials against the real external API) ====
+
+export function useTestFinancialPositionConnection(
+  options?: Omit<UseMutationOptions<void, ApiError, TestConnectionInput>, 'mutationFn'>
+) {
+  return useMutation<void, ApiError, TestConnectionInput>({
+    ...options,
+    mutationFn: async (body) => {
+      await fetchClient.post(API.connection.testFinancialPosition(), body);
+    },
+  });
+}
+
+// #endregion

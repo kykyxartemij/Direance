@@ -21,6 +21,7 @@ export const queryKeys = {
   mapping: {
     invalidate: {
       all: () => ['mapping'] as const,
+      lists: () => ['mapping', 'list'] as const,
     },
     light: (reportType?: string) => ['mapping', 'list', 'light', reportType ?? ''] as const,
     paged: (page: number, pageSize: number, freeText?: string) =>
@@ -30,6 +31,7 @@ export const queryKeys = {
   exportSetting: {
     invalidate: {
       all: () => ['exportSetting'] as const,
+      lists: () => ['exportSetting', 'list'] as const,
     },
     light: () => ['exportSetting', 'list', 'light'] as const,
     paged: (page: number, pageSize: number, freeText?: string) =>
@@ -39,6 +41,7 @@ export const queryKeys = {
   connection: {
     invalidate: {
       all: () => ['connection'] as const,
+      lists: () => ['connection', 'list'] as const,
     },
     light: () => ['connection', 'list', 'light'] as const,
     paged: (page: number, pageSize: number, freeText?: string) =>
@@ -50,6 +53,7 @@ export const queryKeys = {
   logo: {
     invalidate: {
       all: () => ['logo'] as const,
+      lists: () => ['logo', 'list'] as const,
     },
     light: () => ['logo', 'list', 'light'] as const,
     byId: (id: string) => ['logo', 'single', 'byId', id] as const,

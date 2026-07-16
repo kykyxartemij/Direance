@@ -39,13 +39,16 @@ type FormValues = {
   isDefault:  boolean;
   mappingId:  string | null;
 
-  meritApiKey?: string;
-  meritApiId?:  string;
+  meritApiKey?:  string;
+  meritApiId?:   string;
+  meritDepFilter?: string;
 
-  odooUrl?:      string;
-  odooDb?:       string;
-  odooUsername?: string;
-  odooPassword?: string;
+  odooUrl?:           string;
+  odooDb?:            string;
+  odooUsername?:      string;
+  odooPassword?:      string;
+  odooJournalIds?:    string;
+  odooAccountPrefix?: string;
 };
 
 const REPORT_TYPE_OPTIONS = REPORT_TYPES.map((r) => ({ label: REPORT_TYPE_LABELS[r], value: r }));
@@ -112,7 +115,8 @@ interface ConnectionFormProps {
 }
 
 function ConnectionForm({ id, existing, isEdit, onSuccess, enqueueSuccess, enqueueError }: ConnectionFormProps) {
-  const odooCfg = existing?.type === 'odoo' ? (existing.config as Record<string, string>) : undefined;
+  const odooCfg  = existing?.type === 'odoo' ? (existing.config as Record<string, unknown>) : undefined;
+  const meritCfg = isMeritType(existing?.type as ConnectionType) ? (existing?.config as Record<string, unknown>) : undefined;
 
   const methods = useForm<FormValues>({
     resolver: yupResolver(formSchema) as Resolver<FormValues>,
@@ -123,13 +127,16 @@ function ConnectionForm({ id, existing, isEdit, onSuccess, enqueueSuccess, enque
       isDefault:  existing?.isDefault ?? false,
       mappingId:  existing?.mapping?.id ?? null,
 
-      meritApiKey: '',
-      meritApiId:  '',
+      meritApiKey:    '',
+      meritApiId:     '',
+      meritDepFilter: (meritCfg?.depFilter as string) ?? '',
 
-      odooUrl:      odooCfg?.url ?? '',
-      odooDb:       odooCfg?.db ?? '',
-      odooUsername: odooCfg?.username ?? '',
-      odooPassword: '',
+      odooUrl:           (odooCfg?.url as string) ?? '',
+      odooDb:             (odooCfg?.db as string) ?? '',
+      odooUsername:       (odooCfg?.username as string) ?? '',
+      odooPassword:       '',
+      odooJournalIds:     Array.isArray(odooCfg?.journalIds) ? (odooCfg.journalIds as number[]).join(',') : '',
+      odooAccountPrefix: (odooCfg?.accountPrefix as string) ?? '',
     },
   });
 
@@ -146,9 +153,20 @@ function ConnectionForm({ id, existing, isEdit, onSuccess, enqueueSuccess, enque
   const [secretCleared, setSecretCleared] = useState(false);
 
   async function onSave(data: FormValues) {
+    const journalIds = (data.odooJournalIds ?? '')
+      .split(',')
+      .map((s) => Number(s.trim()))
+      .filter((n) => Number.isFinite(n));
+
     const config = data.type === 'odoo'
-      ? { url: data.odooUrl!, db: data.odooDb!, username: data.odooUsername! }
-      : {};
+      ? {
+          url: data.odooUrl!,
+          db: data.odooDb!,
+          username: data.odooUsername!,
+          ...(journalIds.length > 0 ? { journalIds } : {}),
+          ...(data.odooAccountPrefix ? { accountPrefix: data.odooAccountPrefix } : {}),
+        }
+      : { ...(data.meritDepFilter ? { depFilter: data.meritDepFilter } : {}) };
 
     const secretFilled = isMeritType(data.type)
       ? !!(data.meritApiKey || data.meritApiId)
@@ -217,6 +235,14 @@ function ConnectionForm({ id, existing, isEdit, onSuccess, enqueueSuccess, enque
             placeholder={isEdit && !secretCleared ? '••••• (kept unless you type a new value)' : ''}
             onFocus={() => setSecretCleared(true)}
           />
+          {reportType === 'pnl' && (
+            <ArtFormInput
+              name="meritDepFilter"
+              label="Department filter (optional)"
+              placeholder="e.g. 10"
+              helperText="Merit department code applied to every P&L fetch on this connection. Leave blank for all departments."
+            />
+          )}
         </FormSection>
       )}
 
@@ -232,6 +258,18 @@ function ConnectionForm({ id, existing, isEdit, onSuccess, enqueueSuccess, enque
             required={!isEdit}
             placeholder={isEdit && !secretCleared ? '••••• (kept unless you type a new value)' : ''}
             onFocus={() => setSecretCleared(true)}
+          />
+          <ArtFormInput
+            name="odooJournalIds"
+            label="Journal IDs (optional)"
+            placeholder="1,2,5"
+            helperText="Comma-separated journal IDs applied to every fetch on this connection. Leave blank for all journals."
+          />
+          <ArtFormInput
+            name="odooAccountPrefix"
+            label="Account prefix (optional)"
+            placeholder="411"
+            helperText="Only include accounts whose code starts with this prefix."
           />
         </FormSection>
       )}

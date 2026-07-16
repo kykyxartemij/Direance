@@ -181,6 +181,47 @@ return <RealComponent data={data} />;
 <ArtDataTable data={items} isLoading={isLoading} />
 ```
 
+## Global Loading Overlay (dependent fetches)
+
+Third case, distinct from first-load (`GlobalPageLoader`, full gate) and refetch (local indicator, e.g. `ArtDataTable`'s `isLoading`): a fetch triggered by user selection on an already-visible page, where the component has **no local loading affordance** of its own (no skeleton, no button spinner). Example: `Dashboard.tsx` — picking an export setting from `ArtComboBox` fires `useGetExportSettingById`, which reflows table colors/columns with nothing showing in between.
+
+**Opt in at the call site, not the hook definition.** The same hook is often reused across pages with different needs — `useGetExportSettingById` is used in a full-page edit form (`ExportSettingsFormPage`, already gated by `GlobalPageLoader`), a dialog (`ExportDialog`), and a background reflow (`Dashboard`, `RowMappingsSection`). Only the last two want the overlay. Every query/mutation hook in `src/hooks/*.hooks.ts` accepts an optional trailing `options` param that spreads into the underlying `useQuery`/`useMutation` call — pass `meta` there:
+
+```ts
+// src/hooks/export-settings.hooks.ts — hook stays generic
+export function useGetExportSettingById(
+  id: string | undefined,
+  options?: Omit<UseQueryOptions<ExportSettingModel, ApiError>, 'queryKey' | 'queryFn'>
+) {
+  return useQuery<ExportSettingModel, ApiError>({
+    queryKey: queryKeys.exportSetting.byId(id!),
+    queryFn: async () => { /* ... */ },
+    enabled: !!id,
+    ...options,
+  });
+}
+```
+
+```tsx
+// src/page/dashboard/Dashboard.tsx — call site decides
+const { data: selectedExportSetting } = useGetExportSettingById(selectedExportSettingId ?? undefined, {
+  meta: { waitForLoading: true },
+});
+```
+
+`GlobalLoadingOverlay` (mounted once in root `layout.tsx`) uses `useIsFetching`/`useIsMutating` with a `meta.waitForLoading` predicate to count matching in-flight calls — no custom store needed, TanStack does the counting. While count > 0 it blurs the whole page (page stays visible underneath) and blocks interaction (`pointer-events: auto`) so the user doesn't act on stale state mid-update.
+
+**Debounced on purpose** — a query flagged `waitForLoading` doesn't show the overlay instantly:
+
+| Constant | Value | Why |
+|---|---|---|
+| `SHOW_DELAY_MS` | 80ms | Fetches that resolve faster than this never show anything — avoids a flash for near-instant responses. |
+| `MIN_VISIBLE_MS` | 150ms | Once shown, stays at least this long — avoids a blink-off mid-fade if the fetch finishes right after the delay. |
+
+Same visual language as `GlobalPageLoader` (ring + "Loading…" dots) so the two don't read as two different loaders — one is a full-page version of the other. Opacity + `backdrop-filter` both transition over 0.2s ease — slower than a typical button-hover transition (full-viewport change, an instant snap reads as a flicker) but short enough to stay snappy against the 150ms minimum-visible window above.
+
+**Do not opt a query/mutation into `meta.waitForLoading` if it already has a local indicator** (`ArtDataTable`/`ArtData` `loading` prop, `ArtButton` `loading` prop, etc.) — that would double up two loading affordances for one fetch. Reserve it for the gap case: something changed, nothing on screen shows it's still catching up. This is opt-in per call site — adding `options` support to a hook does not retroactively add the overlay to existing callers.
+
 ## Form Pages (Create/Edit)
 
 Create: No data fetch.

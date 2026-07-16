@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useImperativeHandle, useRef, useState } from 'react';
-import Image from 'next/image';
 import { useRouter, useParams } from 'next/navigation';
 import { useForm, type Resolver } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -16,12 +15,14 @@ import {
   useGetLightLogos,
 } from '@/hooks/logo.hooks';
 import ArtComboBox, { type ArtComboBoxOption } from '@/components/ui/ArtComboBox';
+import ArtTabs from '@/components/ui/ArtTabs';
 import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
 import type { HeaderItemModel, HeaderLayoutModel, CreateExportSettingModel, UpdateExportSettingModel, MappedValueModel } from '@/models/export-settings.models';
 import { ArtForm, ArtFormInput, ArtFormCheckbox } from '@/components/form';
 import ArtInput from '@/components/ui/ArtInput';
 import ArtButton from '@/components/ui/ArtButton';
 import ArtUpload from '@/components/ui/ArtUpload';
+import ArtImage from '@/components/ui/ArtImage';
 import FormSection from '@/components/FormSection';
 import GlobalPageLoader from '@/components/GlobalPageLoader';
 import ColorSelect from '@/page/mapping/ColorSelect';
@@ -142,12 +143,12 @@ function LogoSection({ existingLogoId, existingLogoName, staged, onChange }: Log
     : existingLogoId;
 
   // Preview source — show the existing logo only when nothing has been staged
-  // away (no upload, no unlink). Fetched on-demand via useGetLogoById.
+  // away (no upload, no unlink).
   const previewId =
     staged.kind === 'pickedId' ? staged.id
     : staged.kind === 'unchanged' ? existingLogoId
     : null;
-  const previewLogo = useGetLogoById(previewId ?? '');
+  const previewLogo = useGetLogoById(previewId ?? '', { enabled: false });
   const previewSrc = previewLogo.data?.data
     ? `data:${previewLogo.data.mime ?? 'image/webp'};base64,${previewLogo.data.data}`
     : null;
@@ -155,86 +156,89 @@ function LogoSection({ existingLogoId, existingLogoName, staged, onChange }: Log
   const options: ArtComboBoxOption[] = logos.map((l) => ({ label: l.name ?? '(unnamed)', value: l.id }));
   const selected = options.find((o) => o.value === selectedId) ?? null;
 
+  const [mode, setMode] = useState<'existing' | 'upload'>(staged.kind === 'file' ? 'upload' : 'existing');
+
+  function handleModeChange(next: 'existing' | 'upload') {
+    if (next === mode) return;
+    const belongsToTarget = next === 'upload' ? staged.kind === 'file' : staged.kind !== 'file';
+    if (!belongsToTarget) {
+      revokeUrl();
+      onChange({ kind: 'unchanged' });
+    }
+    setMode(next);
+  }
+
+  const comboHelperText =
+    staged.kind === 'pickedId' ? `Picked "${staged.name ?? '(unnamed)'}" — saves when you press Save below`
+    : staged.kind === 'unlink' ? 'Logo will be unlinked when you press Save below — pick one again to undo'
+    : existingLogoId ? `Currently linked: ${existingLogoName ?? '(unnamed)'}`
+    : undefined;
+
+  const uploadHelperText = staged.kind === 'file'
+    ? `New file "${staged.file.name}" — saves when you press Save below`
+    : undefined;
+
   return (
     <div className="flex flex-col gap-3">
-      <ArtComboBox
-        label="Pick a logo"
-        options={options}
-        selected={selected}
-        placeholder={logos.length === 0 ? 'No logos uploaded — upload one below' : 'Select from your logos…'}
-        clearable
-        onChange={(opt) => {
-          revokeUrl();
-          if (!opt) {
-            onChange(existingLogoId ? { kind: 'unlink' } : { kind: 'unchanged' });
-            return;
-          }
-          onChange({ kind: 'pickedId', id: opt.value, name: opt.label });
-        }}
+      <ArtTabs
+        tabs={[
+          { value: 'existing', label: 'Pick existing' },
+          { value: 'upload', label: 'Upload new' },
+        ]}
+        value={mode}
+        onChange={(v) => handleModeChange(v as 'existing' | 'upload')}
       />
 
-      <ArtUpload
-        label="Or upload a new logo"
-        hint="PNG, JPEG, WebP, or GIF — compressed to max 80 KB on save"
-        accept="image/png,image/jpeg,image/webp,image/gif"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (!file) {
+      {mode === 'existing' ? (
+        <ArtComboBox
+          label="Logo"
+          options={options}
+          selected={selected}
+          placeholder={logos.length === 0 ? 'No logos uploaded — switch to Upload new' : 'Select from your logos…'}
+          helperText={comboHelperText}
+          clearable
+          onChange={(opt) => {
             revokeUrl();
-            if (staged.kind === 'file') {
-              onChange(existingLogoId ? { kind: 'unchanged' } : { kind: 'unlink' });
+            if (!opt) {
+              onChange(existingLogoId ? { kind: 'unlink' } : { kind: 'unchanged' });
+              return;
             }
-            return;
-          }
-          revokeUrl();
-          const url = URL.createObjectURL(file);
-          stagedUrlRef.current = url;
-          setStagedFileUrl(url);
-          onChange({ kind: 'file', file });
-        }}
-      />
-
-      {(stagedFileUrl || previewSrc) && (
-        <div className="flex items-center gap-4">
-          <Image
-            src={stagedFileUrl ?? previewSrc!}
-            alt="Logo preview"
-            width={200}
-            height={64}
-            unoptimized
-            className="rounded"
-            style={{ maxHeight: 64, maxWidth: 200, objectFit: 'contain', background: 'var(--border)', padding: 6 }}
-          />
-          <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
-            {staged.kind === 'file'
-              ? `New: ${staged.file.name} (saves on submit)`
-              : staged.kind === 'pickedId'
-                ? `Picked: ${staged.name ?? '(unnamed)'} (saves on submit)`
-                : `Current: ${existingLogoName ?? '(unnamed)'}`}
-          </span>
-        </div>
+            onChange({ kind: 'pickedId', id: opt.value, name: opt.label });
+          }}
+        />
+      ) : (
+        <ArtUpload
+          label="Logo file"
+          hint="PNG, JPEG, WebP, or GIF — compressed to max 80 KB on save"
+          helperText={uploadHelperText}
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (!file) {
+              revokeUrl();
+              if (staged.kind === 'file') {
+                onChange(existingLogoId ? { kind: 'unchanged' } : { kind: 'unlink' });
+              }
+              return;
+            }
+            revokeUrl();
+            const url = URL.createObjectURL(file);
+            stagedUrlRef.current = url;
+            setStagedFileUrl(url);
+            onChange({ kind: 'file', file });
+          }}
+        />
       )}
 
-      {existingLogoId && staged.kind !== 'unlink' && (
-        <ArtButton
-          type="button"
-          variant="ghost"
-          color="danger"
-          size="sm"
-          onClick={() => onChange({ kind: 'unlink' })}
-          style={{ alignSelf: 'flex-start' }}
-        >
-          Unlink logo on save
-        </ArtButton>
-      )}
-
-      {staged.kind === 'unlink' && (
-        <div className="flex items-center gap-2">
-          <span className="text-xs" style={{ color: 'var(--art-danger)' }}>Logo will be unlinked on save.</span>
-          <ArtButton type="button" variant="ghost" size="sm" onClick={() => onChange({ kind: 'unchanged' })}>
-            Undo
-          </ArtButton>
-        </div>
+      {(stagedFileUrl || previewSrc || previewId) && (
+        <ArtImage
+          src={stagedFileUrl ?? previewSrc}
+          alt="Logo preview"
+          width={200}
+          height={64}
+          isLoading={previewLogo.isFetching}
+          onRequestLoad={stagedFileUrl || previewSrc ? undefined : () => previewLogo.refetch()}
+        />
       )}
     </div>
   );

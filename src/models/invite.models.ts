@@ -12,16 +12,8 @@ const SendInviteValidator = yup.object({
     .default([]),
 });
 
-/**
- * Build the BE validator with the inviter's permission context baked in.
- * Runs body-shape checks PLUS the permission grant rules in one pass.
- * Use with `{ abortEarly: false }` so all violations surface together.
- *
- * Rules:
- *  - IS_ADMIN is never grantable via invite.
- *  - Granting any perm requires CAN_CHANGE_USER_PERMISSIONS (admins implicit).
- *  - An inviter may only grant perms they themselves hold (admins implicit).
- */
+// Bakes inviter's permission context into the validator: body-shape checks PLUS grant rules
+// (IS_ADMIN never grantable, needs CAN_CHANGE_USER_PERMISSIONS, can't grant perms not held).
 export function buildSendInviteValidator(inviterPerms: string[]) {
   const isAdmin = inviterPerms.includes(Permission.IS_ADMIN);
   const canGrant = isAdmin || inviterPerms.includes(Permission.CAN_CHANGE_USER_PERMISSIONS);

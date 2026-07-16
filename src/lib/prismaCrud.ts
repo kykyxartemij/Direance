@@ -21,25 +21,8 @@ const toSql = (v: unknown): Prisma.Sql => {
 // ==== Factory ====
 
 /**
- * Returns { upsertAndReturn, deleteManyAndReturn } to register on a Prisma $extends model block.
- *
- * SimpleWhere supports: equality, null (IS NULL), comparison ops (lt/lte/gt/gte/not/in), OR, AND.
- * Return type is inferred from select — no manual generic at the call site.
- * Returns Prisma.PrismaPromise — usable in prisma.$transaction([...]).
- *
- * @param client  Base PrismaClient (same instance as the one being extended)
- * @param table   Quoted PostgreSQL table name, e.g. '"FieldMapping"'
- *
- * @example
- * fieldMapping: {
- *   ...withFts(base, base.fieldMapping, '"FieldMapping"', 'mapping', 'name'),
- *   ...withCrud<FieldMappingModel>(base, '"FieldMapping"'),
- * }
- *
- * const deleted = await prisma.fieldMapping.deleteManyAndReturn({
- *   where: { id, userId },
- *   select: { isGlobal: true },
- * });
+ * Registers { upsertAndReturn, deleteManyAndReturn } on a Prisma $extends model block.
+ * Uses $queryRaw, so Prisma middleware/hooks (@updatedAt etc.) don't run — see CLAUDE.md.
  */
 export function withCrud<TModel extends object>(client: PrismaClient, table: string) {
   return {
@@ -72,21 +55,7 @@ export function withCrud<TModel extends object>(client: PrismaClient, table: str
       `;
     },
 
-    /**
-     * INSERT ... ON CONFLICT DO UPDATE ... RETURNING — single roundtrip.
-     * API mirrors Prisma's native upsert: where (conflict key), create, update, select.
-     * Always includes `wasUpdated: boolean` in result (true = row existed, false = fresh insert).
-     * Arrays are automatically cast to `text[]`.
-     *
-     * @example
-     * const [row] = await prisma.invite.upsertAndReturn({
-     *   where:  { email },
-     *   create: { email, token, invitedBy, permissions },
-     *   update: { token, invitedBy, permissions },
-     *   select: { createdAt: true },
-     * });
-     * row.wasUpdated // boolean
-     */
+    // INSERT ... ON CONFLICT DO UPDATE ... RETURNING, single roundtrip. wasUpdated: true = row existed.
     upsertAndReturn<
       TSelect extends Partial<Record<keyof TModel, boolean>> | undefined = undefined,
     >(args: {

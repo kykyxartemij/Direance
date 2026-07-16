@@ -11,22 +11,19 @@ import type { AuthCtx } from '@/lib/withHandler';
 const authStore = new AsyncLocalStorage<AuthCtx>();
 
 /**
- * Seed the context for one request. withHandler wraps the body in this.
- * Write-once: if a context is already active (e.g. a withHandler-wrapped fn called
- * from inside another), the outer identity stands and this re-seed is a no-op — the
- * auth can never be silently swapped out mid-request.
+ * Write-once: if a context is already active (e.g. a withHandler-wrapped fn called from inside
+ * another), the outer identity stands and this re-seed is a no-op — auth never swaps mid-request.
  */
 export const runWithAuth = <T>(auth: AuthCtx, fn: () => Promise<T>): Promise<T> =>
   authStore.getStore() ? fn() : authStore.run(auth, fn);
 
-/** Read the authed identity. Throws if called outside a withHandler request. */
 export function getAuth(): AuthCtx {
   const auth = authStore.getStore();
   if (!auth) throw new Error('getAuth() called outside a request context');
   return auth;
 }
 
-/** Read the authed identity if present, else null. For public routes (withPublicHandler). */
+/** For withPublicHandler bodies, where identity is optional. */
 export function getAuthOptional(): AuthCtx | null {
   return authStore.getStore() ?? null;
 }

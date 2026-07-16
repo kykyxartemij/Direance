@@ -4,7 +4,7 @@ import { createContext, use, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import type { ArtColor } from '@/components/ui/art.types';
 import type { MappingModel, ReportType } from '@/models/mapping.models';
-import type { ConnectionLightModel, ConnectionType } from '@/models/connection.models';
+import type { ConnectionLightModel, ConnectionType, ConnectionSheet } from '@/models/connection.models';
 import {
   applyMappingMultiSheet,
   type TotalColumnInfo,
@@ -51,12 +51,6 @@ export type UploadedReport = {
   mapping?: MappingModel;
   /** Derived once when `mapping` is set. Source of truth for Dashboard rendering + export. */
   mapped?: MappedReport;
-};
-
-/** Shape produced by connection drivers (src/lib/connections/*). */
-export type ConnectionSheet = {
-  name: string;
-  rows: Record<string, unknown>[];
 };
 
 type ReportContextValue = {
