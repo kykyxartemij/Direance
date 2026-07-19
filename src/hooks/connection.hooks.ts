@@ -2,7 +2,6 @@
 
 import { useQuery, useMutation, useQueryClient, type UseQueryOptions, type UseMutationOptions } from '@tanstack/react-query';
 import { useReports } from '@/providers/ReportProvider';
-import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
 import fetchClient from '@/lib/fetchClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
@@ -151,6 +150,9 @@ export function useFetchPnlConnectionsByIds(
 }
 
 // ==== Refresh connection report (single target — every caller refreshes one connection at a time) ====
+// @deprecated — per-connection refresh UI (relTime + refresh icon) removed from ReportSidebar.
+// Filters already force a refetch on their own; a manual single-report refresh is redundant
+// and confusing. Kept for now, scheduled for removal — do not add new callers.
 type RefreshPnlTarget = { reportId: string; connectionId: string } & PnlFetchFiltersModel;
 
 export function useRefreshPnlConnectionById(
@@ -158,7 +160,6 @@ export function useRefreshPnlConnectionById(
 ) {
   const queryClient = useQueryClient();
   const { replaceReportSheets } = useReports();
-  const { enqueueError, enqueueSuccess } = useArtSnackbar();
 
   return useMutation<RefreshResult, ApiError, RefreshPnlTarget>({
     ...options,
@@ -168,13 +169,8 @@ export function useRefreshPnlConnectionById(
     },
     onSuccess: (result, ...rest) => {
       replaceReportSheets(result.reportId, result.sheets, result.fetchedAt);
-      enqueueSuccess('Refreshed report');
       queryClient.invalidateQueries({ queryKey: ['placeholder'] });
       options?.onSuccess?.(result, ...rest);
-    },
-    onError: (err, ...rest) => {
-      enqueueError(err as Error, 'Failed to refresh');
-      options?.onError?.(err, ...rest);
     },
   });
 }
@@ -211,6 +207,9 @@ export function useFetchFinancialPositionConnectionsByIds(
 }
 
 // ==== Refresh connection report (single target — every caller refreshes one connection at a time) ====
+// @deprecated — per-connection refresh UI (relTime + refresh icon) removed from ReportSidebar.
+// Filters already force a refetch on their own; a manual single-report refresh is redundant
+// and confusing. Kept for now, scheduled for removal — do not add new callers.
 type RefreshFinancialPositionTarget = { reportId: string; connectionId: string } & FinancialPositionFetchFiltersModel;
 
 export function useRefreshFinancialPositionConnectionById(
@@ -218,7 +217,6 @@ export function useRefreshFinancialPositionConnectionById(
 ) {
   const queryClient = useQueryClient();
   const { replaceReportSheets } = useReports();
-  const { enqueueError, enqueueSuccess } = useArtSnackbar();
 
   return useMutation<RefreshResult, ApiError, RefreshFinancialPositionTarget>({
     ...options,
@@ -228,13 +226,8 @@ export function useRefreshFinancialPositionConnectionById(
     },
     onSuccess: (result, ...rest) => {
       replaceReportSheets(result.reportId, result.sheets, result.fetchedAt);
-      enqueueSuccess('Refreshed report');
       queryClient.invalidateQueries({ queryKey: ['placeholder'] });
       options?.onSuccess?.(result, ...rest);
-    },
-    onError: (err, ...rest) => {
-      enqueueError(err as Error, 'Failed to refresh');
-      options?.onError?.(err, ...rest);
     },
   });
 }

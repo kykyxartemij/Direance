@@ -1,12 +1,15 @@
 'use client';
 
-import { useForm, FormProvider } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { signIn } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
-import { ArtFormInput } from '@/components/form';
+import { ArtForm, ArtFormInput } from '@/components/form';
 import ArtButton from '@/components/ui/ArtButton';
+import ArtDivider from '@/components/ui/ArtDivider';
+import ArtTitle from '@/components/ui/ArtTitle';
+import { AuthFormLayout } from '../AuthFormLayout';
 
 // ==== Schema ====
 
@@ -24,7 +27,7 @@ export default function SignInPage() {
   const verified = searchParams.get('verified') === 'true';
 
   const methods = useForm<FormValues>({ resolver: yupResolver(schema) });
-  const { handleSubmit, setError, formState: { errors, isSubmitting } } = methods;
+  const { setError, formState: { isSubmitting } } = methods;
 
   const onSubmit = async (data: FormValues) => {
     const result = await signIn('credentials', {
@@ -44,10 +47,8 @@ export default function SignInPage() {
   };
 
   return (
-    <>
-      <h1 className="mb-6 text-xl font-semibold" style={{ color: 'var(--text)' }}>
-        Sign in to Direance
-      </h1>
+    <AuthFormLayout>
+      <ArtTitle title="Sign in to Direance" />
 
       {verified && (
         <p className="mb-4 text-sm" style={{ color: 'var(--art-success)' }}>
@@ -55,27 +56,17 @@ export default function SignInPage() {
         </p>
       )}
 
-      <FormProvider {...methods}>
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-          <ArtFormInput name="email" type="email" label="Email" placeholder="you@company.com" autoComplete="email" />
-          <ArtFormInput name="password" type="password" label="Password" placeholder="••••••••" autoComplete="current-password" />
-
-          {errors.root && (
-            <p className="text-sm" style={{ color: 'var(--art-danger)' }}>{errors.root.message}</p>
-          )}
-
-          <ArtButton type="submit" loading={isSubmitting} variant="default" size="md">
-            Sign in
-          </ArtButton>
-        </form>
-      </FormProvider>
+      <ArtForm
+        methods={methods}
+        onSubmit={onSubmit}
+        buttons={[{ label: 'Sign in', color: 'primary', type: 'submit', loading: isSubmitting }]}
+      >
+        <ArtFormInput name="email" type="email" label="Email" placeholder="you@company.com" autoComplete="email" />
+        <ArtFormInput name="password" type="password" label="Password" placeholder="••••••••" autoComplete="current-password" />
+      </ArtForm>
 
       <div className="mt-4 flex flex-col gap-2">
-        <div className="flex items-center gap-3">
-          <hr style={{ flex: 1, borderColor: 'var(--border)' }} />
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>or</span>
-          <hr style={{ flex: 1, borderColor: 'var(--border)' }} />
-        </div>
+        <ArtDivider label="or" />
 
         <ArtButton type="button" variant="outlined" size="md" onClick={() => signIn('google', { callbackUrl: '/' })}>
           Continue with Google
@@ -85,6 +76,6 @@ export default function SignInPage() {
           Continue with GitHub
         </ArtButton>
       </div>
-    </>
+    </AuthFormLayout>
   );
 }

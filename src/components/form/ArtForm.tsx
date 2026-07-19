@@ -21,10 +21,17 @@ export interface ArtFormProps<T extends FieldValues> {
 const EMPTY_BUTTONS: ArtFormButtonProps[] = [];
 
 export function ArtForm<T extends FieldValues>({ methods, onSubmit, buttons = EMPTY_BUTTONS, children, className }: ArtFormProps<T>) {
+  const rootError = methods.formState.errors.root;
+
   return (
     <FormProvider {...methods}>
       <form onSubmit={methods.handleSubmit(onSubmit)} className={className}>
-        <div className="flex flex-col gap-4">{children}</div>
+        <div className="flex flex-col gap-4">
+          {children}
+          {rootError && (
+            <p className="text-sm" style={{ color: 'var(--art-danger)' }}>{rootError.message}</p>
+          )}
+        </div>
         {buttons.length > 0 && (
           <ArtButtonRow buttons={buttons} className="art-dialog-footer mt-6" />
         )}

@@ -73,29 +73,31 @@ export default function Navbar() {
       }}
       className="px-6 py-3"
     >
-      <div className="mx-auto flex max-w-7xl items-center gap-6">
-        {/* Left: brand + primary report pages */}
-        <div className="flex items-center gap-6 shrink-0">
-          <Link
-            href={BRAND.href}
-            prefetch={BRAND.prefetch !== false}
-            className="text-base font-semibold"
-            style={{ color: 'var(--text)' }}
-          >
-            {BRAND.label}
-          </Link>
-          {user && NAV_LEFT.flatMap((item) => (isVisible(item) ? [navLink(item)] : []))}
+      {!user ? (
+        <div className="flex items-center justify-center">
+          <span className="text-base font-semibold" style={{ color: 'var(--text)' }}>{BRAND.label}</span>
         </div>
+      ) : (
+        <div className="mx-auto flex max-w-7xl items-center gap-6">
+          {/* Left: brand + primary report pages */}
+          <div className="flex items-center gap-6 shrink-0">
+            <Link
+              href={BRAND.href}
+              prefetch={BRAND.prefetch !== false}
+              className="text-base font-semibold"
+              style={{ color: 'var(--text)' }}
+            >
+              {BRAND.label}
+            </Link>
+            {NAV_LEFT.flatMap((item) => (isVisible(item) ? [navLink(item)] : []))}
+          </div>
 
-        {/* Middle: secondary nav — grows to push right section to edge */}
-        {user && (
+          {/* Middle: secondary nav — grows to push right section to edge */}
           <div className="flex flex-1 items-center justify-center gap-4">
             {NAV_MIDDLE.flatMap((item) => (isVisible(item) ? [navLink(item)] : []))}
           </div>
-        )}
 
-        {/* Right: email (→ profile) + sign out */}
-        {user && (
+          {/* Right: email (→ profile) + sign out */}
           <div className="flex items-center gap-4 shrink-0">
             <Link
               href={HREF.profile}
@@ -113,8 +115,8 @@ export default function Navbar() {
               Sign out
             </ArtButton>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </nav>
   );
 }

@@ -7,8 +7,8 @@ import { withHandler } from '@/lib/withHandler';
 import { getAuth, getClientIp } from '@/lib/requestContext';
 import { ApiError } from '@/models/api-error';
 import { checkUserDbLimits } from '@/lib/userLimits';
-import { parseIdFromRoute } from '@/models';
-import { CreateMappingValidator, UpdateMappingValidator } from '@/models/mapping.models';
+import { parseIdFromRoute, parseFiltersFromUrl } from '@/models';
+import { CreateMappingValidator, UpdateMappingValidator, MappingFilterValidator } from '@/models/mapping.models';
 import { parsePaginationFromUrl, createPaginatedResponse } from '@/models/paginated-response.model';
 import { parseFreeTextFromUrl } from '@/lib/normalizeText';
 import { checkUserRequestLimit } from '@/lib/rateLimiter';
@@ -75,8 +75,12 @@ export const getPagedMappings = withHandler(async (req) => {
   const searchParams = new URL(req.url).searchParams;
   const { page, pageSize } = await parsePaginationFromUrl(searchParams);
   const freeText = parseFreeTextFromUrl(searchParams);
+  const filters = await parseFiltersFromUrl(searchParams, MappingFilterValidator);
 
-  const where = { OR: [{ userId }, { isGlobal: true }] };
+  const where = {
+    OR: [{ userId }, { isGlobal: true }],
+    ...(filters.reportType ? { reportType: filters.reportType } : {}),
+  };
   const [data, total] = await Promise.all([
     cached(
       async () => {
@@ -91,11 +95,11 @@ export const getPagedMappings = withHandler(async (req) => {
           take: pageSize,
         });
       },
-      CACHE_KEYS.mapping.paged(userId, page, pageSize, freeText),
+      CACHE_KEYS.mapping.paged(userId, page, pageSize, freeText, filters.reportType),
     ),
     cached(
       () => prisma.fieldMapping.countFts({ freeText, userId, where }),
-      CACHE_KEYS.mapping.count(userId, freeText),
+      CACHE_KEYS.mapping.count(userId, freeText, filters.reportType),
     ),
   ]);
 

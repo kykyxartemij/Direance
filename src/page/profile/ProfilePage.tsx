@@ -3,7 +3,6 @@
 import { useRef } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { useGetLightLogos, useCreateLogo, useDeleteLogo, useGetLogoById } from '@/hooks/logo.hooks';
-import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
 import ArtButton from '@/components/ui/ArtButton';
 import ArtImage from '@/components/ui/ArtImage';
 import { ArtConfirmDialog } from '@/components/ui/ArtDialog';
@@ -79,19 +78,15 @@ function LogoRow({
 
 function LogosSection() {
   const { data: logos = [] } = useGetLightLogos();
-  const createLogo = useCreateLogo();
-  const deleteLogo = useDeleteLogo();
-  const { enqueueSuccess, enqueueError } = useArtSnackbar();
+  const createLogo = useCreateLogo({ meta: { successMessage: 'Logo uploaded', errorMessage: 'Failed to upload logo' } });
+  const deleteLogo = useDeleteLogo({ meta: { successMessage: 'Logo deleted', errorMessage: 'Failed to delete logo' } });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (fileInputRef.current) fileInputRef.current.value = '';
-    createLogo.mutate(file, {
-      onSuccess: () => enqueueSuccess('Logo uploaded'),
-      onError: (err) => enqueueError(err as Error, 'Failed to upload logo'),
-    });
+    createLogo.mutate(file);
   }
 
   return (
@@ -123,12 +118,7 @@ function LogosSection() {
               id={logo.id}
               name={logo.name}
               deleting={deleteLogo.isPending}
-              onDelete={() =>
-                deleteLogo.mutate({ logoId: logo.id }, {
-                  onSuccess: () => enqueueSuccess('Logo deleted'),
-                  onError: (err) => enqueueError(err as Error, 'Failed to delete logo'),
-                })
-              }
+              onDelete={() => deleteLogo.mutate({ logoId: logo.id })}
             />
           ))}
         </div>

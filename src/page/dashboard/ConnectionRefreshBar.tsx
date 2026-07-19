@@ -27,8 +27,12 @@ export default function ConnectionRefreshBar({ reportType }: Props) {
   const { reports } = useReports();
   const { data: allConnections = [] } = useGetLightConnections();
   const connections = allConnections.filter((c) => c.reportType === reportType);
-  const { mutate: refreshPnl, isPending: refreshingPnl } = useRefreshPnlConnectionById();
-  const { mutate: refreshFinancialPosition, isPending: refreshingFinancialPosition } = useRefreshFinancialPositionConnectionById();
+  const { mutate: refreshPnl, isPending: refreshingPnl } = useRefreshPnlConnectionById({
+    meta: { successMessage: 'Refreshed report', errorMessage: 'Failed to refresh' },
+  });
+  const { mutate: refreshFinancialPosition, isPending: refreshingFinancialPosition } = useRefreshFinancialPositionConnectionById({
+    meta: { successMessage: 'Refreshed report', errorMessage: 'Failed to refresh' },
+  });
   const isPending = refreshingPnl || refreshingFinancialPosition;
 
   const [pnlValuesMap, setPnlValuesMap] = useState<Record<string, PnlFilterValues>>({});

@@ -54,7 +54,7 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
   const placeholderRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const { data: fullSetting } = useGetExportSettingById(settingId ?? undefined, {
-    meta: { waitForLoading: true },
+    meta: { withGlobalLoaderBlur: true },
   });
   // enabled: false — logo bytes are expensive to fetch, only pull them right before
   // export (handleExport calls refetch()), never speculatively on setting selection.

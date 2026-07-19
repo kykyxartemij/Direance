@@ -6,7 +6,7 @@
 /* eslint-disable react-doctor/jsx-no-jsx-as-prop */
 /* eslint-disable react-doctor/design-no-em-dash-in-jsx-text */
 /* eslint-disable react-doctor/nextjs-missing-metadata */
-/* eslint-disable local/require-loading-page */
+/* eslint-disable local/require-art-page */
 'use client';
 
 import { useState, useRef } from 'react';

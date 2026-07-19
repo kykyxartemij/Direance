@@ -12,7 +12,7 @@ const noUncachedPrisma         = require('./rules/no-uncached-prisma');
 const requireCacheKeysConstant = require('./rules/require-cache-keys-constant');
 const requireLinkPrefetch      = require('./rules/require-link-prefetch');
 const requireHrefConstant      = require('./rules/require-href-constant');
-const requireLoadingPage       = require('./rules/require-loading-page');
+const requireArtPage           = require('./rules/require-art-page');
 const noDialogTriggerOnclick   = require('./rules/no-dialog-trigger-onclick');
 const requireApiTryCatch       = require('./rules/require-api-try-catch');
 const requireParseId           = require('./rules/require-parse-id');
@@ -40,7 +40,7 @@ module.exports = {
     'hooks-only-fetch-client':     hooksOnlyFetchClient,
     'require-link-prefetch':       requireLinkPrefetch,
     'require-href-constant':       requireHrefConstant,
-    'require-loading-page':        requireLoadingPage,
+    'require-art-page':            requireArtPage,
     'no-dialog-trigger-onclick':   noDialogTriggerOnclick,
     'require-query-keys-constant': requireQueryKeysConstant,
     'no-router-push-navigation':   noRouterPushNavigation,

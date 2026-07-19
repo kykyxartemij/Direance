@@ -172,7 +172,7 @@ function RowMappingsSection({ rowMappings = EMPTY_ROWS, initialRowMappings = EMP
 
     const { data: exportSettingsList = [] } = useGetLightExportSettings();
     const { data: linkedExportSetting } = useGetExportSettingById(exportSettingId ?? undefined, {
-      meta: { waitForLoading: true },
+      meta: { withPageLoaderBlur: true },
     });
 
     const exportSettingOptions: ArtComboBoxOption[] = exportSettingsList.map((es) => ({

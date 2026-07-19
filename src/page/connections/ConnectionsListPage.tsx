@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useGetPagedConnections, useDeleteConnection } from '@/hooks/connection.hooks';
 import type { ConnectionModel } from '@/models/connection.models';
 import { CONNECTION_TYPE_LABELS } from '@/models/connection.models';
@@ -24,14 +24,8 @@ function formatTypeLabel(row: ConnectionModel): string {
 // ==== Page ====
 
 export default function ConnectionsListPage() {
-  const [page, setPage] = useState(1);
-  const [freeText, setFreeText] = useState('');
-  const { data: pagedData, isLoading } = useGetPagedConnections(page, PAGE_SIZE, freeText);
-
-  function handleSearch(value: string) {
-    setFreeText(value);
-    setPage(1);
-  }
+  const { page, search, dataProps } = useUrlFilters([]);
+  const { data: pagedData, isLoading } = useGetPagedConnections(page, PAGE_SIZE, search);
   const deleteMutation = useDeleteConnection();
 
   const columns: ArtColumn<ConnectionModel>[] = [
@@ -83,11 +77,9 @@ export default function ConnectionsListPage() {
       emptyMessage="No connections yet."
       pageSize={PAGE_SIZE}
       total={pagedData?.total ?? 0}
-      page={page}
-      onPageChange={setPage}
       searchPlaceholder="Search connections…"
-      onSearch={handleSearch}
       loading={isLoading}
+      {...dataProps}
     />
   );
 }

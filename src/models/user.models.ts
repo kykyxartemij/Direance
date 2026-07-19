@@ -10,6 +10,8 @@ export type UserModel = {
   permissions: string[];
 };
 
+export type DbConsumption = { used: number; limit: number };
+
 // ==== Validators ====
 
 export const UpdateUserValidator = yup.object({

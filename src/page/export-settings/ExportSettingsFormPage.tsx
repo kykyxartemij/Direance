@@ -16,7 +16,6 @@ import {
 } from '@/hooks/logo.hooks';
 import ArtComboBox, { type ArtComboBoxOption } from '@/components/ui/ArtComboBox';
 import ArtTabs from '@/components/ui/ArtTabs';
-import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
 import type { HeaderItemModel, HeaderLayoutModel, CreateExportSettingModel, UpdateExportSettingModel, MappedValueModel } from '@/models/export-settings.models';
 import { ArtForm, ArtFormInput, ArtFormCheckbox } from '@/components/form';
 import ArtInput from '@/components/ui/ArtInput';
@@ -24,7 +23,7 @@ import ArtButton from '@/components/ui/ArtButton';
 import ArtUpload from '@/components/ui/ArtUpload';
 import ArtImage from '@/components/ui/ArtImage';
 import FormSection from '@/components/FormSection';
-import GlobalPageLoader from '@/components/GlobalPageLoader';
+import PageLoader from '@/components/PageLoader';
 import ColorSelect from '@/page/mapping/ColorSelect';
 import type { ArtColor } from '@/components/ui/art.types';
 
@@ -249,12 +248,11 @@ function LogoSection({ existingLogoId, existingLogoName, staged, onChange }: Log
 export default function ExportSettingsFormPage({ id }: ExportSettingsFormPageProps) {
   const router = useRouter();
   const isEdit = !!id;
-  const { enqueueSuccess, enqueueError } = useArtSnackbar();
 
   const { data: existing, isLoading } = useGetExportSettingById(id);
 
   // Gate render until data ready — defaultValues only fire on mount. Same loader as loading.tsx so transition is seamless.
-  if (isEdit && (isLoading || !existing)) return <GlobalPageLoader />;
+  if (isEdit && (isLoading || !existing)) return <PageLoader />;
 
   return (
     <ExportSettingForm
@@ -262,8 +260,6 @@ export default function ExportSettingsFormPage({ id }: ExportSettingsFormPagePro
       existing={existing}
       isEdit={isEdit}
       onSuccess={() => router.push('/export-settings')}
-      enqueueSuccess={enqueueSuccess}
-      enqueueError={enqueueError}
     />
   );
 }
@@ -283,11 +279,9 @@ interface ExportSettingFormProps {
   existing?: ReturnType<typeof useGetExportSettingById>['data'];
   isEdit: boolean;
   onSuccess: () => void;
-  enqueueSuccess: (title: string) => void;
-  enqueueError: (err: Error, title: string) => void;
 }
 
-function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, enqueueError }: ExportSettingFormProps) {
+function ExportSettingForm({ id, existing, isEdit, onSuccess }: ExportSettingFormProps) {
   // ==== RHF — simple scalar fields ====
   const methods = useForm<FormValues>({
     resolver: yupResolver(formSchema) as Resolver<FormValues>,
@@ -317,8 +311,8 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
   );
   const categoryRefs = useRef<(MappedValueRowRef | null)[]>([]);
 
-  const createMutation = useCreateExportSetting();
-  const updateMutation = useUpdateExportSetting();
+  const createMutation = useCreateExportSetting({ meta: { successMessage: 'Export setting created', errorMessage: 'Failed to create export setting' } });
+  const updateMutation = useUpdateExportSetting({ meta: { successMessage: 'Export setting saved', errorMessage: 'Failed to save export setting' } });
 
   // ==== Submit ====
 
@@ -361,19 +355,10 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess, enqueueSuccess, en
     if (isEdit) {
       updateMutation.mutate(
         { id: id!, body: { ...body, ...logoIdPatch } as UpdateExportSettingModel, logo: logoArg },
-        {
-          onSuccess: () => { enqueueSuccess('Export setting saved'); onSuccess(); },
-          onError: (err) => enqueueError(err as Error, 'Failed to save export setting'),
-        },
+        { onSuccess },
       );
     } else {
-      createMutation.mutate(
-        { body: body as CreateExportSettingModel, logo: logoArg },
-        {
-          onSuccess: () => { enqueueSuccess('Export setting created'); onSuccess(); },
-          onError: (err) => enqueueError(err as Error, 'Failed to create export setting'),
-        },
-      );
+      createMutation.mutate({ body: body as CreateExportSettingModel, logo: logoArg }, { onSuccess });
     }
   }
 

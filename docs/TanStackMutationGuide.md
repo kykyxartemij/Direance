@@ -27,29 +27,36 @@ This rule exists because raw `fetchClient` calls in components bypass TanStack
 Query's caching, deduplication, loading/error state, and cache invalidation.
 Every BE roundtrip that skips the query layer is invisible to the rest of the app.
 
-## Hook owns error reporting
+## Error/success reporting — `meta`, never inside the hook
 
-Every mutation hook calls `useArtSnackbar()` and wires `onError` to
-`enqueueError(...)` with a sensible fallback title. Call sites never wrap
-`mutate` / `mutateAsync` in `try/catch`.
+Mutation hooks never call `useArtSnackbar()` or wire `onError`/`onSuccess` snackbar
+logic themselves. `GlobalMutationSnackbar` (mounted once in `layout.tsx`) subscribes to
+`queryClient.getMutationCache()` and fires `ArtSnackbar` off `mutation.meta` — a single
+app-wide subscription instead of one `useArtSnackbar()` context read per hook.
+
+```ts
+useCreateConnection({
+  meta: { successMessage: 'Connection created', errorMessage: 'Failed to create connection' },
+});
+```
+
+- `meta.errorMessage`: `boolean | string`, default `false` (no toast). `true` reads the
+  caught `ApiError`'s own `.message` (BE already writes a real user-facing string there —
+  see `handleApiError`). A `string` overrides with a custom title.
+- `meta.successMessage`: `string` only, default unset. No inherent BE text for success,
+  so it's always explicit.
+- Set at the **call site** (`useCreateConnection({ meta: {...} })`), never inside the hook
+  body — the same hook gets reused across pages/dialogs with different messaging needs.
+- If the success/error text needs runtime data the hook can't see (e.g. `` `Invite sent to
+  ${data.email}` ``), skip `meta` and call `enqueueSuccess`/`enqueueError` manually at the
+  call site instead — `meta` only fits messages known when the hook is called.
 
 ```ts
 // src/hooks/invite.hooks.ts
-'use client';
-
-import { useMutation, useQueryClient, type UseMutationOptions } from '@tanstack/react-query';
-import fetchClient from '@/lib/fetchClient';
-import { API } from '@/lib/apiUrl';
-import { queryKeys } from '@/lib/queryKeys';
-import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
-import type { SendInviteModel } from '@/models/invite.models';
-import type { ApiError } from '@/models/api-error';
-
 export function useSendInvite(
   options?: Omit<UseMutationOptions<void, ApiError, SendInviteModel>, 'mutationFn'>
 ) {
   const queryClient = useQueryClient();
-  const { enqueueError } = useArtSnackbar();
   return useMutation<void, ApiError, SendInviteModel>({
     ...options,
     mutationFn: async (body) => {
@@ -58,10 +65,6 @@ export function useSendInvite(
     onSuccess: (data, ...rest) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.invite.limits() });
       options?.onSuccess?.(data, ...rest);
-    },
-    onError: (err, ...rest) => {
-      enqueueError(err, 'Failed to send invite');
-      options?.onError?.(err, ...rest);
     },
   });
 }

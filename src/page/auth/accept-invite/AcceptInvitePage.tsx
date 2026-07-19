@@ -2,23 +2,28 @@
 
 // NOTE: nextjs-no-use-search-params-without-suspense is a false positive — this page renders under loading.tsx which provides the Suspense boundary
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useForm, FormProvider } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { signIn } from 'next-auth/react';
 import { useLookupInvite, useAcceptInvite } from '@/hooks/invite.hooks';
-import { AcceptInviteValidator } from '@/models/invite.models';
-import { ArtFormInput } from '@/components/form';
-import ArtButton from '@/components/ui/ArtButton';
+import PageLoader from '@/components/PageLoader';
+import { ArtForm, ArtFormInput } from '@/components/form';
+import ArtTitle from '@/components/ui/ArtTitle';
+import { AuthFormLayout } from '../AuthFormLayout';
 
-const FormValidator = AcceptInviteValidator.shape({
+const schema = yup.object({
+  name: yup.string().default(''),
+  password: yup.string().min(8, 'Password must be at least 8 characters').required('Password is required'),
   confirmPassword: yup
     .string()
-    .oneOf([yup.ref('password')], 'Passwords do not match')
-    .required('Please confirm your password'),
+    .required('Please confirm your password')
+    .test('passwords-match', 'Passwords do not match', function (value) {
+      return value === this.parent.password;
+    }),
 });
 
-type FormValues = yup.InferType<typeof FormValidator>;
+type FormValues = yup.InferType<typeof schema>;
 
 export default function AcceptInvitePage() {
   const searchParams = useSearchParams();
@@ -26,11 +31,9 @@ export default function AcceptInvitePage() {
   const token = searchParams.get('token') ?? '';
 
   const lookup = useLookupInvite(token);
-  const acceptInvite = useAcceptInvite();
+  const acceptInvite = useAcceptInvite({ meta: { errorMessage: 'Failed to accept invite' } });
 
-  const methods = useForm<FormValues>({ resolver: yupResolver(FormValidator) });
-  const { handleSubmit, formState: { errors, isSubmitting } } = methods;
-
+  const methods = useForm<FormValues>({ resolver: yupResolver(schema) });
   const onSubmit = (data: FormValues) => {
     if (!lookup.data) return;
     acceptInvite.mutate(
@@ -57,62 +60,51 @@ export default function AcceptInvitePage() {
 
   if (!token) {
     return (
-      <>
+      <AuthFormLayout>
         <h1 className="mb-3 text-xl font-semibold" style={{ color: 'var(--text)' }}>
           Invalid invite
         </h1>
         <p className="text-sm" style={{ color: 'var(--art-danger)' }}>Missing invite token.</p>
-      </>
+      </AuthFormLayout>
     );
   }
 
-  if (lookup.isPending) {
-    return <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Validating invite…</p>;
-  }
+  if (lookup.isPending) return <PageLoader />;
 
   if (lookup.isError || !lookup.data) {
     return (
-      <>
+      <AuthFormLayout>
         <h1 className="mb-3 text-xl font-semibold" style={{ color: 'var(--text)' }}>
           Invalid invite
         </h1>
         <p className="text-sm" style={{ color: 'var(--art-danger)' }}>
           {lookup.error?.message ?? 'Invalid or expired invite link.'}
         </p>
-      </>
+      </AuthFormLayout>
     );
   }
 
   return (
-    <>
-      <h1 className="mb-2 text-xl font-semibold" style={{ color: 'var(--text)' }}>
-        Create your account
-      </h1>
-      <p className="mb-6 text-sm" style={{ color: 'var(--text-muted)' }}>
-        Invited as <strong>{lookup.data.email}</strong>
-      </p>
+    <AuthFormLayout>
+      <ArtTitle title="Create your account" description={`Invited as ${lookup.data.email}`} />
 
-      <FormProvider {...methods}>
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-          <ArtFormInput
-            name="name"
-            label="Display name (optional)"
-            placeholder="A nickname, your real name — anything"
-            helperText="Used to identify you in the system. A nickname is fine — your real name isn't required."
-            autoComplete="nickname"
-          />
-          <ArtFormInput name="password" type="password" label="Password" placeholder="••••••••" autoComplete="new-password" />
-          <ArtFormInput name="confirmPassword" type="password" label="Confirm password" placeholder="••••••••" autoComplete="new-password" />
-
-          {errors.root && (
-            <p className="text-sm" style={{ color: 'var(--art-danger)' }}>{errors.root.message}</p>
-          )}
-
-          <ArtButton type="submit" loading={isSubmitting || acceptInvite.isPending} variant="default" size="md">
-            Create account
-          </ArtButton>
-        </form>
-      </FormProvider>
-    </>
+      <ArtForm
+        methods={methods}
+        onSubmit={onSubmit}
+        buttons={[
+          { label: 'Create account', color: 'primary', type: 'submit', loading: acceptInvite.isPending },
+        ]}
+      >
+        <ArtFormInput
+          name="name"
+          label="Display name (optional)"
+          placeholder="A nickname, your real name — anything"
+          helperText="Used to identify you in the system. A nickname is fine — your real name isn't required."
+          autoComplete="nickname"
+        />
+        <ArtFormInput name="password" type="password" label="Password" placeholder="••••••••" autoComplete="new-password" />
+        <ArtFormInput name="confirmPassword" type="password" label="Confirm password" placeholder="••••••••" autoComplete="new-password" />
+      </ArtForm>
+    </AuthFormLayout>
   );
 }

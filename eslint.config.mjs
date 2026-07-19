@@ -291,9 +291,10 @@ const eslintConfig = [
       // HREF constants in src/lib/href.ts centralize routes for safe refactoring.
       'local/require-href-constant': 'warn',
 
-      // Warn when a page.tsx has no sibling loading.tsx.
-      // loading.tsx is the Suspense skeleton — without it navigation shows a blank screen.
-      'local/require-loading-page': 'warn',
+      // Warn when a page.tsx doesn't render <ArtPage> as its root.
+      // ArtPage owns chrome, the Suspense boundary, and the loading/error gate that
+      // layout.tsx/loading.tsx used to split across sibling files.
+      'local/require-art-page': 'warn',
 
       // Warn when an ArtDialog / ArtConfirmDialog trigger child has its own onClick
       // (it is silently overwritten by ArtDialog at runtime), or when a buttons array

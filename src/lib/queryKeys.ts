@@ -1,6 +1,8 @@
 // Centralized query keys for React Query
 // Format: [resource, kind, subtype, ...args]
 
+import type { MappingFilterModel } from '@/models/mapping.models';
+
 export const queryKeys = {
   user: {
     invalidate: {
@@ -24,8 +26,8 @@ export const queryKeys = {
       lists: () => ['mapping', 'list'] as const,
     },
     light: (reportType?: string) => ['mapping', 'list', 'light', reportType ?? ''] as const,
-    paged: (page: number, pageSize: number, freeText?: string) =>
-      ['mapping', 'list', 'paged', page, pageSize, freeText ?? ''] as const,
+    paged: (page: number, pageSize: number, freeText?: string, filters?: MappingFilterModel) =>
+      ['mapping', 'list', 'paged', page, pageSize, freeText ?? '', filters?.reportType ?? ''] as const,
     byId: (id: string) => ['mapping', 'single', 'byId', id] as const,
   },
   exportSetting: {

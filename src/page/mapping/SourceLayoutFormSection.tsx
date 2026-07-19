@@ -171,10 +171,10 @@ function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSh
     const [sourceLabel, setSourceLabel] = useState<string | null>(null);
     const { data: connections = [] } = useGetLightConnections();
     const { mutateAsync: fetchPnl, isPending: fetchingPnl } = useFetchPnlConnectionsByIds({
-      meta: { waitForLoading: true },
+      meta: { withPageLoaderBlur: true },
     });
     const { mutateAsync: fetchFinancialPosition, isPending: fetchingFinancialPosition } = useFetchFinancialPositionConnectionsByIds({
-      meta: { waitForLoading: true },
+      meta: { withPageLoaderBlur: true },
     });
     const fetching = fetchingPnl || fetchingFinancialPosition;
     const connectionOptions = connections.flatMap((c) =>

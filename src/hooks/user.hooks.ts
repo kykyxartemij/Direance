@@ -4,12 +4,9 @@ import { useQuery, useMutation, useQueryClient, type UseQueryOptions, type UseMu
 import fetchClient from '@/lib/fetchClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
-import type { UserModel, UpdateUserModel } from '@/models/user.models';
-import type { DbConsumption } from '@/lib/userLimits';
+import type { UserModel, UpdateUserModel, DbConsumption } from '@/models/user.models';
 import type { ApiError } from '@/models/api-error';
 import type { PaginatedResponse } from '@/models/paginated-response.model';
-
-export type { DbConsumption }; // Should be model folder to model. FE don't call BE models directly. new file db-consumption.model.ts should be created
 
 export function useCurrentUser(options?: Omit<UseQueryOptions<UserModel, ApiError>, 'queryKey' | 'queryFn'>) {
   return useQuery<UserModel, ApiError>({

@@ -1,38 +1,48 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useGetPagedMappings, useDeleteMapping } from '@/hooks/mapping.hooks';
 import type { MappingModel, ReportType } from '@/models/mapping.models';
+import { REPORT_TYPE_LABELS, REPORT_TYPE_OPTIONS } from '@/models/mapping.models';
 import type { ArtColumn } from '@/components/ui/ArtDataTable';
 import ArtData from '@/components/ui/ArtData';
 import ArtBadge from '@/components/ui/ArtBadge';
 import ArtButton from '@/components/ui/ArtButton';
+import ArtSelect from '@/components/ui/ArtSelect';
 import { ArtConfirmDialog } from '@/components/ui/ArtDialog';
 import { FSLink } from '@/components/FSLink';
 import { HREF } from '@/lib/hrefUrl';
 
 // ==== Constants ====
 
-const REPORT_TYPE_LABELS: Record<ReportType, string> = {
-  pnl: 'Profit & Loss',
-  financial_position: 'Financial Position',
-};
-
 const PAGE_SIZE = 20;
 
 // ==== Page ====
 
 export default function MappingsPage() {
-  const [page, setPage] = useState(1);
-  const [freeText, setFreeText] = useState('');
-  const { data: pagedData, isLoading } = useGetPagedMappings(page, PAGE_SIZE, freeText);
-
-  function handleSearch(value: string) {
-    setFreeText(value);
-    setPage(1);
-  }
+  const { page, search, filters, setFilter, clearFilters, dataProps } = useUrlFilters(['reportType'] as const);
+  const { data: pagedData, isLoading } = useGetPagedMappings(page, PAGE_SIZE, search, {
+    reportType: (filters.reportType as ReportType | null) ?? undefined,
+  });
   const deleteMutation = useDeleteMapping();
+
+  const selectedReportType = REPORT_TYPE_OPTIONS.find((o) => o.value === filters.reportType) ?? null;
+
+  // Stable reference required — a fresh element every render trips react-doctor/jsx-no-jsx-as-prop.
+  const reportTypeFilter = useMemo(
+    () => (
+      <ArtSelect
+        label="Report type"
+        options={REPORT_TYPE_OPTIONS}
+        selected={selectedReportType}
+        onChange={(opt) => setFilter('reportType', opt?.value ?? null)}
+        clearable
+      />
+    ),
+    [selectedReportType, setFilter],
+  );
 
   const columns: ArtColumn<MappingModel>[] = [
     {
@@ -90,12 +100,12 @@ export default function MappingsPage() {
         emptyMessage="No mappings yet. Upload a report to create one."
         pageSize={PAGE_SIZE}
         total={pagedData?.total ?? 0}
-        page={page}
-        onPageChange={setPage}
         searchPlaceholder="Search mappings…"
-        onSearch={handleSearch}
         loading={isLoading}
         rowHeight={39}
+        advancedFilters={reportTypeFilter}
+        onClearFilters={clearFilters}
+        {...dataProps}
       />
   );
 }

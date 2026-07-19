@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient, type UseQueryOptions, type UseMu
 import fetchClient from '@/lib/fetchClient';
 import { API } from '@/lib/apiUrl';
 import { queryKeys } from '@/lib/queryKeys';
-import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
 import type { AcceptInviteModel, SendInviteModel, InviteLimitsModel } from '@/models/invite.models';
 import type { ApiError } from '@/models/api-error';
 
@@ -41,15 +40,13 @@ export function useLookupInvite(
 
 // ==== Mutations ====
 
-// Hooks own snackbar error reporting so call sites stay free of try/catch.
-// Success messages stay at the call site because they often need request-time data
-// (e.g. the invited email) that the hook can't formulate generically.
+// Error/success snackbars are opt-in via `meta` at the call site (GlobalMutationSnackbar
+// reads it), not baked in here — the same hook gets reused with different messaging needs.
 
 export function useSendInvite(
   options?: Omit<UseMutationOptions<void, ApiError, SendInviteModel>, 'mutationFn'>
 ) {
   const queryClient = useQueryClient();
-  const { enqueueError } = useArtSnackbar();
   return useMutation<void, ApiError, SendInviteModel>({
     ...options,
     mutationFn: async (body) => {
@@ -60,10 +57,6 @@ export function useSendInvite(
       queryClient.invalidateQueries({ queryKey: queryKeys.invite.limits() });
       options?.onSuccess?.(data, ...rest);
     },
-    onError: (err, ...rest) => {
-      enqueueError(err, 'Failed to send invite');
-      options?.onError?.(err, ...rest);
-    },
   });
 }
 
@@ -71,7 +64,6 @@ export function useAcceptInvite(
   options?: Omit<UseMutationOptions<void, ApiError, AcceptInviteModel>, 'mutationFn'>
 ) {
   const queryClient = useQueryClient();
-  const { enqueueError } = useArtSnackbar();
   return useMutation<void, ApiError, AcceptInviteModel>({
     ...options,
     mutationFn: async (body) => {
@@ -80,10 +72,6 @@ export function useAcceptInvite(
     onSuccess: (data, ...rest) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.invite.limits() });
       options?.onSuccess?.(data, ...rest);
-    },
-    onError: (err, ...rest) => {
-      enqueueError(err, 'Failed to accept invite');
-      options?.onError?.(err, ...rest);
     },
   });
 }

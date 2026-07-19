@@ -10,7 +10,8 @@ export const authConfig: NextAuthConfig = {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
       const isAuthPage = nextUrl.pathname.startsWith('/auth');
-      if (!isLoggedIn && !isAuthPage) return false;
+      const isPublicApi = nextUrl.pathname.startsWith('/api/invites/lookup') || nextUrl.pathname.startsWith('/api/invites/accept');
+      if (!isLoggedIn && !isAuthPage && !isPublicApi) return false;
       return true;
     },
   },

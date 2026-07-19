@@ -1,19 +1,34 @@
 import 'server-only';
-import { Resend } from 'resend';
+import { BrevoClient } from '@getbrevo/brevo';
+import nodemailer from 'nodemailer';
 import { invalidateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import type { InviteLimitsModel } from '@/models/invite.models';
 
-// ==== Resend client ====
-// Real send when RESEND_API_KEY is set. Otherwise dev stub logs to console.
-// Free tier: 3000 emails/month, 100/day. Use onboarding@resend.dev until you
-// verify a custom domain in the Resend dashboard.
+// ==== Brevo client ====
+// GMAIL_FALLBACK=true: send via Gmail SMTP (nodemailer). No domain needed, Gmail-to-Gmail works.
+// GMAIL_FALLBACK=false: send via Brevo API. Requires verified domain in Brevo dashboard.
+// When eu.org domain is approved: verify in Brevo, set GMAIL_FALLBACK=false.
 
-const apiKey = process.env.RESEND_API_KEY;
+const useGmailFallback = process.env.GMAIL_FALLBACK === 'true';
 const baseUrl = process.env.AUTH_URL ?? 'http://localhost:3000';
-const from = process.env.RESEND_FROM ?? 'Direance <onboarding@resend.dev>';
 
-const resend = apiKey ? new Resend(apiKey) : null;
+// ==== Brevo ====
+
+const brevoApiKey = process.env.BREVO_API_KEY;
+const brevoFromEmail = process.env.BREVO_FROM_EMAIL ?? 'noreply@direance.eu.org';
+const brevoFromName = process.env.BREVO_FROM_NAME ?? 'Direance';
+
+const brevo = brevoApiKey ? new BrevoClient({ apiKey: brevoApiKey }) : null;
+
+// ==== Gmail SMTP ====
+
+const gmailUser = process.env.GMAIL_USER;
+const gmailPass = process.env.GMAIL_APP_PASSWORD;
+
+const gmail = gmailUser && gmailPass
+  ? nodemailer.createTransport({ service: 'gmail', auth: { user: gmailUser, pass: gmailPass } })
+  : null;
 
 // ==== Template ====
 
@@ -27,25 +42,33 @@ function wrap(message: string): string {
 }
 
 // ==== Send helper ====
-// Every successful send invalidates the invite-limits cache so the stats panel
-// reflects the new send on next view. Dev stubs don't invalidate — counts are real.
 
 async function send(opts: { to: string; subject: string; html: string; text: string; devNote: string; link: string }): Promise<void> {
-  if (!resend) {
-    console.warn(
-      `\n[email:dev-stub] ${opts.devNote}\n  to:      ${opts.to}\n  subject: ${opts.subject}\n  link:    ${opts.link}\n  (RESEND_API_KEY not set — configure to send real email)\n`,
-    );
+  const brevoReady = brevo && brevoFromEmail;
+
+  if (brevoReady) {
+    await brevo.transactionalEmails.sendTransacEmail({
+      sender: { name: brevoFromName, email: brevoFromEmail },
+      to: [{ email: opts.to }],
+      subject: opts.subject,
+      htmlContent: opts.html,
+      textContent: opts.text,
+    });
+    invalidateCache(...CACHE_KEYS.invite.limits());
     return;
   }
-  const result = await resend.emails.send({
-    from,
-    to: opts.to,
-    subject: opts.subject,
-    html: opts.html,
-    text: opts.text,
-  });
-  if (result.error) throw new Error(`Resend error: ${result.error.name} — ${result.error.message}`);
-  invalidateCache(...CACHE_KEYS.invite.limits());
+
+  if (useGmailFallback) {
+    if (!gmail) {
+      console.warn(`\n[email:dev-stub] ${opts.devNote}\n  to: ${opts.to}\n  (GMAIL_USER / GMAIL_APP_PASSWORD not set)\n`);
+      return;
+    }
+    await gmail.sendMail({ from: `Direance <${gmailUser}>`, to: opts.to, subject: opts.subject, html: opts.html, text: opts.text });
+    invalidateCache(...CACHE_KEYS.invite.limits());
+    return;
+  }
+
+  throw new Error('Email service is not configured.');
 }
 
 // ==== Public senders ====
@@ -83,37 +106,8 @@ export async function sendInviteExtendedEmail(to: string, token: string): Promis
 }
 
 // ==== Invite limits ====
-// Resend exposes no dedicated usage endpoint. Pulls the most-recent 100 emails
-// via emails.list and buckets created_at against now. has_more=true → real
-// recent volume exceeds 100; the panel surfaces this as a "capped" badge.
-
-const DAILY_LIMIT = 100;
-const MONTHLY_LIMIT = 3000;
-const DAY_MS = 24 * 60 * 60 * 1000;
-const MONTH_MS = 30 * DAY_MS;
+// Gmail SMTP has no usage API. Brevo stats wired later when domain verified.
 
 export async function fetchInviteLimits(): Promise<InviteLimitsModel | null> {
-  if (!resend) return null;
-
-  const result = await resend.emails.list({ limit: 100 });
-  if (result.error) throw new Error(`Resend error: ${result.error.name} — ${result.error.message}`);
-
-  const items = result.data?.data ?? [];
-  const hasMore = result.data?.has_more ?? false;
-  const now = Date.now();
-
-  let daily = 0;
-  let monthly = 0;
-  for (const item of items) {
-    const ts = new Date(item.created_at).getTime();
-    const age = now - ts;
-    if (age <= MONTH_MS) monthly += 1;
-    if (age <= DAY_MS)   daily   += 1;
-  }
-
-  return {
-    daily:   { sent: daily,   limit: DAILY_LIMIT },
-    monthly: { sent: monthly, limit: MONTHLY_LIMIT },
-    capped: hasMore,
-  };
+  return null;
 }

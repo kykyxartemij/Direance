@@ -2,7 +2,6 @@
 
 import { useMemo, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import GlobalPageLoader from '@/components/GlobalPageLoader';
 import { useForm, useWatch, type Resolver } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
@@ -199,12 +198,13 @@ function MappingFormInner({ id, mapping }: { id?: string; mapping?: MappingModel
 }
 
 // ==== Data loaders ====
+// useGetMappingById is a useSuspenseQuery — throws while pending, caught by the
+// <Suspense> boundary ArtPage provides in page.tsx, above this component.
 
 export function MappingFormEdit() {
   const params = useParams();
   const id = params.id as string;
-  const { data: mapping, isLoading } = useGetMappingById(id);
-  if (isLoading || !mapping) return <GlobalPageLoader />;
+  const { data: mapping } = useGetMappingById(id);
   return <MappingFormInner id={id} mapping={mapping} />;
 }
 

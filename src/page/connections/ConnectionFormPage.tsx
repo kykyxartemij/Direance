@@ -11,10 +11,9 @@ import {
   useUpdateConnection,
 } from '@/hooks/connection.hooks';
 import { useGetLightMappings } from '@/hooks/mapping.hooks';
-import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
 import { ArtForm, ArtFormInput, ArtFormSelect, ArtFormCheckbox } from '@/components/form';
 import FormSection from '@/components/FormSection';
-import GlobalPageLoader from '@/components/GlobalPageLoader';
+import PageLoader from '@/components/PageLoader';
 import {
   CONNECTION_TYPES,
   CONNECTION_TYPE_LABELS,
@@ -79,11 +78,10 @@ const formSchema = yup.object({
 export default function ConnectionFormPage({ id }: ConnectionFormPageProps) {
   const router = useRouter();
   const isEdit = !!id;
-  const { enqueueSuccess, enqueueError } = useArtSnackbar();
 
   const { data: existing, isLoading } = useGetConnectionById(id);
 
-  if (isEdit && (isLoading || !existing)) return <GlobalPageLoader />;
+  if (isEdit && (isLoading || !existing)) return <PageLoader />;
 
   return (
     <ConnectionForm
@@ -91,8 +89,6 @@ export default function ConnectionFormPage({ id }: ConnectionFormPageProps) {
       existing={existing}
       isEdit={isEdit}
       onSuccess={() => router.push('/connections')}
-      enqueueSuccess={enqueueSuccess}
-      enqueueError={enqueueError}
     />
   );
 }
@@ -110,11 +106,9 @@ interface ConnectionFormProps {
   existing?: ReturnType<typeof useGetConnectionById>['data'];
   isEdit: boolean;
   onSuccess: () => void;
-  enqueueSuccess: (title: string) => void;
-  enqueueError: (err: Error, title: string) => void;
 }
 
-function ConnectionForm({ id, existing, isEdit, onSuccess, enqueueSuccess, enqueueError }: ConnectionFormProps) {
+function ConnectionForm({ id, existing, isEdit, onSuccess }: ConnectionFormProps) {
   const odooCfg  = existing?.type === 'odoo' ? (existing.config as Record<string, unknown>) : undefined;
   const meritCfg = isMeritType(existing?.type as ConnectionType) ? (existing?.config as Record<string, unknown>) : undefined;
 
@@ -148,8 +142,8 @@ function ConnectionForm({ id, existing, isEdit, onSuccess, enqueueSuccess, enque
     !m.reportType || m.reportType === reportType ? [{ label: m.name, value: m.id }] : []
   );
 
-  const createMutation = useCreateConnection();
-  const updateMutation = useUpdateConnection();
+  const createMutation = useCreateConnection({ meta: { successMessage: 'Connection created', errorMessage: 'Failed to create connection' } });
+  const updateMutation = useUpdateConnection({ meta: { successMessage: 'Connection saved', errorMessage: 'Failed to save connection' } });
   const [secretCleared, setSecretCleared] = useState(false);
 
   async function onSave(data: FormValues) {
@@ -189,21 +183,9 @@ function ConnectionForm({ id, existing, isEdit, onSuccess, enqueueSuccess, enque
       const body: Omit<UpdateConnectionModel, 'id'> = secretFilled
         ? { ...baseBody, secret }
         : baseBody;
-      updateMutation.mutate(
-        { id: id!, body },
-        {
-          onSuccess: () => { enqueueSuccess('Connection saved'); onSuccess(); },
-          onError:   (err) => enqueueError(err as Error, 'Failed to save connection'),
-        },
-      );
+      updateMutation.mutate({ id: id!, body }, { onSuccess });
     } else {
-      createMutation.mutate(
-        { ...baseBody, secret } as CreateConnectionModel,
-        {
-          onSuccess: () => { enqueueSuccess('Connection created'); onSuccess(); },
-          onError:   (err) => enqueueError(err as Error, 'Failed to create connection'),
-        },
-      );
+      createMutation.mutate({ ...baseBody, secret } as CreateConnectionModel, { onSuccess });
     }
   }
 

@@ -7,7 +7,7 @@ import { Permission, hasPermission } from './permissions';
 // ==== Config ====
 
 export const RATE_LIMITS = {
-  user_ops:       { max: 5,   windowMs: 60_000 },       // 5 min per user
+  user_ops:       { max: 20,   windowMs: 60_000 },       // 5 min per user
   ip_ops:         { max: 20,  windowMs: 60_000 },       // 20 min per IP
   global_ops:     { max: 200, windowMs: 60_000 },       // 200 min across all users
   login_attempts: { max: 5,   windowMs: 5 * 60_000 },  // 5 login attempts per 5 min per email

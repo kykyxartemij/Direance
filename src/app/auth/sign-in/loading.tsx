@@ -1,2 +1,2 @@
-import GlobalPageLoader from '@/components/GlobalPageLoader';
-export default GlobalPageLoader;
+import GlobalLoader from '@/components/GlobalLoader';
+export default GlobalLoader;

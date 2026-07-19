@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useReports, getReportType } from '@/providers/ReportProvider';
-import { useGetLightConnections } from '@/hooks/connection.hooks';
+import { useGetLightConnections, useFetchPnlConnectionsByIds, useFetchFinancialPositionConnectionsByIds } from '@/hooks/connection.hooks';
 import { useGetLightExportSettings, useGetExportSettingById } from '@/hooks/export-settings.hooks';
+import { defaultPnlFilterValues, buildPnlFetchFilters } from '@/page/connections/pnlFilterFields';
+import { defaultFinancialPositionFilterValues, buildFinancialPositionFetchFilters } from '@/page/connections/financialPositionFilterFields';
 import type { ReportType } from '@/models/mapping.models';
 import ArtBadge from '@/components/ui/ArtBadge';
 import ArtComboBox, { type ArtComboBoxOption } from '@/components/ui/ArtComboBox';
@@ -167,7 +169,7 @@ export default function Dashboard({ reportType }: DashboardProps) {
   const [selectedExportSettingId, setSelectedExportSettingId] = useState<string | null>(defaultExportSettingId);
   const { data: exportSettingsList = [] } = useGetLightExportSettings();
   const { data: selectedExportSetting } = useGetExportSettingById(selectedExportSettingId ?? undefined, {
-    meta: { waitForLoading: true },
+    meta: { withGlobalLoaderBlur: true },
   });
 
   if (reports.length === 0) {

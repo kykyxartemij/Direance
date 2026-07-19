@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useGetLightConnections, useFetchPnlConnectionsByIds, useFetchFinancialPositionConnectionsByIds } from '@/hooks/connection.hooks';
 import { useReports } from '@/providers/ReportProvider';
@@ -10,6 +10,7 @@ import ArtCheckbox from '@/components/ui/ArtCheckbox';
 import ArtIconButton from '@/components/ui/ArtIconButton';
 import ArtBadge from '@/components/ui/ArtBadge';
 import ArtButton from '@/components/ui/ArtButton';
+import ArtSkeleton from '@/components/ui/ArtSkeleton';
 import { HREF } from '@/lib/hrefUrl';
 import { REPORT_TYPES, REPORT_TYPE_LABELS } from '@/models/mapping.models';
 import type { ConnectionLightModel } from '@/models/connection.models';
@@ -18,18 +19,6 @@ import { defaultPnlFilterValues, buildPnlFetchFilters } from '@/page/connections
 import { defaultFinancialPositionFilterValues, buildFinancialPositionFetchFilters } from '@/page/connections/financialPositionFilterFields';
 
 // ==== Helpers ====
-
-function relTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  if (diff < 0) return 'now';
-  const s = Math.floor(diff / 1000);
-  if (s < 60)   return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60)   return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24)   return `${h}h`;
-  return `${Math.floor(h / 24)}d`;
-}
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -91,29 +80,8 @@ interface ConnectionRowProps {
 }
 
 function ConnectionRow({ connection, loadedReportId, onToggle, toggling }: ConnectionRowProps) {
-  const { reports, replaceReportSheets } = useReports();
-  const { enqueueError } = useArtSnackbar();
-  const { mutateAsync: fetchPnl } = useFetchPnlConnectionsByIds();
-  const { mutateAsync: fetchFinancialPosition } = useFetchFinancialPositionConnectionsByIds();
-  const [refreshing, setRefreshing] = useState(false);
+  const { reports } = useReports();
   const report = loadedReportId ? reports.find((r) => r.id === loadedReportId) : undefined;
-
-  async function refresh() {
-    if (!report) return;
-    setRefreshing(true);
-    try {
-      const result = connection.reportType === 'pnl'
-        ? await fetchPnl({ ids: [connection.id], ...buildPnlFetchFilters(defaultPnlFilterValues()) })
-        : await fetchFinancialPosition({ ids: [connection.id], ...buildFinancialPositionFetchFilters(defaultFinancialPositionFilterValues()) });
-      const data = result[connection.id];
-      replaceReportSheets(report.id, data.sheets, data.fetchedAt);
-    } catch (err) {
-      enqueueError(err as Error, 'Failed to refresh');
-    } finally {
-      setRefreshing(false);
-    }
-  }
-
   const isLoaded = !!report;
 
   return (
@@ -124,20 +92,6 @@ function ConnectionRow({ connection, loadedReportId, onToggle, toggling }: Conne
       name={connection.name}
       badge={report && !report.mapped && <ArtBadge color="warning" size="sm">unmapped</ArtBadge>}
       sourceLabel="Connection"
-      meta={report?.fetchedAt && (
-        <span className="text-xs" style={{ color: 'var(--text-muted)' }} title={new Date(report.fetchedAt).toLocaleString()}>
-          {relTime(report.fetchedAt)}
-        </span>
-      )}
-      actions={isLoaded && (
-        <ArtIconButton
-          icon={{ name: refreshing ? 'Loading' : 'Refresh', size: 10 }}
-          size="sm"
-          aria-label="Refresh"
-          disabled={refreshing}
-          onClick={refresh}
-        />
-      )}
     />
   );
 }
@@ -177,42 +131,17 @@ function FileReportRow({ report, onRemove, onSetActive }: {
 export default function ReportSidebar() {
   const { user }       = useAuth();
   const { reports, addReportFromSheets, removeReport, setActive, setMapping } = useReports();
-  const { data: connections = [] } = useGetLightConnections();
+  // Light list only — id/name/type/isDefault, enough to render the sidebar. Full report
+  // data per connection is fetched lazily, only from the report page that needs it
+  // (see Dashboard.tsx) — never eagerly here.
+  const { data: connections = [], isLoading: connectionsLoading } = useGetLightConnections({ enabled: !!user });
   const { enqueueError } = useArtSnackbar();
+  // Manual toggle already has its own local indicator (togglingId) — no blur needed.
   const { mutateAsync: fetchPnl } = useFetchPnlConnectionsByIds();
   const { mutateAsync: fetchFinancialPosition } = useFetchFinancialPositionConnectionsByIds();
 
   // Track which connection → loaded report id
   const [togglingId, setTogglingId] = useState<string | null>(null);
-
-  // Auto-load isDefault connections once per session — grouped by reportType
-  // so N defaults of the same report type cost 1 batch call, not N.
-  const didAutoLoad = useRef(false);
-  useEffect(() => {
-    if (didAutoLoad.current || !connections.length) return;
-    const activeReports = reports.filter((r) => r.source === 'connection');
-    if (activeReports.length > 0) { didAutoLoad.current = true; return; }
-
-    const defaults = connections.filter((c) => c.isDefault);
-    if (!defaults.length) { didAutoLoad.current = true; return; }
-
-    didAutoLoad.current = true;
-
-    void Promise.all(defaults.map(async (c) => {
-      try {
-        const result = c.reportType === 'pnl'
-          ? await fetchPnl({ ids: [c.id], ...buildPnlFetchFilters(defaultPnlFilterValues()) })
-          : await fetchFinancialPosition({ ids: [c.id], ...buildFinancialPositionFetchFilters(defaultFinancialPositionFilterValues()) });
-        const data = result[c.id];
-        const id = addReportFromSheets(`${c.name}-${data.fetchedAt.slice(0, 10)}`, data.sheets, {
-          connectionId: c.id,
-          connectionType: c.type,
-          fetchedAt: data.fetchedAt,
-        });
-        if (data.mapping) setMapping(id, data.mapping);
-      } catch { /* silent — auto-load failure doesn't block */ }
-    }));
-  }, [connections, reports, addReportFromSheets, setMapping, fetchPnl, fetchFinancialPosition]);
 
   async function toggleConnection(connection: ConnectionLightModel, load: boolean) {
     setTogglingId(connection.id);
@@ -244,11 +173,8 @@ export default function ReportSidebar() {
   const fileReports = reports.filter((r) => r.source === 'file');
   const unsortedFileReports = fileReports.filter((r) => !r.mapping);
 
-  return (
-    <aside
-      className="flex flex-col shrink-0 border-l pl-2 pr-3 py-4"
-      style={{ width: '240px', borderColor: 'var(--border)', background: 'var(--surface)', overflowY: 'auto' }}
-    >
+  const content = (
+    <>
       {/* One group per report type — connections and their matching manual uploads together */}
       {REPORT_TYPES.map((type) => {
         const typeConnections = connections.filter((c) => c.reportType === type);
@@ -290,6 +216,15 @@ export default function ReportSidebar() {
           <FileReportRow key={r.id} report={r} onRemove={removeReport} onSetActive={setActive} />
         ))}
       </div>
+    </>
+  );
+
+  return (
+    <aside
+      className="flex flex-col shrink-0 border-l pl-2 pr-3 py-4"
+      style={{ width: '240px', borderColor: 'var(--border)', background: 'var(--surface)', overflowY: 'auto' }}
+    >
+      {connectionsLoading ? <ArtSkeleton wrap>{content}</ArtSkeleton> : content}
     </aside>
   );
 }

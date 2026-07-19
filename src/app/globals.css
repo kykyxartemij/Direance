@@ -108,7 +108,7 @@ a:hover {
   text-decoration: none;
 }
 
-/* ==== GlobalPageLoader ==== */
+/* ==== GlobalLoader / PageLoader ==== */
 
 @keyframes global-loader-slide {
   0%   { transform: translateX(-100%); }
@@ -163,6 +163,56 @@ a:hover {
 }
 
 .global-loading-overlay.is-active {
+  opacity: 1;
+  backdrop-filter: blur(3px);
+  pointer-events: auto;
+}
+
+/* ==== ArtPage blur variant ==== */
+/* Scoped equivalent of GlobalLoadingOverlay — blurs only ArtPage's own content area
+   (nothing real to blur on first load, so this is a placeholder panel, not an overlay
+   over pre-existing content) instead of the whole viewport. */
+
+.art-page-blur {
+  position: relative;
+  min-height: 240px;
+}
+
+.art-page-blur-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+/* ==== ArtPage scoped blur (opportunistic dependent fetch, real content already mounted) ==== */
+/* Same idea as GlobalLoadingOverlay but positioned over just this ArtPage's content instead
+   of the whole viewport — driven by a per-instance meta.pageBlurScope, see useArtPageBlurMeta. */
+
+.art-page-content {
+  position: relative;
+}
+
+.art-page-blur-inline {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  backdrop-filter: blur(0px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, backdrop-filter 0.2s ease;
+}
+
+.art-page-blur-inline.is-active {
   opacity: 1;
   backdrop-filter: blur(3px);
   pointer-events: auto;

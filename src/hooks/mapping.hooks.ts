@@ -13,7 +13,7 @@ import fetchClient from '@/lib/fetchClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
 import type { QueryClient } from '@tanstack/react-query';
-import type { MappingModel, MappingLightModel, CreateMappingModel, UpdateMappingModel } from '@/models/mapping.models';
+import type { MappingModel, MappingLightModel, CreateMappingModel, UpdateMappingModel, MappingFilterModel } from '@/models/mapping.models';
 import type { PaginatedResponse } from '@/models/paginated-response.model';
 import type { ApiError } from '@/models/api-error';
 
@@ -23,13 +23,14 @@ export function useGetPagedMappings(
   page: number,
   pageSize: number,
   freeText?: string,
+  filters?: MappingFilterModel,
   options?: Omit<UseQueryOptions<PaginatedResponse<MappingModel>, ApiError>, 'queryKey' | 'queryFn'>
 ) {
   return useQuery<PaginatedResponse<MappingModel>, ApiError>({
-    queryKey: queryKeys.mapping.paged(page, pageSize, freeText),
+    queryKey: queryKeys.mapping.paged(page, pageSize, freeText, filters),
     queryFn: async () => {
       const { data } = await fetchClient.get<PaginatedResponse<MappingModel>>(
-        API.mapping.paged(page, pageSize, freeText)
+        API.mapping.paged(page, pageSize, freeText, filters)
       );
       return data;
     },

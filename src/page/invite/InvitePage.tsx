@@ -43,7 +43,7 @@ export default function InvitePage() {
   const router = useRouter();
   const { hasPermission, user } = useAuth();
   const { enqueueSuccess } = useArtSnackbar();
-  const sendInvite = useSendInvite();
+  const sendInvite = useSendInvite({ meta: { errorMessage: 'Failed to send invite' } });
 
   const isAdmin = hasPermission(Permission.IS_ADMIN);
   const canGrant = isAdmin || hasPermission(Permission.CAN_CHANGE_USER_PERMISSIONS);

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useGetPagedExportSettings, useDeleteExportSetting } from '@/hooks/export-settings.hooks';
 import type { ExportSettingModel } from '@/models/export-settings.models';
 import type { ArtColumn } from '@/components/ui/ArtDataTable';
@@ -18,14 +18,8 @@ const PAGE_SIZE = 20;
 // ==== Page ====
 
 export default function ExportSettingsListPage() {
-  const [page, setPage] = useState(1);
-  const [freeText, setFreeText] = useState('');
-  const { data: pagedData, isLoading } = useGetPagedExportSettings(page, PAGE_SIZE, freeText);
-
-  function handleSearch(value: string) {
-    setFreeText(value);
-    setPage(1);
-  }
+  const { page, search, dataProps } = useUrlFilters([]);
+  const { data: pagedData, isLoading } = useGetPagedExportSettings(page, PAGE_SIZE, search);
   const deleteMutation = useDeleteExportSetting();
 
   const columns: ArtColumn<ExportSettingModel>[] = [
@@ -83,11 +77,9 @@ export default function ExportSettingsListPage() {
       emptyMessage="No export configs yet."
       pageSize={PAGE_SIZE}
       total={pagedData?.total ?? 0}
-      page={page}
-      onPageChange={setPage}
       searchPlaceholder="Search configs…"
-      onSearch={handleSearch}
       loading={isLoading}
+      {...dataProps}
     />
   );
 }

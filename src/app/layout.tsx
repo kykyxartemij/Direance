@@ -9,7 +9,8 @@ import AuthGate from '@/providers/AuthGate';
 import { ReportProvider } from '@/providers/ReportProvider';
 import { ArtSnackbarProvider } from '@/components/ui/ArtSnackbar';
 import { ArtDialogProvider } from '@/components/ui/ArtDialog';
-import GlobalLoadingOverlay from '@/components/GlobalLoadingOverlay';
+import GlobalLoaderBlur from '@/components/GlobalLoaderBlur';
+import GlobalMutationSnackbar from '@/components/GlobalMutationSnackbar';
 
 export const metadata: Metadata = {
   title: { template: '%s | Direance', default: 'Direance' },
@@ -33,7 +34,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                         <ReportSidebar />
                       </div>
                     </div>
-                    <GlobalLoadingOverlay />
+                    <GlobalLoaderBlur />
+                    <GlobalMutationSnackbar />
                   </ArtDialogProvider>
                 </ArtSnackbarProvider>
               </ReportProvider>

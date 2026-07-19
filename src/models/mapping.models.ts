@@ -17,6 +17,14 @@ export const REPORT_TYPE_OPTIONS: { label: string; value: string }[] = REPORT_TY
   value: r,
 }));
 
+// ==== Paged list filters ====
+
+export const MappingFilterValidator = yup.object({
+  reportType: yup.string().oneOf(REPORT_TYPES, 'Invalid report type').optional(),
+});
+
+export type MappingFilterModel = yup.InferType<typeof MappingFilterValidator>;
+
 // ==== Config sub-types ====
 
 export type TableRegion = {

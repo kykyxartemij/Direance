@@ -17,8 +17,8 @@ export const CACHE_KEYS = {
     invalidate: (userId: string) => ['mapping', userId],
     invalidateAll: () => ['mapping'],
     light: (userId: string, reportType?: string) => ['mapping', userId, 'light', reportType ?? ''],
-    paged: (userId: string, page: number, pageSize: number, freeText?: string) => ['mapping', userId, 'paged', String(page), String(pageSize), freeText ?? ''],
-    count: (userId: string, freeText?: string) => ['mapping', userId, 'count', freeText ?? ''],
+    paged: (userId: string, page: number, pageSize: number, freeText?: string, reportType?: string) => ['mapping', userId, 'paged', String(page), String(pageSize), freeText ?? '', reportType ?? ''],
+    count: (userId: string, freeText?: string, reportType?: string) => ['mapping', userId, 'count', freeText ?? '', reportType ?? ''],
     byId: (userId: string, id: string) => ['mapping', userId, 'byId', id],
   },
   invite: {

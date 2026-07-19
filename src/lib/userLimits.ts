@@ -4,6 +4,7 @@ import { ApiError } from '@/models/api-error';
 import { Permission, hasPermission } from '@/lib/permissions';
 import { populateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
+import type { DbConsumption } from '@/models/user.models';
 
 // ==== Limits ====
 
@@ -11,8 +12,6 @@ export const USER_DB_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB — shown in error m
 const USER_DB_INTERNAL_LIMIT = Math.floor(USER_DB_LIMIT_BYTES * 0.95); // 5% buffer, never disclosed
 
 // ==== Consumption ====
-
-export type DbConsumption = { used: number; limit: number };
 
 export async function computeUserDbConsumption(userId: string): Promise<DbConsumption> {
   const [row] = await prisma.$queryRaw<[{ total: bigint }]>`
