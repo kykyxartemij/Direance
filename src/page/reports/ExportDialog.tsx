@@ -1,17 +1,16 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useForm, useWatch, FormProvider } from 'react-hook-form';
 import {
   useGetLightExportSettings,
   useGetExportSettingById,
 } from '@/hooks/export-settings.hooks';
 import { useGetLogoById } from '@/hooks/logo.hooks';
 import { ArtDialog } from '@/components/ui/ArtDialog';
-import ArtComboBox from '@/components/ui/ArtComboBox';
-import ArtCheckbox from '@/components/ui/ArtCheckbox';
-import ArtInput from '@/components/ui/ArtInput';
 import ArtButton from '@/components/ui/ArtButton';
 import ArtLabel from '@/components/ui/ArtLabel';
+import { ArtFormInput, ArtFormCheckbox, ArtFormComboBox } from '@/components/form';
 import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox';
 import type { ExportSettingModel, ExportSettingResolvedModel } from '@/models/export-settings.models';
 
@@ -39,19 +38,35 @@ interface ExportDialogProps {
   onExport: (setting: ExportSettingResolvedModel | null, placeholders?: Record<string, string>, fileName?: string) => Promise<void>;
 }
 
+// ==== Form values ====
+
+type FormValues = {
+  settingId: string | null;
+  fileName: string;
+  includeOriginalSheets: boolean;
+  applyHeaderToAllSheets: boolean;
+  placeholders: Record<string, string>;
+};
+
+const DEFAULT_VALUES: FormValues = {
+  settingId: null,
+  fileName: 'combined-report',
+  includeOriginalSheets: false,
+  applyHeaderToAllSheets: false,
+  placeholders: {},
+};
+
 // ==== Component ====
 
 export default function ExportDialog({ onExport }: ExportDialogProps) {
   const { data: lightSettings = [] } = useGetLightExportSettings();
 
-  const [settingId, setSettingId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [open, setOpen] = useState(false);
 
-  const fileNameRef = useRef<HTMLInputElement>(null);
-  const includeOriginalRef = useRef<HTMLInputElement>(null);
-  const applyHeaderAllRef = useRef<HTMLInputElement>(null);
-  const placeholderRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const methods = useForm<FormValues>({ defaultValues: DEFAULT_VALUES });
+  const { reset, handleSubmit, control } = methods;
+  const settingId = useWatch({ control, name: 'settingId' });
 
   const { data: fullSetting } = useGetExportSettingById(settingId ?? undefined, {
     meta: { withGlobalLoaderBlur: true },
@@ -67,12 +82,20 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
 
   const placeholderTags = extractPlaceholders(fullSetting);
 
-  function handleSettingChange(opt: ArtComboBoxOption | null) {
-    setSettingId(opt?.value ?? null);
-    placeholderRefs.current = {};
-  }
+  // Setting selection changes fullSetting async — reset form defaults (name,
+  // checkboxes, placeholders) to match once it lands, since defaultValues only apply on mount.
+  // settingId is preserved as-is; only the setting-derived fields are re-synced here.
+  useEffect(() => {
+    reset({
+      settingId,
+      fileName: fullSetting?.name ?? 'combined-report',
+      includeOriginalSheets: fullSetting?.includeOriginalSheets ?? false,
+      applyHeaderToAllSheets: fullSetting?.applyHeaderToAllSheets ?? false,
+      placeholders: {},
+    });
+  }, [fullSetting, settingId, reset]);
 
-  async function handleExport() {
+  async function submit(data: FormValues) {
     setExporting(true);
     try {
       let resolved: ExportSettingResolvedModel | null = null;
@@ -85,20 +108,20 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
           logoData: logo.data?.data ?? null,
           logoMime: logo.data?.mime ?? null,
           logoName: logo.data?.name ?? null,
-          includeOriginalSheets: includeOriginalRef.current?.checked ?? fullSetting.includeOriginalSheets,
-          applyHeaderToAllSheets: applyHeaderAllRef.current?.checked ?? fullSetting.applyHeaderToAllSheets,
+          includeOriginalSheets: data.includeOriginalSheets,
+          applyHeaderToAllSheets: data.applyHeaderToAllSheets,
         } satisfies ExportSettingResolvedModel;
 
         if (placeholderTags.length > 0) {
           placeholders = {};
           for (const tag of placeholderTags) {
-            const val = placeholderRefs.current[tag]?.value?.trim();
+            const val = data.placeholders[tag]?.trim();
             if (val) placeholders[tag] = val;
           }
         }
       }
 
-      const fileName = fileNameRef.current?.value?.trim() || undefined;
+      const fileName = data.fileName.trim() || undefined;
       await onExport(resolved, placeholders, fileName);
       setOpen(false);
     } finally {
@@ -113,10 +136,7 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (next) {
-          setSettingId(null);
-          placeholderRefs.current = {};
-        }
+        if (next) reset(DEFAULT_VALUES);
       }}
       cancelButton
       buttons={[
@@ -125,60 +145,46 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
           color: 'primary',
           loading: exporting,
           closesDialog: false,
-          onClick: handleExport,
+          onClick: () => handleSubmit(submit)(),
         },
       ]}
       content={
-        <div className="flex flex-col gap-4">
-          <ArtInput
-            key={`fn-${settingId}-${fullSetting?.name ?? ''}`}
-            ref={fileNameRef}
-            label="File name"
-            defaultValue={fullSetting?.name ?? 'combined-report'}
-          />
+        <FormProvider {...methods}>
+          <div className="flex flex-col gap-4">
+            <ArtFormInput name="fileName" label="File name" />
 
-          <ArtComboBox
-            label="Export Settings"
-            options={options}
-            selected={options.find((o) => o.value === settingId) ?? null}
-            onChange={handleSettingChange}
-            placeholder="None (plain export)"
-            clearable
-          />
+            <ArtFormComboBox
+              name="settingId"
+              label="Export Settings"
+              options={options}
+              placeholder="None (plain export)"
+              clearable
+            />
 
-          {settingId && fullSetting && (
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-3">
-                <ArtCheckbox
-                  ref={includeOriginalRef}
-                  label="Include original sheets"
-                  defaultChecked={fullSetting.includeOriginalSheets}
-                  key={`inc-${settingId}`}
-                />
-                <ArtCheckbox
-                  ref={applyHeaderAllRef}
-                  label="Apply header to all sheets"
-                  defaultChecked={fullSetting.applyHeaderToAllSheets}
-                  key={`hdr-${settingId}`}
-                />
-              </div>
-
-              {placeholderTags.length > 0 && (
+            {settingId && fullSetting && (
+              <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-3">
-                  <ArtLabel>Header placeholders</ArtLabel>
-                  {placeholderTags.map((tag) => (
-                    <ArtInput
-                      key={`${settingId}-${tag}`}
-                      ref={(el) => { placeholderRefs.current[tag] = el; }}
-                      label={tag}
-                      placeholder={`Value for <${tag}>`}
-                    />
-                  ))}
+                  <ArtFormCheckbox name="includeOriginalSheets" label="Include original sheets" />
+                  <ArtFormCheckbox name="applyHeaderToAllSheets" label="Apply header to all sheets" />
                 </div>
-              )}
-            </div>
-          )}
-        </div>
+
+                {placeholderTags.length > 0 && (
+                  <div className="flex flex-col gap-3">
+                    <ArtLabel>Header placeholders</ArtLabel>
+                    {placeholderTags.map((tag) => (
+                      <ArtFormInput
+                        key={tag}
+                        name={`placeholders.${tag}`}
+                        label={tag}
+                        placeholder={`Value for <${tag}>`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </FormProvider>
       }
     >
       <ArtButton>Export Excel</ArtButton>

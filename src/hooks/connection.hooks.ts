@@ -151,12 +151,15 @@ export function useFetchPnlConnectionsByIds(
   });
 }
 
-// ==== Same batch fetch, as a query — for state-driven report pages ====
-// Reactive counterpart to the mutation above (which stays for imperative "fetch a sample"
-// callers). Fetches the given connections and returns ready-to-render UploadedReports, built
-// inside queryFn so the XLSX work is cached and never repeats per render. `enabled`-gated on
-// ids; caller passes the already-active connections of the right type — the hook stays generic.
-export function useFetchPnlConnectionReports(
+// ==== Same endpoint as the mutation above, but as a query — for state-driven report pages ====
+// Two hooks, one endpoint, on purpose: `useFetchPnlConnectionsByIds` is the imperative form
+// (fire on click, e.g. previewing a sample in a mapping form), this is the reactive form
+// (react-query owns the trigger via `enabled`, so the report page needs no effect). Naming
+// follows the file's convention — useGet* is a query, useFetch/useCreate/... is a mutation.
+// Returns ready-to-render UploadedReports, built inside queryFn so the XLSX work is cached
+// and never repeats per render. Caller passes the already-active connections of the right
+// type, so the hook stays generic.
+export function useGetPnlReportsByConnections(
   connections: ConnectionLightModel[],
   filters: PnlFetchFiltersModel,
   options?: Omit<UseQueryOptions<UploadedReport[], ApiError>, 'queryKey' | 'queryFn'>
@@ -222,8 +225,8 @@ export function useFetchFinancialPositionConnectionsByIds(
   });
 }
 
-// ==== Same batch fetch, as a query — see useFetchPnlConnectionReports for the rationale. ====
-export function useFetchFinancialPositionConnectionReports(
+// ==== Same endpoint as the mutation above, as a query — see useGetPnlReportsByConnections. ====
+export function useGetFinancialPositionReportsByConnections(
   connections: ConnectionLightModel[],
   filters: FinancialPositionFetchFiltersModel,
   options?: Omit<UseQueryOptions<UploadedReport[], ApiError>, 'queryKey' | 'queryFn'>

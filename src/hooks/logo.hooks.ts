@@ -2,11 +2,9 @@
 
 import {
   useQuery,
-  useSuspenseQuery,
   useMutation,
   useQueryClient,
   type UseQueryOptions,
-  type UseSuspenseQueryOptions,
   type UseMutationOptions,
 } from '@tanstack/react-query';
 import fetchClient from '@/lib/fetchClient';
@@ -21,9 +19,9 @@ export type { LogoModel, LogoBytesModel };
 // ==== Queries ====
 
 export function useGetLightLogos(
-  options?: Omit<UseSuspenseQueryOptions<LogoModel[], ApiError>, 'queryKey' | 'queryFn'>
+  options?: Omit<UseQueryOptions<LogoModel[], ApiError>, 'queryKey' | 'queryFn'>
 ) {
-  return useSuspenseQuery<LogoModel[], ApiError>({
+  return useQuery<LogoModel[], ApiError>({
     queryKey: queryKeys.logo.light(),
     queryFn: async () => {
       const { data } = await fetchClient.get<LogoModel[]>(API.logo.list());

@@ -1,253 +1,229 @@
-# Instant Navigation & Loading State Pattern
+# Instant Navigation & Loading State
 
-Users see layout + title instantly. Data loads in background. No blank page, no waiting.
+Users see chrome (title, actions, nav) instantly. Data arrives after. No blank page, no
+full-page spinner on navigation.
 
-## How it works
+---
 
-| Step | What happens | Who does it |
-|------|--------------|------------|
-| User clicks link | Route changes | Next.js |
-| Route mounts | `page.tsx` renders (sync, instant) | Server |
-| Suspense boundary activates | `loading.tsx` shows `GlobalPageLoader` | Next.js (while awaiting data) |
-| Client component mounts | `useQuery` starts fetching data | Browser |
-| While fetching | Page component returns `GlobalPageLoader` (same visual as loading.tsx) | Browser |
-| Data arrives | Real UI renders, replaces loader | Browser |
+## Page structure — `ArtPage`, one file
 
-**Key:** Same `GlobalPageLoader` in both `loading.tsx` and page component = seamless visual transition, no flicker.
-
-## Routing & Links
-
-### HREF
-
-All routes centralized in `src/lib/href.ts`. Import and use:
-
-```ts
-// src/lib/href.ts
-export const HREF = {
-  mappings: '/mappings',
-  mappingById: (id: string) => `/mappings/${id}`,
-  mappingNew: '/mappings/new',
-};
-```
-
-```tsx
-import { HREF } from '@/lib/href';
-
-<Link href={HREF.mappings} prefetch>Mappings</Link>
-<FSLink href={HREF.mappingById(id)}>Details</FSLink>
-```
-
-### Link Patterns
-
-| Pattern | Prefetch | Use when |
-|---------|----------|----------|
-| `<Link prefetch>` | Immediate | Hot routes (Navbar, main nav) |
-| `<FSLink>` | On user intent | BE-driven lists (avoid prefetch spam) |
-| `router.back()` | N/A | After save, user navigation |
-
-**FSLink:** Predictive prefetch. Foresight.js detects cursor motion → prefetch only likely routes.
-
-```tsx
-import { FSLink } from '@/components/FSLink';
-
-<FSLink href={HREF.mappingById(id)}>View</FSLink>
-```
-
-**router.back():** Expected behavior after form submit.
-
-```tsx
-import { useRouter } from 'next/navigation';
-
-const router = useRouter();
-router.back();
-```
-
-## Creating Routes
-
-Three files per data-driven route:
+A content route is **one** `page.tsx` with `<ArtPage>` as its root — no sibling `layout.tsx`,
+no sibling `loading.tsx`. `ArtPage` owns chrome, the Suspense boundary, and the error fallback.
 
 ```
-app/mappings/
-  [id]/
-    page.tsx           ← metadata, sync mount
-    loading.tsx        ← export GlobalPageLoader
-    layout.tsx         ← ArtTitle, structure
-    
-page/mapping/
-  MappingDetailPage.tsx  ← useQuery, gate render
+app/mappings/[id]/
+  page.tsx          ← metadata + <ArtPage> + feature component
+
+page/mappings/
+  MappingFormPage.tsx   ← useQuery, gates on isLoading
 ```
 
-**page.tsx:**
+**page.tsx** — static metadata, `ArtPage` as the root element:
+
 ```tsx
 import type { Metadata } from 'next';
-import MappingDetailPage from '@/page/mapping/MappingDetailPage';
+import ArtPage from '@/components/ArtPage';
+import { MappingFormEdit } from '@/page/mappings/MappingFormPage';
 
 export const metadata: Metadata = { title: 'Mapping Detail' };
 
 export default function Page() {
-  return <MappingDetailPage />;
-}
-```
-
-**layout.tsx:**
-```tsx
-import ArtTitle from '@/components/ui/ArtTitle';
-import ArtButton from '@/components/ui/ArtButton';
-import { HREF } from '@/lib/href';
-import Link from 'next/link';
-
-export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto max-w-5xl py-8">
-      <div className="flex items-start justify-between mb-6">
-        <ArtTitle title="Mappings" />
-        <Link href={HREF.mappingNew} prefetch>
-          <ArtButton color="primary">New Mapping</ArtButton>
-        </Link>
-      </div>
-      {children}
-    </div>
+    <ArtPage title="Mapping Detail">
+      <MappingFormEdit />
+    </ArtPage>
   );
 }
 ```
 
-**loading.tsx:**
+`ArtPage` props: `title`, `description?`, `actions?` (page-level buttons), `maxWidth?`
+(`'2xl' | '5xl' | '7xl'`, default `5xl`), `className?`.
+
+Enforced by the `local/require-art-page` ESLint rule: a `page.tsx` whose root isn't
+`<ArtPage>` fails lint.
+
+### The three exceptions
+
+Each is a route that isn't an `ArtPage`-shaped header+content page. Each carries an explicit
+`/* eslint-disable local/require-art-page */` plus a `// NOTE:` saying why — never a silent
+disable. Don't add a fourth without the same treatment.
+
+| Route | Why not `ArtPage` | Chrome / loading from |
+|---|---|---|
+| `app/layout.tsx` | root layout — providers, `Navbar`, `ReportSidebar`, `GlobalLoaderBlur`, `GlobalMutationSnackbar` | itself |
+| `app/auth/**` | centered card, no header/actions chrome | `app/auth/layout.tsx` + `AuthFormLayout`; `loading.tsx` → `GlobalLoader` |
+| `app/admin/**` | parallel routes — `page.tsx` is an empty shell, `@stats`/`@users` slots compose in `admin/layout.tsx` (an `ArtPage` there would nest a second max-width container) | slot `layout.tsx`; slot `loading.tsx` → `GlobalLoader` |
+
+So `loading.tsx` still exists — but only for routes with **no** `ArtPage` above them. If a
+route renders `ArtPage`, its loading story is `ArtPage` + the gates below, never a
+`loading.tsx`.
+
+(`app/ui/**` is the Art showcase — exempt from convention entirely, see CLAUDE.md.)
+
+### What the Suspense boundary in `ArtPage` is for
+
+It is a **safety net**, not a data-loading mechanism. It covers `useSearchParams` (which
+suspends during prerender) and any lazy child. It is **not** a licence for
+`useSuspenseQuery`.
+
+---
+
+## Never `useSuspenseQuery`
+
+Always `useQuery`. The component that owns the fetch owns its loading state.
+
+`useSuspenseQuery` re-suspends the whole subtree on refetch (blanking rendered UI), can't be
+`enabled`-gated, and moves loading state somewhere the component can't control. It buys
+nothing here.
+
 ```tsx
-import GlobalPageLoader from '@/components/GlobalPageLoader';
-
-export default GlobalPageLoader;
-```
-
-**MappingDetailPage.tsx:**
-```tsx
-'use client';
-
-import { useParams } from 'next/navigation';
-import { useGetMappingById } from '@/hooks/mapping.hooks';
-import GlobalPageLoader from '@/components/GlobalPageLoader';
-
-export default function MappingDetailPage() {
-  const { id } = useParams<{ id: string }>();
-  const { data: mapping, isLoading } = useGetMappingById(id);
-
-  if (isLoading || !mapping) return <GlobalPageLoader />;
-
-  return (
-    <div>
-      <MappingForm mapping={mapping} />
-    </div>
-  );
-}
-```
-
-## TanStack Query
-
-### useQuery
-
-```tsx
+// ✅ the only way
 const { data, isLoading } = useGetMappingById(id);
-if (isLoading || !data) return <GlobalPageLoader />;
-return <MappingForm data={data} />;
+if (isLoading || !data) return <PageLoader />;
+return <MappingForm mapping={data} />;
 ```
 
-Hook:
-```ts
-export function useGetMappingById(id: string | undefined) {
-  return useQuery({
-    queryKey: ['mapping', id],
-    queryFn: async () => {
-      const { data } = await fetchClient.get(`/api/mappings/${id}`);
-      return data;
-    },
-    enabled: !!id,
-  });
-}
-```
+---
 
-### Never useSuspenseQuery
+## The four loading states
 
-Breaks on refetch. Avoid entirely.
+| Case | What to use |
+|---|---|
+| First load, whole page is useless without the data | gate → `<PageLoader />` |
+| First load, component can render its own shape | pass `loading` prop (component renders skeleton) |
+| Fetch on an already-visible page, **scoped** to it | `meta: { withPageLoaderBlur: true }` |
+| Fetch on an already-visible page, **app-wide** | `meta: { withGlobalLoaderBlur: true }` |
 
-## Component Loading
+### 1. Gate → `PageLoader`
 
-**First load:** Gate render.
-```tsx
-if (isLoading || !data) return <GlobalPageLoader />;
-return <RealComponent data={data} />;
-```
-
-**Refetch:** Show secondary indicator.
-```tsx
-<ArtDataTable data={items} isLoading={isLoading} />
-```
-
-## Global Loading Overlay (dependent fetches)
-
-Third case, distinct from first-load (`GlobalPageLoader`, full gate) and refetch (local indicator, e.g. `ArtDataTable`'s `isLoading`): a fetch triggered by user selection on an already-visible page, where the component has **no local loading affordance** of its own (no skeleton, no button spinner). Example: `Dashboard.tsx` — picking an export setting from `ArtComboBox` fires `useGetExportSettingById`, which reflows table colors/columns with nothing showing in between.
-
-**Opt in at the call site, not the hook definition.** The same hook is often reused across pages with different needs — `useGetExportSettingById` is used in a full-page edit form (`ExportSettingsFormPage`, already gated by `GlobalPageLoader`), a dialog (`ExportDialog`), and a background reflow (`Dashboard`, `RowMappingsSection`). Only the last two want the overlay. Every query/mutation hook in `src/hooks/*.hooks.ts` accepts an optional trailing `options` param that spreads into the underlying `useQuery`/`useMutation` call — pass `meta` there:
-
-```ts
-// src/hooks/export-settings.hooks.ts — hook stays generic
-export function useGetExportSettingById(
-  id: string | undefined,
-  options?: Omit<UseQueryOptions<ExportSettingModel, ApiError>, 'queryKey' | 'queryFn'>
-) {
-  return useQuery<ExportSettingModel, ApiError>({
-    queryKey: queryKeys.exportSetting.byId(id!),
-    queryFn: async () => { /* ... */ },
-    enabled: !!id,
-    ...options,
-  });
-}
-```
+For form pages where the form seeds itself from fetched data — it must not mount until the
+record is in hand.
 
 ```tsx
-// src/page/dashboard/Dashboard.tsx — call site decides
-const { data: selectedExportSetting } = useGetExportSettingById(selectedExportSettingId ?? undefined, {
-  meta: { waitForLoading: true },
-});
+const { data: existing, isLoading } = useGetConnectionById(id);
+if (isEdit && (isLoading || !existing)) return <PageLoader />;
+return <ConnectionForm initial={existing} />;
 ```
 
-`GlobalLoadingOverlay` (mounted once in root `layout.tsx`) uses `useIsFetching`/`useIsMutating` with a `meta.waitForLoading` predicate to count matching in-flight calls — no custom store needed, TanStack does the counting. While count > 0 it blurs the whole page (page stays visible underneath) and blocks interaction (`pointer-events: auto`) so the user doesn't act on stale state mid-update.
+### 2. Component owns its skeleton
 
-**Debounced on purpose** — a query flagged `waitForLoading` doesn't show the overlay instantly:
+Preferred when the component can render its own shape. Don't gate a whole page on data a
+single component can represent as empty — see `docs/UIConsistencyGuide.md`.
+
+```tsx
+<ArtData data={rows} loading={isLoading} … />
+```
+
+### 3 & 4. Blur — fetch on an already-visible page
+
+The gap case: something changed on screen, a fetch is in flight, and **nothing on screen
+shows it's catching up** (no skeleton, no button spinner). The page stays visible, blurs, and
+blocks interaction so the user can't act on stale state.
+
+Opt in **at the call site**, never in the hook body — the same hook gets reused by callers
+with different needs:
+
+```tsx
+// blurs only this ArtPage's content area
+useGetExportSettingById(id, { meta: { withPageLoaderBlur: true } });
+
+// blurs the whole viewport
+useGetExportSettingById(id, { meta: { withGlobalLoaderBlur: true } });
+```
+
+`PageLoaderBlur` (inside every `ArtPage`) and `GlobalLoaderBlur` (mounted once in root
+`layout.tsx`) each use `useIsFetching`/`useIsMutating` with a `meta` predicate — TanStack does
+the counting, no custom store. Both work for queries **and** mutations.
+
+**Do not** add a blur flag to a fetch that already has a local indicator (`ArtData`'s
+`loading`, `ArtButton`'s `loading`) — that doubles up two affordances for one fetch.
+
+**Debounced on purpose** (`useDebouncedActive`, shared by both):
 
 | Constant | Value | Why |
 |---|---|---|
-| `SHOW_DELAY_MS` | 80ms | Fetches that resolve faster than this never show anything — avoids a flash for near-instant responses. |
-| `MIN_VISIBLE_MS` | 150ms | Once shown, stays at least this long — avoids a blink-off mid-fade if the fetch finishes right after the delay. |
+| `SHOW_DELAY_MS` | 80ms | fetches faster than this never flash anything |
+| `MIN_VISIBLE_MS` | 150ms | once shown, stays — avoids a blink-off mid-fade |
 
-Same visual language as `GlobalPageLoader` (ring + "Loading…" dots) so the two don't read as two different loaders — one is a full-page version of the other. Opacity + `backdrop-filter` both transition over 0.2s ease — slower than a typical button-hover transition (full-viewport change, an instant snap reads as a flicker) but short enough to stay snappy against the 150ms minimum-visible window above.
+---
 
-**Do not opt a query/mutation into `meta.waitForLoading` if it already has a local indicator** (`ArtDataTable`/`ArtData` `loading` prop, `ArtButton` `loading` prop, etc.) — that would double up two loading affordances for one fetch. Reserve it for the gap case: something changed, nothing on screen shows it's still catching up. This is opt-in per call site — adding `options` support to a hook does not retroactively add the overlay to existing callers.
+## `meta` — the complete set
 
-## Form Pages (Create/Edit)
+Four flags, all set at the call site:
 
-Create: No data fetch.
+| Key | Type | Effect |
+|---|---|---|
+| `successMessage` | `string` | success toast (mutations) |
+| `errorMessage` | `boolean \| string` | error toast; `true` uses the caught `ApiError`'s own message |
+| `withPageLoaderBlur` | `boolean` | blurs the owning `ArtPage`'s content |
+| `withGlobalLoaderBlur` | `boolean` | blurs the whole viewport |
+
+Snackbar flags are read by `GlobalMutationSnackbar`; blur flags by `PageLoaderBlur` /
+`GlobalLoaderBlur`. See `docs/TanStackMutationGuide.md` for the snackbar details.
+
+---
+
+## Loader components
+
+| Component | Use |
+|---|---|
+| `PageLoader` | first-load gate inside a page (centered, `60vh`) |
+| `GlobalLoader` | full-viewport load (`100vh`, with subtitle) — auth gate |
+| `PageLoaderBlur` | rendered by `ArtPage`; driven by `meta.withPageLoaderBlur` |
+| `GlobalLoaderBlur` | mounted once in `layout.tsx`; driven by `meta.withGlobalLoaderBlur` |
+| `LoaderRingDots` | the shared ring + "Loading…" visual all of the above use |
+
+One visual language throughout — a blur and a page loader read as the same loader, not two.
+
+---
+
+## Errors
+
+`ArtPage` wraps its content in `ArtErrorBoundary`. A throw inside the page renders a message
+plus a Reload button, with chrome still in place. Nothing to wire per page.
+
+For a query whose failure should surface that way, pass `throwOnError: true`:
+
 ```tsx
-'use client';
-
-import { useRouter } from 'next/navigation';
-import { useCreateMapping } from '@/hooks/mapping.hooks';
-import { HREF } from '@/lib/href';
-
-export default function MappingNewPage() {
-  const router = useRouter();
-  const { mutate } = useCreateMapping();
-
-  async function handleSubmit(data) {
-    await mutate(data);
-    router.back();
-  }
-
-  return <MappingForm onSubmit={handleSubmit} />;
-}
+useGetPnlReportsByConnections(connections, filters, { throwOnError: true });
 ```
 
-Edit: Fetch first, gate render.
+---
+
+## Routing & links
+
+All routes live in `src/lib/hrefUrl.ts` as `HREF`. Never hardcode a path.
+
 ```tsx
-const { data: existing, isLoading } = useGetMappingById(id);
-if (isLoading || !existing) return <GlobalPageLoader />;
-return <MappingForm initial={existing} />;
+import { HREF } from '@/lib/hrefUrl';
 ```
+
+| Pattern | Prefetch | Use for |
+|---|---|---|
+| `<Link href={…} prefetch>` | immediate | hot, known routes (Navbar, page-level actions) |
+| `<FSLink href={…}>` | on intent | BE-driven lists — Foresight.js prefetches on cursor motion, avoids prefetch spam over N rows |
+| `router.back()` | — | after a form submit |
+
+---
+
+## URL as filter state — `useUrlFilters`
+
+Page/search/filter state lives in the URL: survives refresh, shareable, drives back/forward.
+Never mirror it into `useState`.
+
+```tsx
+// filter-model form — keys come from the same validator the BE parses with
+const { page, search, filters, setFilter, clearFilters, dataProps } =
+  useUrlFilters(MappingFilterValidator);
+
+// explicit-keys form — for pages with no shared filter model
+const { filters, setFilter, clearFilters, activeCount } =
+  useUrlFilters(['dateTo', 'periods'] as const);
+```
+
+`dataProps` spreads straight into `<ArtData {...dataProps} />`. Pair with `parseFiltersFromUrl`
+on the BE so one schema drives both sides.
+
+> `react-doctor/nextjs-no-use-search-params-without-suspense` fires on this hook — a known
+> false positive: every consumer renders under `ArtPage`, which is the Suspense boundary.
+> Left visible, never suppressed.

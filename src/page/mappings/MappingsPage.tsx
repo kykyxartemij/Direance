@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useGetPagedMappings, useDeleteMapping } from '@/hooks/mapping.hooks';
 import type { MappingModel, ReportType } from '@/models/mapping.models';
-import { REPORT_TYPE_LABELS, REPORT_TYPE_OPTIONS } from '@/models/mapping.models';
+import { REPORT_TYPE_LABELS, REPORT_TYPE_OPTIONS, MappingFilterValidator } from '@/models/mapping.models';
 import type { ArtColumn } from '@/components/ui/ArtDataTable';
 import ArtData from '@/components/ui/ArtData';
 import ArtBadge from '@/components/ui/ArtBadge';
@@ -22,7 +22,7 @@ const PAGE_SIZE = 20;
 // ==== Page ====
 
 export default function MappingsPage() {
-  const { page, search, filters, setFilter, clearFilters, dataProps } = useUrlFilters(['reportType'] as const);
+  const { page, search, filters, setFilter, clearFilters, dataProps } = useUrlFilters(MappingFilterValidator);
   const { data: pagedData, isLoading } = useGetPagedMappings(page, PAGE_SIZE, search, {
     reportType: (filters.reportType as ReportType | null) ?? undefined,
   });

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useGetLightConnections, useFetchFinancialPositionConnectionReports } from '@/hooks/connection.hooks';
+import { useGetLightConnections, useGetFinancialPositionReportsByConnections } from '@/hooks/connection.hooks';
 import { useReports, isConnectionActive } from '@/providers/ReportProvider';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
 import {
@@ -29,7 +29,7 @@ export default function FinancialPositionPage() {
   const periods = filters.periods ?? defaultFinancialPositionFilterValues().periods;
 
   const activeConnections = connections.filter((c) => c.reportType === 'financial_position' && isConnectionActive(c, connectionOverrides));
-  const { data: connectionReports = [] } = useFetchFinancialPositionConnectionReports(
+  const { data: connectionReports = [] } = useGetFinancialPositionReportsByConnections(
     activeConnections,
     buildFinancialPositionFetchFilters({ dateTo, periods }),
     { throwOnError: true },

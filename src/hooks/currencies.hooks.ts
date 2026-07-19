@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox';
 import { queryKeys } from '@/lib/queryKeys';
 import fetchClient from "@/lib/fetchClient";
@@ -11,7 +11,7 @@ const ONE_HOUR_MS = 60 * 60 * 1000;
 // ==== Currency options ====
 
 export function useCurrencyOptions(): ArtComboBoxOption[] {
-  const { data } = useSuspenseQuery<ArtComboBoxOption[]>({
+  const { data } = useQuery<ArtComboBoxOption[]>({
     queryKey: queryKeys.currency.list(),
     queryFn: async () => {
       const { data: json } = await fetchClient.get<Record<string, string>>(API.currency.list());
@@ -26,7 +26,8 @@ export function useCurrencyOptions(): ArtComboBoxOption[] {
     gcTime: ONE_HOUR_MS,
   });
 
-  return data;
+  // Empty until loaded — callers render an empty combo box rather than gating on it.
+  return data ?? [];
 }
 
 // ==== Exchange rate ====

@@ -1,12 +1,10 @@
 'use client';
 
 import {
-  useSuspenseQuery,
   useQuery,
   useMutation,
   useQueryClient,
   type UseQueryOptions,
-  type UseSuspenseQueryOptions,
   type UseMutationOptions,
 } from '@tanstack/react-query';
 import fetchClient from '@/lib/fetchClient';
@@ -53,15 +51,16 @@ export function useGetLightMappings(
 }
 
 export function useGetMappingById(
-  id: string,
-  options?: Omit<UseSuspenseQueryOptions<MappingModel, ApiError>, 'queryKey' | 'queryFn'>
+  id: string | undefined,
+  options?: Omit<UseQueryOptions<MappingModel, ApiError>, 'queryKey' | 'queryFn'>
 ) {
-  return useSuspenseQuery<MappingModel, ApiError>({
-    queryKey: queryKeys.mapping.byId(id),
+  return useQuery<MappingModel, ApiError>({
+    queryKey: queryKeys.mapping.byId(id!),
     queryFn: async () => {
-      const { data } = await fetchClient.get<MappingModel>(API.mapping.byId(id));
+      const { data } = await fetchClient.get<MappingModel>(API.mapping.byId(id!));
       return data;
     },
+    enabled: !!id,
     ...options,
   });
 }

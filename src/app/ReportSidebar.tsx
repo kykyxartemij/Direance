@@ -75,7 +75,7 @@ function SidebarItemBox({ active, onToggle, name, badge, mappingName, sourceLabe
 // ==== Connection row ====
 // Purely a toggle over the connection's active state (isDefault, unless overridden) —
 // never fetches. Each report page loads the excel data for its own active connections
-// (see useFetchPnlConnectionReports / useFetchFinancialPositionConnectionReports).
+// (see useGetPnlReportsByConnections / useGetFinancialPositionReportsByConnections).
 
 interface ConnectionRowProps {
   connection: ConnectionLightModel;

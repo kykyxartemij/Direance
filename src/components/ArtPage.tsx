@@ -40,14 +40,16 @@ function ArtPageError({ error }: { error: Error }) {
 }
 
 // ==== Component ====
-// Replaces the old page.tsx + layout.tsx + loading.tsx triplet: chrome (title/actions),
-// the Suspense boundary useSuspenseQuery hooks need, and the error fallback all live here
-// instead of scattered across sibling files. page.tsx stays a thin shell rendering the
-// feature component, which returns this as its root. First-load state comes from children
-// suspending (useSuspenseQuery, caught by the Suspense boundary below, fallback: PageLoader);
-// already-mounted opportunistic fetches tag their query/mutation `meta: { withPageLoaderBlur:
-// true }` — PageLoaderBlur blurs just this page's content, see GlobalLoaderBlur for the
-// app-wide equivalent (meta.withGlobalLoaderBlur).
+// Owns what page.tsx + layout.tsx + loading.tsx used to split across three files: chrome
+// (title/actions), a Suspense boundary, and the error fallback. page.tsx stays a thin shell
+// rendering the feature component, which returns this as its root.
+//
+// The Suspense boundary is a safety net — it covers `useSearchParams` (which suspends during
+// prerender) and any lazy child. It is NOT a licence for useSuspenseQuery: first-load state
+// is always a plain useQuery gated on isLoading by the component that owns the fetch.
+// Already-mounted opportunistic fetches tag `meta: { withPageLoaderBlur: true }` — PageLoaderBlur
+// blurs just this page's content; see GlobalLoaderBlur for the app-wide equivalent
+// (meta.withGlobalLoaderBlur).
 
 export default function ArtPage({ title, description, actions, maxWidth = '5xl', className, children }: ArtPageProps) {
   return (

@@ -5,10 +5,10 @@ const path = require('path');
  *
  * Enforces that every Next.js page.tsx renders <ArtPage> as its root.
  *
- * Why: ArtPage now owns what page.tsx/layout.tsx/loading.tsx used to split across three
- * files — chrome (title/actions), the Suspense boundary useSuspenseQuery hooks need, and
- * the loading/error gate. A page.tsx without it has no Suspense boundary at all, so any
- * useSuspenseQuery hook used by its content throws with nothing to catch it.
+ * Why: ArtPage owns what page.tsx/layout.tsx/loading.tsx used to split across three files —
+ * chrome (title/actions), a Suspense boundary, and the error fallback. A page.tsx without it
+ * has no boundary at all, so `useSearchParams` (which suspends during prerender) and any lazy
+ * child throw with nothing to catch them, and the page loses its error fallback.
  *
  * ✅ Good:
  *   export default function Page() {
@@ -31,8 +31,8 @@ module.exports = {
     },
     messages: {
       missingArtPage:
-        'page.tsx must wrap its content in <ArtPage title="...">...</ArtPage> — this now ' +
-        'owns chrome, the Suspense boundary, and the loading/error gate that ' +
+        'page.tsx must wrap its content in <ArtPage title="...">...</ArtPage> — this owns ' +
+        'chrome, the Suspense boundary, and the error fallback that ' +
         'layout.tsx/loading.tsx used to provide.',
     },
     schema: [],

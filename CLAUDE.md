@@ -19,7 +19,7 @@ This is an ecosystem project, not a single website. Rules and reusability apply 
 
 ## ==== Known Lint False Positives ====
 
-- **`react-doctor/nextjs-no-use-search-params-without-suspense`** — false positive project-wide. Every page that calls `useSearchParams()` has a sibling `loading.tsx`, which is itself the Suspense boundary (see Navigation Rule). Leave the warning visible, do not suppress or refactor around it.
+- **`react-doctor/nextjs-no-use-search-params-without-suspense`** — false positive project-wide. Every page that calls `useSearchParams()` renders under `<ArtPage>`, which provides the Suspense boundary (see Navigation Rule). Leave the warning visible, do not suppress or refactor around it.
 - **`react-doctor/async-parallel`** / **`react-doctor/server-sequential-independent-await`** — false positive on BE handler files. Sequential awaits there are a gate chain (validate → rate limit → DB limit → write); `Promise.all` would bypass gates. Already config-disabled for BE files in `eslint.config.mjs` (see Backend Handler Rule) — this is the one sanctioned config-level suppression, not a silent inline disable.
 - **`react-doctor/exhaustive-deps`** — NOT a blanket false positive, mostly accurate. The rule's own docs name one narrow exception: a captured value intentionally excluded (mount-only effect, or a function known to be referentially stable) that the static check can't prove safe. Only in that exact case is a justified `// eslint-disable-next-line` + `// NOTE:` acceptable, matching the existing Comment Style policy. Anywhere else, a missing-dep warning is a real bug — fix it, don't suppress it.
 
@@ -35,7 +35,7 @@ When working in an area, read the relevant guide first:
 | Images, binary storage, BytesResponse | `docs/ImagesGuide.md` |
 | Forms, uncontrolled inputs, RHF | `docs/UncontrolledInputsGuide.md` |
 | TanStack Query mutations, optimistic updates | `docs/TanStackMutationGuide.md` |
-| Navigation, links, loading states, page structure (page/layout/loading.tsx), ArtTitle | `docs/InstantNavigationAndLoadingState.md` |
+| Navigation, links, loading states, page structure (ArtPage), URL filters | `docs/InstantNavigationAndLoadingState.md` |
 | Tailwind CSS reference — width/height, flex, grid, positioning, overflow, breakpoints, z-index | `docs/LayoutGuide.md` |
 | UI consistency — don't gate components on empty data, let them own their empty state | `docs/UIConsistencyGuide.md` |
 
@@ -198,7 +198,14 @@ selected: background: color-mix(in srgb, var(--art-accent) 14%, transparent)
 
 ## ==== Navigation Rule ====
 
-Every `page.tsx` that fetches data must have a sibling `loading.tsx` that exports `GlobalPageLoader`. Components own their loading state via a `loading?: boolean` prop — they render their own skeleton rather than relying on a parent loader.
+Every content `page.tsx` renders `<ArtPage>` as its root — it owns chrome, the Suspense
+boundary and the error fallback. No sibling `layout.tsx`, no sibling `loading.tsx`
+(enforced by `local/require-art-page`; the auth/admin/root exceptions each carry an
+explicit disable + `// NOTE:`).
+
+**Never `useSuspenseQuery`** — always `useQuery`, gated by the component that owns the fetch.
+Components own their loading state via a `loading?: boolean` prop — they render their own
+skeleton rather than relying on a parent loader.
 
 See `docs/InstantNavigationAndLoadingState.md` for full pattern.
 
@@ -217,14 +224,18 @@ Token definitions live in `src/app/globals.css`. Art component overrides live in
 
 ## ==== Page Metadata Rule ====
 
-Every `page.tsx` exports a **static** metadata title. Dynamic data (e.g. record name) lives in the layout via `<ArtTitle>` — never in `generateMetadata`.
+Every `page.tsx` exports a **static** metadata title. Dynamic data (e.g. record name) goes in the on-page heading via `<ArtPage title={...}>` — never in `generateMetadata`.
 
-```ts
-// page.tsx — always static
+```tsx
+// page.tsx — metadata always static, heading via ArtPage
 export const metadata: Metadata = { title: 'Mapping Detail' };
 
 export default function Page() {
-  return <MappingDetailPage />;
+  return (
+    <ArtPage title="Mapping Detail">
+      <MappingDetailPage />
+    </ArtPage>
+  );
 }
 ```
 
@@ -234,16 +245,16 @@ Root layout defines `title.template: '%s | Direance'` — pages only set the sho
 
 ## ==== Page Layout Convention ====
 
-Page structure: layout owns chrome (title, actions slot), page.tsx is a thin shell, feature component owns the content.
+Page structure: `page.tsx` is a thin shell rendering `<ArtPage>` (which owns chrome), and the
+feature component owns the content.
 
 ```
 app/mappings/(list)/
-  layout.tsx    ← ArtTitle + actions (New Mapping button)
-  page.tsx      ← export metadata + render <MappingsPage />
-  loading.tsx   ← export GlobalPageLoader
+  page.tsx      ← export metadata + <ArtPage title="Mappings" actions={...}><MappingsPage /></ArtPage>
 ```
 
-Title and page-level actions live in `layout.tsx` via `<ArtTitle title="..." actions={...} />`. Never in `page.tsx` or the feature component.
+Title and page-level actions are `ArtPage` props (`title`, `description`, `actions`) — never
+set inside the feature component. `maxWidth` defaults to `5xl`.
 
 ### Form button convention
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import type * as yup from 'yup';
 
 // ==== useUrlFilters ====
 // URL is the single source of truth for list filters — survives refresh, is
@@ -33,21 +34,43 @@ export interface UseUrlFiltersResult<K extends string> {
 const SEARCH_DEFAULT = 'q';
 const PAGE_KEY = 'page';
 
+type FilterSchema = yup.ObjectSchema<yup.AnyObject>;
+type UrlFilterOptions = { searchKey?: string };
+
+/** Explicit key list — for pages whose URL filters have no shared model (or none at all). */
 export function useUrlFilters<K extends string>(
   keys: readonly K[],
-  options?: { searchKey?: string },
-): UseUrlFiltersResult<K> {
+  options?: UrlFilterOptions,
+): UseUrlFiltersResult<K>;
+/**
+ * Filter-model form — pass the same `*FilterValidator` the BE parses with
+ * (see parseFiltersFromUrl). Keys come from the schema, so the URL contract and the API
+ * contract can't drift apart, and K is typed off the model instead of a hand-written literal.
+ */
+export function useUrlFilters<S extends FilterSchema>(
+  validator: S,
+  options?: UrlFilterOptions,
+): UseUrlFiltersResult<Extract<keyof yup.InferType<S>, string>>;
+export function useUrlFilters(
+  keysOrValidator: readonly string[] | FilterSchema,
+  options?: UrlFilterOptions,
+): UseUrlFiltersResult<string> {
   const searchKey = options?.searchKey ?? SEARCH_DEFAULT;
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
 
-  // Primitive dep — stable even if a caller passes a fresh array literal each render.
-  const keyList = keys.join('|');
+  // Primitive dep — stable even if a caller passes a fresh array literal (or the schema
+  // re-derives its field list) each render.
+  const keyList = (
+    Array.isArray(keysOrValidator)
+      ? (keysOrValidator as readonly string[])
+      : Object.keys((keysOrValidator as FilterSchema).fields)
+  ).join('|');
 
   const filters = useMemo(() => {
-    const out = {} as Record<K, string | null>;
-    for (const key of keyList ? (keyList.split('|') as K[]) : []) {
+    const out: Record<string, string | null> = {};
+    for (const key of keyList ? keyList.split('|') : []) {
       out[key] = searchParams.get(key);
     }
     return out;
@@ -57,7 +80,7 @@ export function useUrlFilters<K extends string>(
   const page = Math.max(1, parseInt(searchParams.get(PAGE_KEY) ?? '1', 10) || 1);
 
   const activeCount = useMemo(
-    () => (keyList ? keyList.split('|') : []).reduce((n, key) => n + (searchParams.get(key) ? 1 : 0), 0),
+    () => (keyList ? keyList.split('|') : []).reduce((n: number, key: string) => n + (searchParams.get(key) ? 1 : 0), 0),
     [searchParams, keyList],
   );
 
@@ -73,8 +96,8 @@ export function useUrlFilters<K extends string>(
   );
 
   const applyFilterUpdates = useCallback(
-    (params: URLSearchParams, updates: Partial<Record<K, string | null>>) => {
-      for (const [key, value] of Object.entries(updates) as [K, string | null][]) {
+    (params: URLSearchParams, updates: Partial<Record<string, string | null>>) => {
+      for (const [key, value] of Object.entries(updates) as [string, string | null][]) {
         if (value === null || value === '') params.delete(key);
         else params.set(key, value);
       }
@@ -84,12 +107,12 @@ export function useUrlFilters<K extends string>(
   );
 
   const setFilters = useCallback(
-    (updates: Partial<Record<K, string | null>>) => writeParams((p) => applyFilterUpdates(p, updates)),
+    (updates: Partial<Record<string, string | null>>) => writeParams((p) => applyFilterUpdates(p, updates)),
     [writeParams, applyFilterUpdates],
   );
 
   const setFilter = useCallback(
-    (key: K, value: string | null) => setFilters({ [key]: value } as Partial<Record<K, string | null>>),
+    (key: string, value: string | null) => setFilters({ [key]: value }),
     [setFilters],
   );
 

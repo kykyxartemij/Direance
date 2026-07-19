@@ -83,7 +83,7 @@ hook, not just one.
 The reason it's a param and not baked into the hook body: hooks get reused across
 pages with different needs. `useGetExportSettingById` backs a full-page edit form (own
 `isLoading` gate), a dialog, and a background reflow with no loading affordance of its
-own — only the last two want `meta: { waitForLoading: true }` (see
+own — only the last two want a blur flag (see
 `docs/InstantNavigationAndLoadingState.md`). Baking `meta` into the hook would force
 the same behavior on every caller.
 
@@ -102,7 +102,7 @@ export function useGetExportSettingById(
 ```
 
 ```tsx
-useGetExportSettingById(id, { meta: { waitForLoading: true } });
+useGetExportSettingById(id, { meta: { withGlobalLoaderBlur: true } });
 ```
 
 **Mutations spread `options` first, not last** — the opposite order from queries.

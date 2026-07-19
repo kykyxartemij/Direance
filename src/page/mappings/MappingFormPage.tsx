@@ -22,6 +22,7 @@ import SourceLayoutFormSection, {
   type SourceLayoutFormSectionRef,
 } from '@/page/mapping/SourceLayoutFormSection';
 import PermissionGuard from '@/components/PermissionGuard';
+import PageLoader from '@/components/PageLoader';
 
 // ==== Schema ====
 // Only scalar fields are owned by RHF. Row mappings + export setting are
@@ -198,13 +199,14 @@ function MappingFormInner({ id, mapping }: { id?: string; mapping?: MappingModel
 }
 
 // ==== Data loaders ====
-// useGetMappingById is a useSuspenseQuery — throws while pending, caught by the
-// <Suspense> boundary ArtPage provides in page.tsx, above this component.
+// Gate on the fetch before mounting the form — MappingFormInner seeds RHF defaultValues
+// from `mapping`, so it must not mount until the record is in hand.
 
 export function MappingFormEdit() {
   const params = useParams();
   const id = params.id as string;
-  const { data: mapping } = useGetMappingById(id);
+  const { data: mapping, isLoading } = useGetMappingById(id);
+  if (isLoading || !mapping) return <PageLoader />;
   return <MappingFormInner id={id} mapping={mapping} />;
 }
 

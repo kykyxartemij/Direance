@@ -9,7 +9,7 @@ import ArtUpload from '@/components/ui/ArtUpload';
 import ArtButton from '@/components/ui/ArtButton';
 import ArtSelect from '@/components/ui/ArtSelect';
 import ArtTabs from '@/components/ui/ArtTabs';
-import { useGetLightConnections, useFetchPnlConnectionsByIds, useFetchFinancialPositionConnectionsByIds } from '@/hooks/connection.hooks';
+import { useGetLightConnections, useFetchPnlConnectionById, useFetchFinancialPositionConnectionById } from '@/hooks/connection.hooks';
 import { defaultPnlFilterValues, buildPnlFetchFilters } from '@/page/reports/pnl/pnlFilterFields';
 import { defaultFinancialPositionFilterValues, buildFinancialPositionFetchFilters } from '@/page/reports/financial-position/financialPositionFilterFields';
 import { autoDetectLayout } from './applyMapping';
@@ -170,10 +170,10 @@ function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSh
     const [connectionId, setConnectionId] = useState<string | null>(null);
     const [sourceLabel, setSourceLabel] = useState<string | null>(null);
     const { data: connections = [] } = useGetLightConnections();
-    const { mutateAsync: fetchPnl, isPending: fetchingPnl } = useFetchPnlConnectionsByIds({
+    const { mutateAsync: fetchPnl, isPending: fetchingPnl } = useFetchPnlConnectionById({
       meta: { withPageLoaderBlur: true },
     });
-    const { mutateAsync: fetchFinancialPosition, isPending: fetchingFinancialPosition } = useFetchFinancialPositionConnectionsByIds({
+    const { mutateAsync: fetchFinancialPosition, isPending: fetchingFinancialPosition } = useFetchFinancialPositionConnectionById({
       meta: { withPageLoaderBlur: true },
     });
     const fetching = fetchingPnl || fetchingFinancialPosition;
@@ -243,9 +243,9 @@ function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSh
       if (!connectionId || !reportType) return;
       try {
         const result = reportType === 'pnl'
-          ? await fetchPnl({ ids: [connectionId], ...buildPnlFetchFilters(defaultPnlFilterValues()) })
-          : await fetchFinancialPosition({ ids: [connectionId], ...buildFinancialPositionFetchFilters(defaultFinancialPositionFilterValues()) });
-        const wb = buildWorkbookFromSheets(result[connectionId].sheets);
+          ? await fetchPnl({ id: connectionId, ...buildPnlFetchFilters(defaultPnlFilterValues()) })
+          : await fetchFinancialPosition({ id: connectionId, ...buildFinancialPositionFetchFilters(defaultFinancialPositionFilterValues()) });
+        const wb = buildWorkbookFromSheets(result.sheets);
         processWorkbook(wb);
         const connectionName = connections.find((c) => c.id === connectionId)?.name ?? 'connection';
         setSourceLabel(`Connection: ${connectionName}`);
