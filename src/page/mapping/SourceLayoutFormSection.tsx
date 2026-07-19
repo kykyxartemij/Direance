@@ -10,8 +10,8 @@ import ArtButton from '@/components/ui/ArtButton';
 import ArtSelect from '@/components/ui/ArtSelect';
 import ArtTabs from '@/components/ui/ArtTabs';
 import { useGetLightConnections, useFetchPnlConnectionsByIds, useFetchFinancialPositionConnectionsByIds } from '@/hooks/connection.hooks';
-import { defaultPnlFilterValues, buildPnlFetchFilters } from '@/page/connections/pnlFilterFields';
-import { defaultFinancialPositionFilterValues, buildFinancialPositionFetchFilters } from '@/page/connections/financialPositionFilterFields';
+import { defaultPnlFilterValues, buildPnlFetchFilters } from '@/page/reports/pnl/pnlFilterFields';
+import { defaultFinancialPositionFilterValues, buildFinancialPositionFetchFilters } from '@/page/reports/financial-position/financialPositionFilterFields';
 import { autoDetectLayout } from './applyMapping';
 import SourceLayoutSection from './SourceLayoutSection';
 

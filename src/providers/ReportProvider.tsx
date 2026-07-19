@@ -4,11 +4,9 @@ import { createContext, use, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import type { ArtColor } from '@/components/ui/art.types';
 import type { MappingModel, ReportType } from '@/models/mapping.models';
-import type { ConnectionLightModel, ConnectionType, ConnectionSheet } from '@/models/connection.models';
-import {
-  applyMappingMultiSheet,
-  type TotalColumnInfo,
-} from '@/page/mapping/applyMapping';
+import type { ConnectionLightModel, ConnectionType } from '@/models/connection.models';
+import { type TotalColumnInfo } from '@/page/mapping/applyMapping';
+import { buildMappedReport } from '@/page/reports/buildReport';
 
 // ==== Types ====
 
@@ -54,12 +52,11 @@ export type UploadedReport = {
 };
 
 type ReportContextValue = {
+  /** File uploads + local edits only. Connection reports are NOT stored here — the report
+   *  pages derive those straight from their react-query fetch (see buildConnectionReport),
+   *  so a report page merges these with its own connection reports at render time. */
   reports: UploadedReport[];
   addReport: (file: File) => Promise<void>;
-  /** Add a report built from connection-driver output. Builds a synthetic xlsx workbook so the rest of the pipeline (mapping, viewer, export) works unchanged. */
-  addReportFromSheets: (fileName: string, sheets: ConnectionSheet[], opts?: { connectionId?: string; connectionType?: ConnectionType; fetchedAt?: string }) => string;
-  /** Replace the data of an existing connection-sourced report (refetch path). Re-applies the existing mapping if one was set. */
-  replaceReportSheets: (id: string, sheets: ConnectionSheet[], fetchedAt?: string) => void;
   removeReport: (id: string) => void;
   /** Patch the raw report (does NOT recompute mapped). For setting the applied mapping, use setMapping. */
   updateReport: (id: string, patch: Partial<UploadedReport>) => void;
@@ -67,6 +64,15 @@ type ReportContextValue = {
   setMapping: (id: string, mapping: MappingModel | undefined) => void;
   /** Toggle whether the report contributes to the combined Dashboard view. */
   setActive: (id: string, active: boolean) => void;
+  /**
+   * Explicit user overrides of a connection's active state, keyed by connection id.
+   * Absence means "follow `isDefault`" — see isConnectionActive. Only ever holds ids the
+   * user actually clicked; `isDefault` itself lives in the connections query, never copied
+   * into local state, so there's nothing here to seed or sync on load.
+   */
+  connectionOverrides: Map<string, boolean>;
+  /** Marks a connection active/inactive. Turning off also drops its loaded report, if any. */
+  setConnectionActive: (connectionId: string, active: boolean) => void;
 };
 
 // ==== Helpers ====
@@ -79,42 +85,10 @@ export function getReportType(report: UploadedReport, connections: ConnectionLig
   return report.mapping?.reportType;
 }
 
-function buildMappedReport(report: UploadedReport, mapping: MappingModel): MappedReport {
-  const sheetsConfig = mapping.config.sheetsConfig ?? {};
-  const skippedSheets = report.workbook.SheetNames.filter((s) => sheetsConfig[s]?.mode === 'skip');
-  const usedSheets = report.workbook.SheetNames.filter((s) => sheetsConfig[s]?.mode !== 'skip');
-  const effectiveSheets = usedSheets.length > 0 ? usedSheets : [report.workbook.SheetNames[0]];
-
-  const applied = applyMappingMultiSheet(report.workbook, effectiveSheets, mapping.config);
-
-  // Build a real single-sheet workbook from the applied output.
-  // Dashboard ExcelViewer and export step both read from this.
-  const sheet = XLSX.utils.json_to_sheet(applied.rows, { header: applied.headers });
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, sheet, 'Mapped');
-
-  return {
-    headers: applied.headers,
-    rows: applied.rows,
-    rowColors: applied.rowColors,
-    valueColors: applied.valueColors,
-    totalColumns: applied.totalColumns,
-    workbook,
-    skippedSheets,
-  };
-}
-
-// ==== Helpers ====
-
-function buildSheetsWorkbook(sheets: ConnectionSheet[]): { workbook: XLSX.WorkBook; activeSheet: string; rowIndents: number[] } {
-  const workbook = XLSX.utils.book_new();
-  for (const s of sheets) {
-    const ws = XLSX.utils.json_to_sheet(s.rows);
-    XLSX.utils.book_append_sheet(workbook, ws, s.name.slice(0, 31)); // xlsx caps at 31 chars
-  }
-  const activeSheet = workbook.SheetNames[0] ?? 'Sheet1';
-  const rowIndents = (sheets[0]?.rows ?? []).map(() => 0);
-  return { workbook, activeSheet, rowIndents };
+// No override recorded yet → falls back to the connection's own `isDefault` from the
+// connections query. Nothing to seed or sync: the default lives in server data, read live.
+export function isConnectionActive(connection: ConnectionLightModel, overrides: Map<string, boolean>): boolean {
+  return overrides.get(connection.id) ?? connection.isDefault;
 }
 
 // ==== Context ====
@@ -123,6 +97,7 @@ const ReportContext = createContext<ReportContextValue | null>(null);
 
 export function ReportProvider({ children }: { children: React.ReactNode }) {
   const [reports, setReports] = useState<UploadedReport[]>([]);
+  const [connectionOverrides, setConnectionOverrides] = useState<Map<string, boolean>>(new Map());
 
   async function addReport(file: File) {
     const buffer = await file.arrayBuffer();
@@ -144,29 +119,19 @@ export function ReportProvider({ children }: { children: React.ReactNode }) {
     ]);
   }
 
-  function addReportFromSheets(fileName: string, sheets: ConnectionSheet[], opts?: { connectionId?: string; connectionType?: ConnectionType; fetchedAt?: string }): string {
-    const { workbook, activeSheet, rowIndents } = buildSheetsWorkbook(sheets);
-    const id = crypto.randomUUID();
-    setReports((prev) => [
-      ...prev,
-      { id, fileName, source: 'connection', connectionId: opts?.connectionId, connectionType: opts?.connectionType, fetchedAt: opts?.fetchedAt, active: true, workbook, activeSheet, rowIndents },
-    ]);
-    return id;
-  }
-
-  function replaceReportSheets(id: string, sheets: ConnectionSheet[], fetchedAt?: string) {
-    const { workbook, activeSheet, rowIndents } = buildSheetsWorkbook(sheets);
-    setReports((prev) => prev.map((r) => {
-      if (r.id !== id) return r;
-      const next = { ...r, workbook, activeSheet, rowIndents, fetchedAt, mapped: undefined as MappedReport | undefined };
-      // Re-derive mapped view if a mapping was already in effect.
-      if (r.mapping) next.mapped = buildMappedReport(next, r.mapping);
-      return next;
-    }));
-  }
-
   function setActive(id: string, active: boolean) {
     setReports((prev) => prev.map((r) => (r.id === id ? { ...r, active } : r)));
+  }
+
+  // Pure override write — no report side effects. Deactivating a connection drops it from
+  // the active id set the report page fetches, so its report simply stops being derived;
+  // nothing to remove from a store, because connection reports were never stored here.
+  function setConnectionActive(connectionId: string, active: boolean) {
+    setConnectionOverrides((prev) => {
+      const next = new Map(prev);
+      next.set(connectionId, active);
+      return next;
+    });
   }
 
   function removeReport(id: string) {
@@ -187,8 +152,11 @@ export function ReportProvider({ children }: { children: React.ReactNode }) {
   }
 
   const ctx = useMemo(
-    () => ({ reports, addReport, addReportFromSheets, replaceReportSheets, removeReport, updateReport, setMapping, setActive }),
-    [reports],
+    () => ({
+      reports, addReport, removeReport, updateReport, setMapping, setActive,
+      connectionOverrides, setConnectionActive,
+    }),
+    [reports, connectionOverrides],
   );
 
   return (

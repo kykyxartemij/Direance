@@ -7,8 +7,8 @@ import type { ArtColor } from '@/components/ui/art.types';
 
 export type Row = Record<string, unknown>;
 
-// Combined dashboard view derived from each report's pre-computed `mapped`.
-// Mapping is NEVER re-run here — Dashboard is a pure consumer.
+// Combined report view derived from each report's pre-computed `mapped`.
+// Mapping is NEVER re-run here — ReportView is a pure consumer.
 //
 // valueColors are stored per-column so different reports can paint their own
 // value cells (e.g. report A → primary, report B → warning) without overwriting.

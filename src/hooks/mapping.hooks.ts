@@ -109,6 +109,9 @@ export function useUpdateMapping(
     },
     onSuccess: (data, ...rest) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.mapping.invalidate.lists() });
+      // A connection embeds its linked mapping in the fetched report — refetch so an edited
+      // mapping's new config shows on the report pages instead of the stale mapped view.
+      queryClient.invalidateQueries({ queryKey: queryKeys.connection.invalidate.fetches() });
       queryClient.setQueryData<MappingModel>(queryKeys.mapping.byId(data.id), data);
       options?.onSuccess?.(data, ...rest);
     },
@@ -127,6 +130,9 @@ export function useDeleteMapping(
     onSuccess: (data, id, ...rest) => {
       queryClient.removeQueries({ queryKey: queryKeys.mapping.byId(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.mapping.invalidate.lists() });
+      // Deleting a mapping unlinks it from any connection (onDelete: SetNull) — refetch so
+      // the report pages drop the now-removed mapped view.
+      queryClient.invalidateQueries({ queryKey: queryKeys.connection.invalidate.fetches() });
       options?.onSuccess?.(data, id, ...rest);
     },
   });

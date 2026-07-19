@@ -875,7 +875,9 @@
     background: var(--art-accent); color: #fff; border-radius: 9999px;
     font-size: 0.68rem; font-weight: 600; line-height: 1;
   }
-  .art-data-filters-panel { padding: 0; }
+  /* Panel owns filter layout — fields flow 3-per-row, so filter forms render bare fields
+     (no own grid) and every filter bar stays visually consistent. */
+  .art-data-filters-panel { padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 
   /* ===== ArtData ===== */
   /* Layout wrapper — enforces consistent spacing between filters / table / pagination */

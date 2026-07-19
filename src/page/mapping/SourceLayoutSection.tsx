@@ -10,7 +10,7 @@ import ArtTabs, { type ArtTab } from '@/components/ui/ArtTabs';
 import ArtButton from '@/components/ui/ArtButton';
 import ArtSelect from '@/components/ui/ArtSelect';
 import ArtInput from '@/components/ui/ArtInput';
-import ExcelViewer from '@/page/dashboard/ExcelViewer';
+import ExcelViewer from '@/page/reports/ExcelViewer';
 
 // ==== Helpers ====
 

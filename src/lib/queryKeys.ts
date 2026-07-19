@@ -44,12 +44,20 @@ export const queryKeys = {
     invalidate: {
       all: () => ['connection'] as const,
       lists: () => ['connection', 'list'] as const,
+      // Every derived report fetch (both report types). Invalidate whenever a connection or
+      // its linked mapping changes — the fetch result embeds the joined mapping, so stale
+      // config/mapping would otherwise keep showing on the report pages until refetch.
+      fetches: () => ['connection', 'fetchMany'] as const,
     },
     light: () => ['connection', 'list', 'light'] as const,
     paged: (page: number, pageSize: number, freeText?: string) =>
       ['connection', 'list', 'paged', page, pageSize, freeText ?? ''] as const,
     byId: (id: string) => ['connection', 'single', 'byId', id] as const,
     fetch: (id: string, filters: object) => ['connection', 'fetch', id, filters] as const,
+    fetchManyPnl: (connections: { id: string }[], filters: object) =>
+      ['connection', 'fetchMany', 'pnl', connections.map((c) => c.id).toSorted(), filters] as const,
+    fetchManyFinancialPosition: (connections: { id: string }[], filters: object) =>
+      ['connection', 'fetchMany', 'financial_position', connections.map((c) => c.id).toSorted(), filters] as const,
   },
   // Separate namespace — never invalidated by exportSetting mutations (bytes can't be cached)
   logo: {

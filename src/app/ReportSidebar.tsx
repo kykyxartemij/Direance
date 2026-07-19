@@ -1,11 +1,9 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
-import { useGetLightConnections, useFetchPnlConnectionsByIds, useFetchFinancialPositionConnectionsByIds } from '@/hooks/connection.hooks';
-import { useReports } from '@/providers/ReportProvider';
+import { useGetLightConnections } from '@/hooks/connection.hooks';
+import { useReports, isConnectionActive } from '@/providers/ReportProvider';
 import { useAuth } from '@/providers/AuthProvider';
-import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
 import ArtCheckbox from '@/components/ui/ArtCheckbox';
 import ArtIconButton from '@/components/ui/ArtIconButton';
 import ArtBadge from '@/components/ui/ArtBadge';
@@ -15,8 +13,6 @@ import { HREF } from '@/lib/hrefUrl';
 import { REPORT_TYPES, REPORT_TYPE_LABELS } from '@/models/mapping.models';
 import type { ConnectionLightModel } from '@/models/connection.models';
 import type { UploadedReport } from '@/providers/ReportProvider';
-import { defaultPnlFilterValues, buildPnlFetchFilters } from '@/page/connections/pnlFilterFields';
-import { defaultFinancialPositionFilterValues, buildFinancialPositionFetchFilters } from '@/page/connections/financialPositionFilterFields';
 
 // ==== Helpers ====
 
@@ -29,22 +25,22 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 // ==== Shared sidebar item box ====
-// One box per item (connection or manual upload): row 1 is toggle + name,
-// row 2 is source label + actions. Kept as one helper so both row kinds
-// stay visually and structurally identical.
+// One box per item (connection or manual upload): row 1 is toggle + name, row 2 is the
+// linked mapping name (omitted when unmapped — the row-1 badge already covers that case),
+// row 3 is source label + actions. Kept as one helper so both row kinds stay visually and
+// structurally identical.
 
 interface SidebarItemBoxProps {
   active: boolean;
-  toggling?: boolean;
   onToggle: (active: boolean) => void;
   name: string;
   badge?: React.ReactNode;
+  mappingName?: string;
   sourceLabel: string;
-  meta?: React.ReactNode;
   actions?: React.ReactNode;
 }
 
-function SidebarItemBox({ active, toggling, onToggle, name, badge, sourceLabel, meta, actions }: SidebarItemBoxProps) {
+function SidebarItemBox({ active, onToggle, name, badge, mappingName, sourceLabel, actions }: SidebarItemBoxProps) {
   return (
     <div
       className="flex flex-col gap-1 rounded border px-2 py-1.5 mb-1.5"
@@ -52,17 +48,23 @@ function SidebarItemBox({ active, toggling, onToggle, name, badge, sourceLabel, 
     >
       {/* Row 1: toggle, name */}
       <div className="flex items-center gap-2">
-        <ArtCheckbox checked={active} disabled={toggling} onChange={(e) => onToggle(e.target.checked)} aria-label={name} />
+        <ArtCheckbox checked={active} onChange={(e) => onToggle(e.target.checked)} aria-label={name} />
         <span className="flex-1 text-sm truncate" style={{ color: 'var(--text)' }} title={name}>
           {name}
         </span>
         {badge}
       </div>
 
-      {/* Row 2: source, actions */}
+      {/* Row 2: mapping name */}
+      {mappingName && (
+        <span className="truncate text-xs" style={{ color: 'var(--text-muted)' }} title={mappingName}>
+          {mappingName}
+        </span>
+      )}
+
+      {/* Row 3: source, actions */}
       <div className="flex items-center gap-1">
         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{sourceLabel}</span>
-        {meta}
         <span className="flex-1" />
         {actions}
       </div>
@@ -71,26 +73,24 @@ function SidebarItemBox({ active, toggling, onToggle, name, badge, sourceLabel, 
 }
 
 // ==== Connection row ====
+// Purely a toggle over the connection's active state (isDefault, unless overridden) —
+// never fetches. Each report page loads the excel data for its own active connections
+// (see useFetchPnlConnectionReports / useFetchFinancialPositionConnectionReports).
 
 interface ConnectionRowProps {
   connection: ConnectionLightModel;
-  loadedReportId: string | undefined;
-  onToggle: (c: ConnectionLightModel, active: boolean) => Promise<void>;
-  toggling: boolean;
+  active: boolean;
+  onToggle: (checked: boolean) => void;
 }
 
-function ConnectionRow({ connection, loadedReportId, onToggle, toggling }: ConnectionRowProps) {
-  const { reports } = useReports();
-  const report = loadedReportId ? reports.find((r) => r.id === loadedReportId) : undefined;
-  const isLoaded = !!report;
-
+function ConnectionRow({ connection, active, onToggle }: ConnectionRowProps) {
   return (
     <SidebarItemBox
-      active={isLoaded && (report?.active ?? true)}
-      toggling={toggling}
-      onToggle={(checked) => onToggle(connection, checked)}
+      active={active}
+      onToggle={onToggle}
       name={connection.name}
-      badge={report && !report.mapped && <ArtBadge color="warning" size="sm">unmapped</ArtBadge>}
+      badge={!connection.mapping && <ArtBadge color="warning" size="sm">unmapped</ArtBadge>}
+      mappingName={connection.mapping?.name}
       sourceLabel="Connection"
     />
   );
@@ -110,6 +110,7 @@ function FileReportRow({ report, onRemove, onSetActive }: {
       onToggle={(checked) => onSetActive(report.id, checked)}
       name={report.fileName.replace(/\.(xlsx|xls)$/i, '')}
       badge={!report.mapped && <ArtBadge color="warning" size="sm">unmapped</ArtBadge>}
+      mappingName={report.mapping?.name}
       sourceLabel="Manual upload"
       actions={(
         <>
@@ -125,48 +126,16 @@ function FileReportRow({ report, onRemove, onSetActive }: {
 
 // ==== Main sidebar ====
 // Global, route-agnostic — every connection shows here regardless of reportType.
-// Type-correctness lives in Dashboard's combine step (each report page only combines
-// reports matching its own reportType), not in what the sidebar lists.
+// Purely showcase + active/inactive toggling. It never fetches excel data itself —
+// that's each report page's job (see PnlPage / FinancialPositionPage), scoped to
+// whichever reportType page is actually open.
 
 export default function ReportSidebar() {
   const { user }       = useAuth();
-  const { reports, addReportFromSheets, removeReport, setActive, setMapping } = useReports();
+  const { reports, connectionOverrides, setConnectionActive, removeReport, setActive } = useReports();
   // Light list only — id/name/type/isDefault, enough to render the sidebar. Full report
-  // data per connection is fetched lazily, only from the report page that needs it
-  // (see Dashboard.tsx) — never eagerly here.
+  // data per connection is fetched lazily, only from the report page that needs it.
   const { data: connections = [], isLoading: connectionsLoading } = useGetLightConnections({ enabled: !!user });
-  const { enqueueError } = useArtSnackbar();
-  // Manual toggle already has its own local indicator (togglingId) — no blur needed.
-  const { mutateAsync: fetchPnl } = useFetchPnlConnectionsByIds();
-  const { mutateAsync: fetchFinancialPosition } = useFetchFinancialPositionConnectionsByIds();
-
-  // Track which connection → loaded report id
-  const [togglingId, setTogglingId] = useState<string | null>(null);
-
-  async function toggleConnection(connection: ConnectionLightModel, load: boolean) {
-    setTogglingId(connection.id);
-    try {
-      if (load) {
-        const result = connection.reportType === 'pnl'
-          ? await fetchPnl({ ids: [connection.id], ...buildPnlFetchFilters(defaultPnlFilterValues()) })
-          : await fetchFinancialPosition({ ids: [connection.id], ...buildFinancialPositionFetchFilters(defaultFinancialPositionFilterValues()) });
-        const data = result[connection.id];
-        const id = addReportFromSheets(`${connection.name}-${data.fetchedAt.slice(0, 10)}`, data.sheets, {
-          connectionId: connection.id,
-          connectionType: connection.type,
-          fetchedAt: data.fetchedAt,
-        });
-        if (data.mapping) setMapping(id, data.mapping);
-      } else {
-        const loaded = reports.find((r) => r.connectionId === connection.id);
-        if (loaded) removeReport(loaded.id);
-      }
-    } catch (err) {
-      enqueueError(err as Error, `Failed to ${load ? 'load' : 'remove'} connection`);
-    } finally {
-      setTogglingId(null);
-    }
-  }
 
   if (!user) return null;
 
@@ -187,18 +156,14 @@ export default function ReportSidebar() {
                 <ArtButton variant="outlined" size="sm" className="w-full">+ Add connection</ArtButton>
               </Link>
             )}
-            {typeConnections.map((c) => {
-              const loaded = reports.find((r) => r.connectionId === c.id);
-              return (
-                <ConnectionRow
-                  key={c.id}
-                  connection={c}
-                  loadedReportId={loaded?.id}
-                  onToggle={toggleConnection}
-                  toggling={togglingId === c.id}
-                />
-              );
-            })}
+            {typeConnections.map((c) => (
+              <ConnectionRow
+                key={c.id}
+                connection={c}
+                active={isConnectionActive(c, connectionOverrides)}
+                onToggle={(checked) => setConnectionActive(c.id, checked)}
+              />
+            ))}
             {typeFileReports.map((r) => (
               <FileReportRow key={r.id} report={r} onRemove={removeReport} onSetActive={setActive} />
             ))}

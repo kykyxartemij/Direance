@@ -1,12 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { useReports, getReportType } from '@/providers/ReportProvider';
-import { useGetLightConnections, useFetchPnlConnectionsByIds, useFetchFinancialPositionConnectionsByIds } from '@/hooks/connection.hooks';
+import { useState } from 'react';
+import type { UploadedReport } from '@/providers/ReportProvider';
 import { useGetLightExportSettings, useGetExportSettingById } from '@/hooks/export-settings.hooks';
-import { defaultPnlFilterValues, buildPnlFetchFilters } from '@/page/connections/pnlFilterFields';
-import { defaultFinancialPositionFilterValues, buildFinancialPositionFetchFilters } from '@/page/connections/financialPositionFilterFields';
-import type { ReportType } from '@/models/mapping.models';
 import ArtBadge from '@/components/ui/ArtBadge';
 import ArtComboBox, { type ArtComboBoxOption } from '@/components/ui/ArtComboBox';
 import ArtDataTable, { type ArtColumn } from '@/components/ui/ArtDataTable';
@@ -17,7 +13,6 @@ import { combineReports, buildProcessedWorkbook, type Row } from './combineRepor
 import { exportToExcel } from './exportExcel';
 import ExcelViewer from './ExcelViewer';
 import ExportDialog from './ExportDialog';
-import ConnectionRefreshBar from './ConnectionRefreshBar';
 import { FSLink } from '@/components/FSLink';
 import { HREF } from '@/lib/hrefUrl';
 
@@ -154,14 +149,13 @@ const VIEW_TABS = [
   { value: 'excel', label: 'Excel' },
 ];
 
-type DashboardProps = {
-  reportType: ReportType;
+type ReportViewProps = {
+  // Already filtered to one report type + merged (file uploads + connection fetches) by the
+  // owning page — ReportView is a pure presentation over this list, no data source of its own.
+  reports: UploadedReport[];
 };
 
-export default function Dashboard({ reportType }: DashboardProps) {
-  const { reports: allReports } = useReports();
-  const { data: connections = [] } = useGetLightConnections();
-  const reports = allReports.filter((r) => getReportType(r, connections) === reportType);
+export default function ReportView({ reports }: ReportViewProps) {
   const [view, setView] = useState('table');
 
   // Default ExportSetting comes from the first mapped report's linked ExportSetting.
@@ -257,9 +251,6 @@ export default function Dashboard({ reportType }: DashboardProps) {
           <ExportDialog onExport={handleExport} />
         </div>
       </div>
-
-      {/* Filters + table/excel */}
-      <ConnectionRefreshBar reportType={reportType} />
 
       {view === 'table' ? (
         <ArtDataTable<Row>

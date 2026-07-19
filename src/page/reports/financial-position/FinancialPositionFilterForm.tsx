@@ -14,9 +14,10 @@ type Props = {
   onChange: (key: keyof FinancialPositionFilterValues, value: string) => void;
 };
 
+// Bare fields — ArtDataFilters' panel owns the 3-per-row grid layout.
 export default function FinancialPositionFilterForm({ values, onChange }: Props) {
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <>
       <ArtDatePicker
         label="Balance date"
         value={values.dateTo}
@@ -31,6 +32,6 @@ export default function FinancialPositionFilterForm({ values, onChange }: Props)
         onChange={(e) => onChange('periods', e.target.value)}
         helperText="Number of periods (months) to include, counted back from the balance date."
       />
-    </div>
+    </>
   );
 }

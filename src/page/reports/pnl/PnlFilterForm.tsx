@@ -13,9 +13,10 @@ type Props = {
   onChange: (key: keyof PnlFilterValues, value: string) => void;
 };
 
+// Bare fields — ArtDataFilters' panel owns the 3-per-row grid layout.
 export default function PnlFilterForm({ values, onChange }: Props) {
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <>
       <ArtDatePicker
         label="Period end date"
         value={values.dateTo}
@@ -36,6 +37,6 @@ export default function PnlFilterForm({ values, onChange }: Props) {
         onChange={(v) => onChange('dateFrom', v)}
         helperText="Explicit range start — overrides periods when set. Leave blank to use periods instead."
       />
-    </div>
+    </>
   );
 }

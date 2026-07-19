@@ -11,6 +11,8 @@ import { cn } from './art.utils';
 
 interface ArtDataFiltersProps {
   // ==== Search ====
+  /** Show the free-text search input. Default: true. Set false for filter-only bars (e.g. report pages with only advanced filters). */
+  searchable?: boolean;
   /** Debounce delay in ms, or true for 300ms default. Default: 300 */
   searchDebounce?: boolean | number;
   searchPlaceholder?: string;
@@ -39,6 +41,7 @@ interface ArtDataFiltersProps {
 // ==== Component ====
 
 const ArtDataFilters = ({
+  searchable = true,
   searchDebounce = 300,
   searchPlaceholder = 'Search…',
   onSearch,
@@ -67,13 +70,15 @@ const ArtDataFilters = ({
   return (
     <div className={cn('art-data-filters', className)}>
       <div className="art-data-filters-bar">
-        <ArtInput
-          icon={{ name: 'Search', size: 16 }}
-          placeholder={searchPlaceholder}
-          debounce={searchDebounce}
-          onDebouncedChange={onSearch}
-          clearable
-        />
+        {searchable && (
+          <ArtInput
+            icon={{ name: 'Search', size: 16 }}
+            placeholder={searchPlaceholder}
+            debounce={searchDebounce}
+            onDebouncedChange={onSearch}
+            clearable
+          />
+        )}
 
         {advancedFilters && (
           <ArtButton

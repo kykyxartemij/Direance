@@ -204,7 +204,7 @@ function ConnectionForm({ id, existing, isEdit, onSuccess }: ConnectionFormProps
       <ArtFormSelect name="type" label="Type" options={CONNECTION_TYPE_OPTIONS} />
       <ArtFormSelect name="reportType" label="Report Type" options={REPORT_TYPE_OPTIONS} />
       <ArtFormSelect name="mappingId" label="Mapping (optional)" options={mappingOptions} clearable />
-      <ArtFormCheckbox name="isDefault" label="Active by default (auto-load on Dashboard)" />
+      <ArtFormCheckbox name="isDefault" label="Active by default (auto-load on its report page)" />
 
       {isMeritType(type) && (
         <FormSection title={CONNECTION_TYPE_LABELS[type]}>

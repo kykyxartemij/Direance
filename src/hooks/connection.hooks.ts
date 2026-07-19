@@ -1,7 +1,6 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient, type UseQueryOptions, type UseMutationOptions } from '@tanstack/react-query';
-import { useReports } from '@/providers/ReportProvider';
 import fetchClient from '@/lib/fetchClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { API } from '@/lib/apiUrl';
@@ -15,11 +14,13 @@ import type {
   UpdateConnectionModel,
   PnlFetchFiltersModel,
   FinancialPositionFetchFiltersModel,
-  ConnectionSheet,
   ConnectionFetchManyResponse,
+  ConnectionFetchResult,
 } from '@/models/connection.models';
 import type { PaginatedResponse } from '@/models/paginated-response.model';
 import type { ApiError } from '@/models/api-error';
+import type { UploadedReport } from '@/providers/ReportProvider';
+import { buildConnectionReport } from '@/page/reports/buildReport';
 
 // #region Connections
 
@@ -103,6 +104,7 @@ export function useUpdateConnection(
     },
     onSuccess: (data, ...rest) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.connection.invalidate.lists() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.connection.invalidate.fetches() });
       queryClient.setQueryData<ConnectionModel>(queryKeys.connection.byId(data.id), data);
       options?.onSuccess?.(data, ...rest);
     },
@@ -121,6 +123,7 @@ export function useDeleteConnection(
     onSuccess: (data, id, ...rest) => {
       queryClient.removeQueries({ queryKey: queryKeys.connection.byId(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.connection.invalidate.lists() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.connection.invalidate.fetches() });
       options?.onSuccess?.(data, id, ...rest);
     },
   });
@@ -129,7 +132,6 @@ export function useDeleteConnection(
 // #endregion
 // #region Pnl
 
-type RefreshResult = { reportId: string; sheets: ConnectionSheet[]; fetchedAt: string };
 type TestConnectionInput = { type: ConnectionType; config: ConnectionConfig; secret: ConnectionSecret };
 
 // ==== Fetch many connection sheets by ids (batch — 1 request per hook call, BE coalesces DB) ====
@@ -149,28 +151,42 @@ export function useFetchPnlConnectionsByIds(
   });
 }
 
-// ==== Refresh connection report (single target — every caller refreshes one connection at a time) ====
-// @deprecated — per-connection refresh UI (relTime + refresh icon) removed from ReportSidebar.
-// Filters already force a refetch on their own; a manual single-report refresh is redundant
-// and confusing. Kept for now, scheduled for removal — do not add new callers.
-type RefreshPnlTarget = { reportId: string; connectionId: string } & PnlFetchFiltersModel;
-
-export function useRefreshPnlConnectionById(
-  options?: Omit<UseMutationOptions<RefreshResult, ApiError, RefreshPnlTarget>, 'mutationFn'>
+// ==== Same batch fetch, as a query — for state-driven report pages ====
+// Reactive counterpart to the mutation above (which stays for imperative "fetch a sample"
+// callers). Fetches the given connections and returns ready-to-render UploadedReports, built
+// inside queryFn so the XLSX work is cached and never repeats per render. `enabled`-gated on
+// ids; caller passes the already-active connections of the right type — the hook stays generic.
+export function useFetchPnlConnectionReports(
+  connections: ConnectionLightModel[],
+  filters: PnlFetchFiltersModel,
+  options?: Omit<UseQueryOptions<UploadedReport[], ApiError>, 'queryKey' | 'queryFn'>
 ) {
-  const queryClient = useQueryClient();
-  const { replaceReportSheets } = useReports();
-
-  return useMutation<RefreshResult, ApiError, RefreshPnlTarget>({
-    ...options,
-    mutationFn: async ({ reportId, connectionId, ...filters }) => {
-      const { data } = await fetchClient.post<ConnectionFetchManyResponse>(API.connection.fetchProfit(), { ids: [connectionId], ...filters });
-      return { reportId, ...data[connectionId] };
+  return useQuery<UploadedReport[], ApiError>({
+    queryKey: queryKeys.connection.fetchManyPnl(connections, filters),
+    queryFn: async () => {
+      const ids = connections.map((c) => c.id);
+      const { data } = await fetchClient.post<ConnectionFetchManyResponse>(API.connection.fetchProfit(), { ids, ...filters });
+      return connections.flatMap((c) => (data[c.id] ? [buildConnectionReport(c, data[c.id])] : []));
     },
-    onSuccess: (result, ...rest) => {
-      replaceReportSheets(result.reportId, result.sheets, result.fetchedAt);
-      queryClient.invalidateQueries({ queryKey: ['placeholder'] });
-      options?.onSuccess?.(result, ...rest);
+    enabled: connections.length > 0,
+    ...options,
+  });
+}
+
+// ==== Fetch a single connection (id from the route) — imperative ====
+// One connection at a time; returns the raw fetch result (sheets + joined mapping), not a
+// keyed map. For callers that already know the one connection they want (e.g. previewing a
+// sample inside a mapping form) rather than the whole active set.
+type FetchPnlConnectionByIdInput = { id: string } & PnlFetchFiltersModel;
+
+export function useFetchPnlConnectionById(
+  options?: Omit<UseMutationOptions<ConnectionFetchResult, ApiError, FetchPnlConnectionByIdInput>, 'mutationFn'>
+) {
+  return useMutation<ConnectionFetchResult, ApiError, FetchPnlConnectionByIdInput>({
+    ...options,
+    mutationFn: async ({ id, ...filters }) => {
+      const { data } = await fetchClient.post<ConnectionFetchResult>(API.connection.fetchProfitById(id), filters);
+      return data;
     },
   });
 }
@@ -206,28 +222,35 @@ export function useFetchFinancialPositionConnectionsByIds(
   });
 }
 
-// ==== Refresh connection report (single target — every caller refreshes one connection at a time) ====
-// @deprecated — per-connection refresh UI (relTime + refresh icon) removed from ReportSidebar.
-// Filters already force a refetch on their own; a manual single-report refresh is redundant
-// and confusing. Kept for now, scheduled for removal — do not add new callers.
-type RefreshFinancialPositionTarget = { reportId: string; connectionId: string } & FinancialPositionFetchFiltersModel;
-
-export function useRefreshFinancialPositionConnectionById(
-  options?: Omit<UseMutationOptions<RefreshResult, ApiError, RefreshFinancialPositionTarget>, 'mutationFn'>
+// ==== Same batch fetch, as a query — see useFetchPnlConnectionReports for the rationale. ====
+export function useFetchFinancialPositionConnectionReports(
+  connections: ConnectionLightModel[],
+  filters: FinancialPositionFetchFiltersModel,
+  options?: Omit<UseQueryOptions<UploadedReport[], ApiError>, 'queryKey' | 'queryFn'>
 ) {
-  const queryClient = useQueryClient();
-  const { replaceReportSheets } = useReports();
-
-  return useMutation<RefreshResult, ApiError, RefreshFinancialPositionTarget>({
-    ...options,
-    mutationFn: async ({ reportId, connectionId, ...filters }) => {
-      const { data } = await fetchClient.post<ConnectionFetchManyResponse>(API.connection.fetchFinancialPosition(), { ids: [connectionId], ...filters });
-      return { reportId, ...data[connectionId] };
+  return useQuery<UploadedReport[], ApiError>({
+    queryKey: queryKeys.connection.fetchManyFinancialPosition(connections, filters),
+    queryFn: async () => {
+      const ids = connections.map((c) => c.id);
+      const { data } = await fetchClient.post<ConnectionFetchManyResponse>(API.connection.fetchFinancialPosition(), { ids, ...filters });
+      return connections.flatMap((c) => (data[c.id] ? [buildConnectionReport(c, data[c.id])] : []));
     },
-    onSuccess: (result, ...rest) => {
-      replaceReportSheets(result.reportId, result.sheets, result.fetchedAt);
-      queryClient.invalidateQueries({ queryKey: ['placeholder'] });
-      options?.onSuccess?.(result, ...rest);
+    enabled: connections.length > 0,
+    ...options,
+  });
+}
+
+// ==== Fetch a single connection (id from the route) — see useFetchPnlConnectionById. ====
+type FetchFinancialPositionConnectionByIdInput = { id: string } & FinancialPositionFetchFiltersModel;
+
+export function useFetchFinancialPositionConnectionById(
+  options?: Omit<UseMutationOptions<ConnectionFetchResult, ApiError, FetchFinancialPositionConnectionByIdInput>, 'mutationFn'>
+) {
+  return useMutation<ConnectionFetchResult, ApiError, FetchFinancialPositionConnectionByIdInput>({
+    ...options,
+    mutationFn: async ({ id, ...filters }) => {
+      const { data } = await fetchClient.post<ConnectionFetchResult>(API.connection.fetchFinancialPositionById(id), filters);
+      return data;
     },
   });
 }

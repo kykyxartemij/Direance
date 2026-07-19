@@ -1,12 +1,12 @@
 'use client';
 
 import { useMutation, useQueryClient, type UseMutationOptions } from '@tanstack/react-query';
-import { exportToExcel } from '@/page/dashboard/exportExcel';
+import { exportToExcel } from '@/page/reports/exportExcel';
 import type { ApiError } from '@/models/api-error';
 import type { ExportSettingResolvedModel } from '@/models/export-settings.models';
 import type { TotalColumnInfo } from '@/page/mapping/applyMapping';
 import type { ArtColor } from '@/components/ui/art.types';
-import type { Row } from '@/page/dashboard/combineReports';
+import type { Row } from '@/page/reports/combineReports';
 import type * as XLSX from 'xlsx';
 
 // ==== Types ====
