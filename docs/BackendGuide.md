@@ -26,7 +26,9 @@ mainly `src/services/mapping.service.ts`, with `invite.service.ts`, `connection.
 | DB calls | Encode logic in WHERE — no pre-fetch to check ownership |
 | ID lookup | `findFirstOrThrow` — auto-throws P2025 → 404 |
 | In-memory guards | `assertInstanceCapacity`/`assertIpCapacity`/`assertUserCapacity` — automatic in `withHandler`, per-instance trip-wires, not authoritative |
-| DB-cost checks | `checkUserRequestLimit`/`checkPublicRequestLimit` move inside `cached()` when it wraps the *entire* unit of work — never for mutations, never for paged `total`/count |
+| Client IP | `getClientIp()` — ambient, same pattern as `getAuth()`. Never `getIp(req)` inside a handler — `req.headers` can't be read inside `cached()` |
+| DB-cost checks | `checkUserRequestLimit(ip, ...)`/`checkPublicRequestLimit(ip)` move inside `cached()` when it wraps the *entire* unit of work — never for mutations, never for paged `total`/count |
+| Handler body spacing | Blank line between the `getAuth()`/`getClientIp()` block, the validation block, and the checks block |
 | Pagination | `Promise.all([data, count])` — never sequential awaits |
 | FTS | `findManyFts` / `countFts` — never raw `$queryRaw` for search |
 | Select | Always explicit `select` — never bare `findMany` |
@@ -84,13 +86,15 @@ whole request lifecycle in one place: auth, the permission gate, error handling 
 request context, so the body itself stays pure business logic.
 
 ```
-assertInstanceCapacity → assertIpCapacity → requireAuth → assertUserCapacity → seed context → body → try/catch → handleApiError
+assertInstanceCapacity → resolve ip → assertIpCapacity → requireAuth → assertUserCapacity
+  → seed { ip, auth } context → body → try/catch → handleApiError
 ```
 
 The three `assert*Capacity` calls are automatic — you never call them yourself, `withHandler`
 does it before your body runs at all. They're in-memory, per-instance trip-wires (`src/lib/rateLimiter.ts`),
 not the authoritative limit — see Step 4 for the real, cluster-accurate checks you do call
-explicitly. Three reasons there are three of them, not one:
+explicitly. `ip` and the resolved auth seed the same ambient context in one call (`getClientIp()`/
+`getAuth()`, Step 2) — three reasons there are three assert calls, not one:
 
 - `assertInstanceCapacity` — global per-instance count, catches raw volume before spending a
   cycle on anything, including auth.
@@ -153,19 +157,34 @@ const auth = getAuthOptional();              // AuthCtx | null — in withPublic
 
 ### How it works — ambient request context
 
-`withHandler` seeds a per-request store (`src/lib/requestContext.ts`, backed by Node
-`AsyncLocalStorage`) with the authed identity. Any service in the call tree reads it via
-`getAuth()` without threading `userId`/`permissions` through every signature.
+`withHandler` seeds **one** per-request store (`src/lib/requestContext.ts`, backed by Node
+`AsyncLocalStorage`) with `{ ip, auth }` — `ip` always a string, `auth` an `AuthCtx | null`.
+Any service in the call tree reads either half via `getAuth()`/`getAuthOptional()`/`getClientIp()`
+without threading `req` or identity through every signature:
+
+```ts
+const { userId, permissions } = getAuth();
+const ip = getClientIp();
+```
 
 - **Write-once:** a `withHandler`-wrapped fn called from inside another won't overwrite the
-  outer identity — auth can't be swapped mid-request.
+  outer context — identity and `ip` can't swap mid-request.
 - **`withPublicHandler`:** same standard body, auth optional. Uses `tryAuth()` (soft
-  `requireAuth` — returns `null` instead of throwing), seeds context if signed in, runs
-  anonymous requests anyway. Read with `getAuthOptional()`.
-- **Never call `getAuth()` outside a request** (cron jobs, scripts) — it throws. Pass identity
-  explicitly there.
-- Store **only** ambient, derived-once, read-only, widely-needed data (auth). Business inputs
-  (`id`, request body) stay explicit arguments.
+  `requireAuth` — returns `null` instead of throwing) for the `auth` half; `ip` is always
+  resolved regardless. Read auth with `getAuthOptional()`.
+- **Never call `getAuth()`/`getClientIp()` outside a request** (cron jobs, scripts) — both
+  throw. Pass identity/ip explicitly there.
+- Store **only** ambient, derived-once, read-only, widely-needed data (auth, ip). Business
+  inputs (`id`, request body) stay explicit arguments.
+
+**Why `ip` lives here at all, not just a local var:** `checkUserRequestLimit`/
+`checkPublicRequestLimit` (Step 4) often run inside a `cached()` callback (Step 5), and Next.js
+forbids reading `request.headers` inside an `unstable_cache` callback — calling `getIp(req)` in
+there throws at runtime. Resolving `ip` once in `withHandler` and reading it back via
+`getClientIp()` means the value is available everywhere downstream, cached callback included,
+without ever touching `req` again. `getIp(req)` itself stays exported from
+`src/lib/rateLimiter.ts` for the one place that still needs to compute it fresh —
+`withHandler`/`withPublicHandler` themselves — nowhere else calls it.
 
 ---
 
@@ -248,7 +267,8 @@ rate limit  →  custom guards (e.g. assertLimit)  →  DB storage limit  →  p
 ### 1. Rate limit — cheap, applies almost everywhere
 
 ```ts
-await checkUserRequestLimit(req, userId, permissions);   // mutations — always unconditional, see below for reads
+const ip = getClientIp();
+await checkUserRequestLimit(ip, userId, permissions);   // mutations — always unconditional, see below for reads
 ```
 
 Backed by a Postgres `check_rate_limit()` function (`src/lib/rateLimiter.ts`, body in
@@ -268,7 +288,7 @@ is the clearest example of both ends:
 
 ```ts
 // fetchProfitConnectionsByIds — hits our DB (via batch loader) + calls Merit/Odoo. Rate-limited.
-await checkUserRequestLimit(req, userId, permissions);
+await checkUserRequestLimit(ip, userId, permissions);
 
 // testPnlConnection — pure external call, no DB read/write of ours at all. No rate limit —
 // auth alone (from withHandler) is the only gate. The call costs the caller's own external
@@ -319,9 +339,11 @@ delete:
 ```ts
 export const createMapping = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const data = await CreateMappingValidator.validate(await req.json(), { abortEarly: false });
 
-  await checkUserRequestLimit(req, userId, permissions);
+  await checkUserRequestLimit(ip, userId, permissions);
   await checkUserDbLimits(userId, permissions);
 
   const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
@@ -336,10 +358,12 @@ export const createMapping = withHandler(async (req) => {
 
 export const updateMapping = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const id = parseIdFromRoute(await params);
   const data = await UpdateMappingValidator.validate(await req.json(), { abortEarly: false });
 
-  await checkUserRequestLimit(req, userId, permissions);
+  await checkUserRequestLimit(ip, userId, permissions);
   await checkUserDbLimits(userId, permissions);
 
   const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
@@ -355,8 +379,11 @@ export const updateMapping = withHandler<{ id: string }>(async (req, { params })
 
 export const deleteMapping = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const id = parseIdFromRoute(await params);
-  await checkUserRequestLimit(req, userId, permissions);
+
+  await checkUserRequestLimit(ip, userId, permissions);
 
   const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
   const where = canModifyGlobal
@@ -397,7 +424,7 @@ invite: {
 
 ```ts
 // invite.service.ts — sendInvite: custom guard sits right where step 4 says it should
-await checkUserRequestLimit(req, inviterId, inviterPerms);
+await checkUserRequestLimit(ip, inviterId, inviterPerms);
 await prisma.invite.assertLimit();   // custom guard — DELETE expired, then 429 if still over cap
 ```
 
@@ -461,13 +488,20 @@ const existing = await populateCache(
 
 `checkUserRequestLimit`/`checkPublicRequestLimit` cost one Postgres call, same as the read
 they're guarding. Placed **inside** the `cached()` callback, the check only runs when there's
-an actual DB call to protect, a cache hit costs zero DB either way:
+an actual DB call to protect, a cache hit costs zero DB either way. Both functions take `ip`
+(from `getClientIp()`, Step 2), never `req` — `req.headers` can't be read inside an
+`unstable_cache` callback, so `ip` has to already be a resolved string by the time it gets here:
 
 ```ts
 // getConnectionById — the whole rule in one example
+const { userId, permissions } = getAuth();
+const ip = getClientIp();
+
+const id = parseIdFromRoute(await params);
+
 const connection = await cached(
   async () => {
-    await checkUserRequestLimit(req, userId, permissions);   // only pays on a real miss
+    await checkUserRequestLimit(ip, userId, permissions);   // only pays on a real miss
     return prisma.connection.findFirstOrThrow({ where: { id, userId }, select: CONNECTION_SELECT });
   },
   CACHE_KEYS.connection.byId(userId, id),
@@ -490,7 +524,8 @@ stops protecting that other work. Three consequences:
   // acceptInvite — real work follows the cache lookup either way, check can't move
   export const acceptInvite = withPublicHandler(async (req) => {
     const data = await AcceptInviteValidator.validate(await req.json(), { abortEarly: false });
-    await checkPublicRequestLimit(req);   // unconditional — populateCache + $transaction come next regardless
+
+    await checkPublicRequestLimit(getClientIp());   // unconditional — populateCache + $transaction come next regardless
 
     const invite = await cached(/* token lookup only */);
     // ...populateCache existence check, then $transaction — real DB cost either way
@@ -501,8 +536,10 @@ stops protecting that other work. Three consequences:
     const token = req.nextUrl.searchParams.get('token') ?? '';
     if (!token) throw new ApiError('Token is required', 400);
 
+    const ip = getClientIp();
+
     const invite = await cached(async () => {
-      await checkPublicRequestLimit(req);
+      await checkPublicRequestLimit(ip);
       return prisma.invite.findFirstWithCleanup({ where: { token }, select: { /* ... */ } });
     }, CACHE_KEYS.invite.byToken(token));
 
@@ -520,7 +557,7 @@ stops protecting that other work. Three consequences:
   ```ts
   const [data, total] = await Promise.all([
     cached(async () => {
-      await checkUserRequestLimit(req, userId, permissions);
+      await checkUserRequestLimit(ip, userId, permissions);
       return prisma.fieldMapping.findManyFts({ freeText, userId, where, select: MAPPING_SELECT_PAGED, orderBy: { name: 'asc' }, skip: page * pageSize, take: pageSize });
     }, CACHE_KEYS.mapping.paged(userId, page, pageSize, freeText)),
 
@@ -828,7 +865,7 @@ const where = { OR: [{ userId }, { isGlobal: true }] };
 const [data, total] = await Promise.all([
   cached(
     async () => {
-      await checkUserRequestLimit(req, userId, permissions);
+      await checkUserRequestLimit(ip, userId, permissions);
       return prisma.fieldMapping.findManyFts({
         freeText, userId, where,
         select: MAPPING_SELECT_PAGED,

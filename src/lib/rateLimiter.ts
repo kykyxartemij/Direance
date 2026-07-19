@@ -16,7 +16,7 @@ export const RATE_LIMITS = {
 
 // ==== Helpers ====
 
-function getIp(req: NextRequest): string {
+export function getIp(req: NextRequest): string {
   return req.headers.get('x-forwarded-for')?.split(',')[0].trim()
     ?? req.headers.get('x-real-ip')
     ?? 'unknown';
@@ -77,8 +77,8 @@ function checkMemIp(ip: string): boolean {
   return ++_ipMem.get(ip)!.count <= RATE_LIMITS.ip_ops.max * RATE_LIMITS.privileged_multiplier;
 }
 
-export function assertIpCapacity(req: NextRequest): void {
-  if (!checkMemIp(getIp(req))) throw new ApiError('Too many requests from this IP', 429);
+export function assertIpCapacity(ip: string): void {
+  if (!checkMemIp(ip)) throw new ApiError('Too many requests from this IP', 429);
 }
 
 // ==== User capacity guard ====
@@ -115,10 +115,10 @@ export function assertUserCapacity(userId: string): void {
 /**
  * Call after requireAuth(), before doing work. Backed by Postgres, so limits hold across
  * Vercel instances. NO_DB_REQUEST_LIMITS/IS_ADMIN get privileged_multiplier'd limits, not a full bypass.
+ * Takes `ip` (not `req`) — `req.headers` can't be read inside an `unstable_cache` callback, so
+ * callers resolve it with `getIp(req)` before this ever runs, cached or not.
  */
-export async function checkUserRequestLimit(req: NextRequest, userId: string, permissions: string[]): Promise<void> {
-  const ip = getIp(req);
-
+export async function checkUserRequestLimit(ip: string, userId: string, permissions: string[]): Promise<void> {
   if (hasPermission({ permissions }, Permission.NO_DB_REQUEST_LIMITS)) {
     const x5 = RATE_LIMITS.privileged_multiplier;
     const [row] = await prisma.$queryRaw<[{ ip_ok: boolean; global_ok: boolean }]>`
@@ -142,9 +142,11 @@ export async function checkUserRequestLimit(req: NextRequest, userId: string, pe
   if (!row.global_ok) throw new ApiError('Server busy, please try again shortly', 429);
 }
 
-/** Call at the top of public endpoints (acceptInvite, lookupInvite, etc.) — no session required. */
-export async function checkPublicRequestLimit(req: NextRequest): Promise<void> {
-  const ip = getIp(req);
+/**
+ * Call at the top of public endpoints (acceptInvite, lookupInvite, etc.) — no session required.
+ * Takes `ip`, same reason as checkUserRequestLimit above.
+ */
+export async function checkPublicRequestLimit(ip: string): Promise<void> {
   const [row] = await prisma.$queryRaw<[{ ip_ok: boolean; global_ok: boolean }]>`
     SELECT
       check_rate_limit(${`ip:${ip}`}::text, ${RATE_LIMITS.ip_ops.max}::int, ${windowSec(RATE_LIMITS.ip_ops.windowMs)}::int) AS ip_ok,

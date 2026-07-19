@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { cached, invalidateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { withHandler } from '@/lib/withHandler';
-import { getAuth } from '@/lib/requestContext';
+import { getAuth, getClientIp } from '@/lib/requestContext';
 import { ApiError } from '@/models/api-error';
 import { checkUserRequestLimit } from '@/lib/rateLimiter';
 import { checkUserDbLimits } from '@/lib/userLimits';
@@ -43,12 +43,13 @@ const EXPORT_SETTING_SELECT = {
 
 // ==== HTTP handlers ====
 
-export const getLightExportSettings = withHandler(async (req) => {
+export const getLightExportSettings = withHandler(async () => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
 
   const light = await cached(
     async () => {
-      await checkUserRequestLimit(req, userId, permissions);
+      await checkUserRequestLimit(ip, userId, permissions);
       return prisma.exportSetting.findMany({
         where: { userId },
         select: EXPORT_SETTING_SELECT_LIGHT,
@@ -63,6 +64,7 @@ export const getLightExportSettings = withHandler(async (req) => {
 
 export const getPagedExportSettings = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
 
   const searchParams = new URL(req.url).searchParams;
   const { page, pageSize } = await parsePaginationFromUrl(searchParams);
@@ -72,7 +74,7 @@ export const getPagedExportSettings = withHandler(async (req) => {
   const [data, total] = await Promise.all([
     cached(
       async () => {
-        await checkUserRequestLimit(req, userId, permissions);
+        await checkUserRequestLimit(ip, userId, permissions);
         return prisma.exportSetting.findManyFts({
           freeText,
           userId,
@@ -96,11 +98,13 @@ export const getPagedExportSettings = withHandler(async (req) => {
 
 export const getExportSettingById = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const id = parseIdFromRoute(await params);
 
   const settings = await cached(
     async () => {
-      await checkUserRequestLimit(req, userId, permissions);
+      await checkUserRequestLimit(ip, userId, permissions);
       return prisma.exportSetting.findFirstOrThrow({
         where: { id, userId },
         select: EXPORT_SETTING_SELECT,
@@ -116,9 +120,11 @@ export const getExportSettingById = withHandler<{ id: string }>(async (req, { pa
 
 export const createExportSetting = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const { headerLayout, logoId, ...rest } = await CreateExportSettingValidator.validate(await req.json(), { abortEarly: false });
 
-  await checkUserRequestLimit(req, userId, permissions);
+  await checkUserRequestLimit(ip, userId, permissions);
   await checkUserDbLimits(userId, permissions);
 
   const settings = await prisma.exportSetting.create({
@@ -139,10 +145,12 @@ export const createExportSetting = withHandler(async (req) => {
 
 export const updateExportSetting = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const id = parseIdFromRoute(await params);
   const { headerLayout, logoId, ...rest } = await UpdateExportSettingValidator.validate(await req.json(), { abortEarly: false });
 
-  await checkUserRequestLimit(req, userId, permissions);
+  await checkUserRequestLimit(ip, userId, permissions);
   await checkUserDbLimits(userId, permissions);
 
   const results = await prisma.exportSetting.updateManyAndReturn({
@@ -165,8 +173,11 @@ export const updateExportSetting = withHandler<{ id: string }>(async (req, { par
 
 export const deleteExportSetting = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const id = parseIdFromRoute(await params);
-  await checkUserRequestLimit(req, userId, permissions);
+
+  await checkUserRequestLimit(ip, userId, permissions);
 
   const { count } = await prisma.exportSetting.deleteMany({ where: { id, userId } });
   if (count === 0) throw new ApiError('Export setting not found', 404);

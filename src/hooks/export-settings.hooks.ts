@@ -96,7 +96,7 @@ export function useCreateExportSetting(
       queryClient.invalidateQueries({ queryKey: queryKeys.exportSetting.invalidate.lists() });
       queryClient.setQueryData<ExportSettingModel>(queryKeys.exportSetting.byId(setting.id), setting);
       if (logoBytes && logoId) {
-        queryClient.setQueryData<LogoBytesModel>(queryKeys.logo.byExportSettingId(setting.id), logoBytes);
+        queryClient.setQueryData<LogoBytesModel>(queryKeys.logo.byId(logoId), logoBytes);
       }
       options?.onSuccess?.(result, ...rest);
     },
@@ -134,7 +134,7 @@ export function useUpdateExportSetting(
       queryClient.invalidateQueries({ queryKey: queryKeys.exportSetting.invalidate.lists() });
       queryClient.setQueryData<ExportSettingModel>(queryKeys.exportSetting.byId(setting.id), setting);
       if (logoBytes && logoId) {
-        queryClient.setQueryData<LogoBytesModel>(queryKeys.logo.byExportSettingId(setting.id), logoBytes);
+        queryClient.setQueryData<LogoBytesModel>(queryKeys.logo.byId(logoId), logoBytes);
       }
       options?.onSuccess?.(result, ...rest);
     },

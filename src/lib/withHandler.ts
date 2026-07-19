@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, tryAuth } from '@/auth';
 import { Permission } from '@/lib/permissions';
 import { handleApiError, type HttpMethod } from '@/lib/errorHandler';
-import { runWithAuth } from '@/lib/requestContext';
-import { assertInstanceCapacity, assertIpCapacity, assertUserCapacity } from '@/lib/rateLimiter';
+import { runWithContext } from '@/lib/requestContext';
+import { assertInstanceCapacity, assertIpCapacity, assertUserCapacity, getIp } from '@/lib/rateLimiter';
 
 // ==== Types ====
 
@@ -35,10 +35,11 @@ export function withHandler<
     const ctx = (routeCtx ?? { params: Promise.resolve({}) }) as RouteCtx<TParams>;
     try {
       assertInstanceCapacity();
-      assertIpCapacity(req);
+      const ip = getIp(req);
+      assertIpCapacity(ip);
       const auth = await requireAuth(opts.permission);
       assertUserCapacity(auth.userId); // catches IP-rotation abuse — userId stays fixed across VPN/proxy hops
-      return await runWithAuth(auth, () => body(req, ctx));
+      return await runWithContext({ ip, auth }, () => body(req, ctx));
     } catch (error) {
       return handleApiError(error, req.method as HttpMethod, req.nextUrl.pathname);
     }
@@ -58,12 +59,11 @@ export function withPublicHandler<
     const ctx = (routeCtx ?? { params: Promise.resolve({}) }) as RouteCtx<TParams>;
     try {
       assertInstanceCapacity();
-      assertIpCapacity(req);
+      const ip = getIp(req);
+      assertIpCapacity(ip);
       const auth = await tryAuth(); // null if not signed in
       if (auth) assertUserCapacity(auth.userId); // signed-in caller — same IP-rotation gap as withHandler
-      return auth
-        ? await runWithAuth(auth, () => body(req, ctx))
-        : await body(req, ctx);
+      return await runWithContext({ ip, auth }, () => body(req, ctx));
     } catch (error) {
       return handleApiError(error, req.method as HttpMethod, req.nextUrl.pathname);
     }

@@ -5,7 +5,7 @@ import { cached, invalidateCache } from '@/lib/serverCache';
 import { createBatchLoader } from '@/lib/batchLoader';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { withHandler } from '@/lib/withHandler';
-import { getAuth } from '@/lib/requestContext';
+import { getAuth, getClientIp } from '@/lib/requestContext';
 import { ApiError } from '@/models/api-error';
 import { checkUserRequestLimit } from '@/lib/rateLimiter';
 import { checkUserDbLimits } from '@/lib/userLimits';
@@ -62,12 +62,13 @@ const CONNECTION_SELECT = {
 // ==== HTTP handlers ====
 // #region Connections
 
-export const getLightConnections = withHandler(async (req) => {
+export const getLightConnections = withHandler(async () => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
 
   const list = await cached(
     async () => {
-      await checkUserRequestLimit(req, userId, permissions);
+      await checkUserRequestLimit(ip, userId, permissions);
       return prisma.connection.findMany({
         where: { userId },
         select: CONNECTION_SELECT_LIGHT,
@@ -82,6 +83,7 @@ export const getLightConnections = withHandler(async (req) => {
 
 export const getPagedConnections = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
 
   const searchParams = new URL(req.url).searchParams;
   const { page, pageSize } = await parsePaginationFromUrl(searchParams);
@@ -91,7 +93,7 @@ export const getPagedConnections = withHandler(async (req) => {
   const [data, total] = await Promise.all([
     cached(
       async () => {
-        await checkUserRequestLimit(req, userId, permissions);
+        await checkUserRequestLimit(ip, userId, permissions);
         return prisma.connection.findManyFts({
           freeText,
           userId,
@@ -115,11 +117,13 @@ export const getPagedConnections = withHandler(async (req) => {
 
 export const getConnectionById = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const id = parseIdFromRoute(await params);
 
   const connection = await cached(
     async () => {
-      await checkUserRequestLimit(req, userId, permissions);
+      await checkUserRequestLimit(ip, userId, permissions);
       return prisma.connection.findFirstOrThrow({
         where: { id, userId },
         select: CONNECTION_SELECT,
@@ -135,9 +139,11 @@ export const getConnectionById = withHandler<{ id: string }>(async (req, { param
 
 export const createConnection = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const { secret, mappingId, ...rest } = await CreateConnectionValidator.validate(await req.json(), { abortEarly: false });
 
-  await checkUserRequestLimit(req, userId, permissions);
+  await checkUserRequestLimit(ip, userId, permissions);
   await checkUserDbLimits(userId, permissions);
 
   const encrypted = await encryptSecret(secret);
@@ -162,10 +168,12 @@ export const createConnection = withHandler(async (req) => {
 
 export const updateConnection = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const id = parseIdFromRoute(await params);
   const { secret, mappingId, ...rest } = await UpdateConnectionValidator.validate(await req.json(), { abortEarly: false });
 
-  await checkUserRequestLimit(req, userId, permissions);
+  await checkUserRequestLimit(ip, userId, permissions);
   await checkUserDbLimits(userId, permissions);
 
   // NOTE: mappingId is not verified against the caller — same known gap as createConnection above.
@@ -189,8 +197,11 @@ export const updateConnection = withHandler<{ id: string }>(async (req, { params
 
 export const deleteConnection = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const id = parseIdFromRoute(await params);
-  await checkUserRequestLimit(req, userId, permissions);
+
+  await checkUserRequestLimit(ip, userId, permissions);
 
   const { count } = await prisma.connection.deleteMany({ where: { id, userId } });
   if (count === 0) throw new ApiError('Connection not found', 404);
@@ -212,9 +223,11 @@ export const testPnlConnection = withHandler(async (req) => {
 
 export const fetchProfitConnectionsByIds = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const { ids, ...filters } = await PnlFetchManyValidator.validate(await req.json(), { abortEarly: false });
 
-  await checkUserRequestLimit(req, userId, permissions);
+  await checkUserRequestLimit(ip, userId, permissions);
 
   const loadRow = createBatchLoader(
     (batchIds: string[]) =>
@@ -251,12 +264,14 @@ export const fetchProfitConnectionsByIds = withHandler(async (req) => {
 
 export const fetchProfitConnectionById = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const id = parseIdFromRoute(await params);
   const filters = await PnlFetchValidator.validate(await req.json(), { abortEarly: false });
 
   const result = await cached(
     async () => {
-      await checkUserRequestLimit(req, userId, permissions);
+      await checkUserRequestLimit(ip, userId, permissions);
       const row = await prisma.connection.findFirstOrThrow({
         where: { id, userId, reportType: 'pnl' },
         select: { type: true, config: true, secret: true, mapping: { select: MAPPING_SELECT } },
@@ -290,9 +305,11 @@ export const testFinancialPositionConnection = withHandler(async (req) => {
 
 export const fetchFinancialPositionConnectionsByIds = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const { ids, ...filters } = await FinancialPositionFetchManyValidator.validate(await req.json(), { abortEarly: false });
 
-  await checkUserRequestLimit(req, userId, permissions);
+  await checkUserRequestLimit(ip, userId, permissions);
 
   const loadRow = createBatchLoader(
     (batchIds: string[]) =>
@@ -329,12 +346,14 @@ export const fetchFinancialPositionConnectionsByIds = withHandler(async (req) =>
 
 export const fetchFinancialPositionConnectionById = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const id = parseIdFromRoute(await params);
   const filters = await FinancialPositionFetchValidator.validate(await req.json(), { abortEarly: false });
 
   const result = await cached(
     async () => {
-      await checkUserRequestLimit(req, userId, permissions);
+      await checkUserRequestLimit(ip, userId, permissions);
       const row = await prisma.connection.findFirstOrThrow({
         where: { id, userId, reportType: 'financial_position' },
         select: { type: true, config: true, secret: true, mapping: { select: MAPPING_SELECT } },

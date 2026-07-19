@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { cached, invalidateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { withHandler } from '@/lib/withHandler';
-import { getAuth } from '@/lib/requestContext';
+import { getAuth, getClientIp } from '@/lib/requestContext';
 import { UpdateUserValidator } from '@/models/user.models';
 import { checkUserRequestLimit } from '@/lib/rateLimiter';
 import { checkUserDbLimits, computeUserDbConsumption } from '@/lib/userLimits';
@@ -34,12 +34,13 @@ const USER_SELECT = {
 
 // ==== HTTP handlers ====
 
-export const getMe = withHandler(async (req) => {
+export const getMe = withHandler(async () => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
 
   const user = await cached(
     async () => {
-      await checkUserRequestLimit(req, userId, permissions);
+      await checkUserRequestLimit(ip, userId, permissions);
       return prisma.user.findUniqueOrThrow({ where: { id: userId }, select: USER_SELECT });
     },
     CACHE_KEYS.user.byId(userId),
@@ -50,9 +51,11 @@ export const getMe = withHandler(async (req) => {
 
 export const patchMe = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const data = await UpdateUserValidator.validate(await req.json(), { abortEarly: false });
 
-  await checkUserRequestLimit(req, userId, permissions);
+  await checkUserRequestLimit(ip, userId, permissions);
   await checkUserDbLimits(userId, permissions);
 
   const user = await prisma.user.update({
@@ -67,12 +70,13 @@ export const patchMe = withHandler(async (req) => {
   return NextResponse.json(maskUser(user));
 });
 
-export const getDbConsumption = withHandler(async (req) => {
+export const getDbConsumption = withHandler(async () => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
 
   const data = await cached(
     async () => {
-      await checkUserRequestLimit(req, userId, permissions);
+      await checkUserRequestLimit(ip, userId, permissions);
       return computeUserDbConsumption(userId);
     },
     CACHE_KEYS.user.dbConsumption(userId),
@@ -81,9 +85,11 @@ export const getDbConsumption = withHandler(async (req) => {
   return NextResponse.json(data);
 });
 
-export const deleteMe = withHandler(async (req) => {
+export const deleteMe = withHandler(async () => {
   const { userId, permissions } = getAuth();
-  await checkUserRequestLimit(req, userId, permissions);
+  const ip = getClientIp();
+
+  await checkUserRequestLimit(ip, userId, permissions);
 
   await prisma.user.delete({ where: { id: userId } });
   invalidateCache(...CACHE_KEYS.user.invalidate());
@@ -94,6 +100,7 @@ export const deleteMe = withHandler(async (req) => {
 export const getPagedUsers = withHandler(
   async (req) => {
     const { userId, permissions } = getAuth();
+    const ip = getClientIp();
 
     const searchParams = new URL(req.url).searchParams;
     const { page, pageSize } = await parsePaginationFromUrl(searchParams);
@@ -102,7 +109,7 @@ export const getPagedUsers = withHandler(
     const [data, total] = await Promise.all([
       cached(
         async () => {
-          await checkUserRequestLimit(req, userId, permissions);
+          await checkUserRequestLimit(ip, userId, permissions);
           return prisma.user.findManyFts({
             freeText,
             userId,

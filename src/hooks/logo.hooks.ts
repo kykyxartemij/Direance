@@ -57,29 +57,6 @@ export function useGetLogoById(
   });
 }
 
-export function useGetLogoByExportSettingId(
-  exportSettingId: string,
-  options?: Omit<UseQueryOptions<LogoBytesModel | null, ApiError>, 'queryKey' | 'queryFn'>
-) {
-  return useQuery<LogoBytesModel | null, ApiError>({
-    queryKey: queryKeys.logo.byExportSettingId(exportSettingId),
-    queryFn: async () => {
-      const result = await bytesClient.get<LogoMetadataModel>(API.logo.byExportSettingId(exportSettingId));
-      if (!result) return null;
-      return {
-        id: result.meta.id,
-        data: result.data,
-        mime: result.mime,
-        name: result.meta.name
-      };
-    },
-    enabled: !!exportSettingId,
-    staleTime: Infinity,
-    gcTime: Infinity,
-    ...options,
-  });
-}
-
 // ==== Mutations ====
 
 export function useCreateLogo(
@@ -121,7 +98,6 @@ export function useDeleteLogo(
       queryClient.invalidateQueries({ queryKey: queryKeys.logo.invalidate.lists() });
       if (variables.exportSettingId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.exportSetting.byId(variables.exportSettingId) });
-        queryClient.invalidateQueries({ queryKey: queryKeys.logo.byExportSettingId(variables.exportSettingId) });
       } else {
         queryClient.invalidateQueries({ queryKey: queryKeys.exportSetting.invalidate.all() });
       }

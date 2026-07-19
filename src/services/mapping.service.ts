@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { cached, invalidateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { withHandler } from '@/lib/withHandler';
-import { getAuth } from '@/lib/requestContext';
+import { getAuth, getClientIp } from '@/lib/requestContext';
 import { ApiError } from '@/models/api-error';
 import { checkUserDbLimits } from '@/lib/userLimits';
 import { parseIdFromRoute } from '@/models';
@@ -46,11 +46,13 @@ export const MAPPING_SELECT = {
 
 export const getLightMappings = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const reportType = new URL(req.url).searchParams.get('reportType') ?? undefined;
 
   const mappings = await cached(
     async () => {
-      await checkUserRequestLimit(req, userId, permissions);
+      await checkUserRequestLimit(ip, userId, permissions);
       return prisma.fieldMapping.findMany({
         where: {
           OR: [{ userId }, { isGlobal: true }],
@@ -68,6 +70,7 @@ export const getLightMappings = withHandler(async (req) => {
 
 export const getPagedMappings = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
 
   const searchParams = new URL(req.url).searchParams;
   const { page, pageSize } = await parsePaginationFromUrl(searchParams);
@@ -77,7 +80,7 @@ export const getPagedMappings = withHandler(async (req) => {
   const [data, total] = await Promise.all([
     cached(
       async () => {
-        await checkUserRequestLimit(req, userId, permissions);
+        await checkUserRequestLimit(ip, userId, permissions);
         return prisma.fieldMapping.findManyFts({
           freeText,
           userId,
@@ -101,11 +104,13 @@ export const getPagedMappings = withHandler(async (req) => {
 
 export const getMappingById = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const id = parseIdFromRoute(await params);
 
   const mapping = await cached(
     async () => {
-      await checkUserRequestLimit(req, userId, permissions);
+      await checkUserRequestLimit(ip, userId, permissions);
       return prisma.fieldMapping.findFirstOrThrow({
         where: { id, OR: [{ userId }, { isGlobal: true }] },
         select: MAPPING_SELECT,
@@ -121,9 +126,11 @@ export const getMappingById = withHandler<{ id: string }>(async (req, { params }
 
 export const createMapping = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const data = await CreateMappingValidator.validate(await req.json(), { abortEarly: false });
 
-  await checkUserRequestLimit(req, userId, permissions);
+  await checkUserRequestLimit(ip, userId, permissions);
   await checkUserDbLimits(userId, permissions);
 
   const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
@@ -143,10 +150,12 @@ export const createMapping = withHandler(async (req) => {
 
 export const updateMapping = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const id = parseIdFromRoute(await params);
   const data = await UpdateMappingValidator.validate(await req.json(), { abortEarly: false });
 
-  await checkUserRequestLimit(req, userId, permissions);
+  await checkUserRequestLimit(ip, userId, permissions);
   await checkUserDbLimits(userId, permissions);
 
   const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
@@ -172,8 +181,11 @@ export const updateMapping = withHandler<{ id: string }>(async (req, { params })
 
 export const deleteMapping = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const id = parseIdFromRoute(await params);
-  await checkUserRequestLimit(req, userId, permissions);
+
+  await checkUserRequestLimit(ip, userId, permissions);
 
   const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
   const where = canModifyGlobal

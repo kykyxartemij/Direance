@@ -28,7 +28,6 @@ export const API = {
   logo: {
     list: () => '/api/logos',
     byId: (id: string) => `/api/logos/${id}`,
-    byExportSettingId: (id: string) => `/api/export-settings/${id}/logo`,
   },
   exportSetting: {
     light: () => '/api/export-settings/light',

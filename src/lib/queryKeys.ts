@@ -57,7 +57,6 @@ export const queryKeys = {
     },
     light: () => ['logo', 'list', 'light'] as const,
     byId: (id: string) => ['logo', 'single', 'byId', id] as const,
-    byExportSettingId: (id: string) => ['logo', 'single', 'byExportSettingId', id] as const,
   },
   admin: {
     dbStats: () => ['admin', 'dbStats'] as const,

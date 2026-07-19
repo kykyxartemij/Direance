@@ -5,7 +5,7 @@ import {
   useGetLightExportSettings,
   useGetExportSettingById,
 } from '@/hooks/export-settings.hooks';
-import { useGetLogoByExportSettingId } from '@/hooks/logo.hooks';
+import { useGetLogoById } from '@/hooks/logo.hooks';
 import { ArtDialog } from '@/components/ui/ArtDialog';
 import ArtComboBox from '@/components/ui/ArtComboBox';
 import ArtCheckbox from '@/components/ui/ArtCheckbox';
@@ -58,7 +58,7 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
   });
   // enabled: false — logo bytes are expensive to fetch, only pull them right before
   // export (handleExport calls refetch()), never speculatively on setting selection.
-  const logoQuery = useGetLogoByExportSettingId(settingId ?? '', { enabled: false });
+  const logoQuery = useGetLogoById(fullSetting?.logo?.id ?? '', { enabled: false });
 
   const options: ArtComboBoxOption[] = lightSettings.map((s) => ({
     label: s.name,

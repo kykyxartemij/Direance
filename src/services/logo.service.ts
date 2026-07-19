@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { cached, invalidateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { withHandler } from '@/lib/withHandler';
-import { getAuth } from '@/lib/requestContext';
+import { getAuth, getClientIp } from '@/lib/requestContext';
 import { ApiError } from '@/models/api-error';
 import { checkUserRequestLimit } from '@/lib/rateLimiter';
 import { checkUserDbLimits } from '@/lib/userLimits';
@@ -27,19 +27,15 @@ const LOGO_SELECT_LIGHT = {
   name: true,
 } as const;
 
-const LOGO_SELECT = {
-  ...LOGO_SELECT_LIGHT,
-  data: true,
-} as const;
-
 // ==== HTTP handlers ====
 
-export const getLightLogos = withHandler(async (req) => {
+export const getLightLogos = withHandler(async () => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
 
   const logos = await cached(
     async () => {
-      await checkUserRequestLimit(req, userId, permissions);
+      await checkUserRequestLimit(ip, userId, permissions);
       return prisma.logo.findMany({
         where: { userId },
         select: LOGO_SELECT_LIGHT,
@@ -54,8 +50,11 @@ export const getLightLogos = withHandler(async (req) => {
 
 export const getLogoById = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const id = parseIdFromRoute(await params);
-  await checkUserRequestLimit(req, userId, permissions);
+
+  await checkUserRequestLimit(ip, userId, permissions);
 
   const logo = await prisma.logo.findFirst({
     where: { id, userId },
@@ -66,25 +65,11 @@ export const getLogoById = withHandler<{ id: string }>(async (req, { params }) =
   return new BytesResponse<LogoMetadataModel>(logo.data, logo.mime, { id: logo.id, name: logo.name });
 });
 
-export const getLogoByExportSettingId = withHandler<{ id: string }>(async (req, { params }) => {
-  const { userId, permissions } = getAuth();
-  const id = parseIdFromRoute(await params);
-  await checkUserRequestLimit(req, userId, permissions);
-
-  const row = await prisma.exportSetting.findFirst({
-    where: { id, userId },
-    select: { logo: { select: LOGO_SELECT } },
-  });
-
-  if (!row) throw new ApiError('Export setting not found', 404);
-  if (!row.logo?.data) return new NextResponse(null, { status: 204 });
-
-  return new BytesResponse<LogoMetadataModel>(row.logo.data, row.logo.mime, { id: row.logo.id, name: row.logo.name });
-});
-
 export const createLogo = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
-  await checkUserRequestLimit(req, userId, permissions);
+  const ip = getClientIp();
+
+  await checkUserRequestLimit(ip, userId, permissions);
   await checkUserDbLimits(userId, permissions);
 
   const formData = await req.formData();
@@ -110,8 +95,11 @@ export const createLogo = withHandler(async (req) => {
 
 export const deleteLogo = withHandler<{ id: string }>(async (req, { params }) => {
   const { userId, permissions } = getAuth();
+  const ip = getClientIp();
+
   const id = parseIdFromRoute(await params);
-  await checkUserRequestLimit(req, userId, permissions);
+
+  await checkUserRequestLimit(ip, userId, permissions);
 
   const { count } = await prisma.logo.deleteMany({ where: { id, userId } });
   if (count === 0) throw new ApiError('Logo not found', 404);

@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { cached, invalidateCache, populateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { withHandler, withPublicHandler } from '@/lib/withHandler';
-import { getAuth } from '@/lib/requestContext';
+import { getAuth, getClientIp } from '@/lib/requestContext';
 import { ApiError } from '@/models/api-error';
 import { sendInviteEmail, fetchInviteLimits } from '@/lib/email';
 import { Permission } from '@/lib/permissions';
@@ -39,7 +39,9 @@ export const getInviteLimits = withHandler(
 export const sendInvite = withHandler(
   async (req) => {
     const { userId: inviterId, permissions: inviterPerms } = getAuth();
-    await checkUserRequestLimit(req, inviterId, inviterPerms);
+    const ip = getClientIp();
+
+    await checkUserRequestLimit(ip, inviterId, inviterPerms);
     await prisma.invite.assertLimit();
 
     const data = await buildSendInviteValidator(inviterPerms).validate(await req.json(), { abortEarly: false });
@@ -69,7 +71,8 @@ export const sendInvite = withHandler(
 
 export const acceptInvite = withPublicHandler(async (req) => {
   const data = await AcceptInviteValidator.validate(await req.json(), { abortEarly: false });
-  await checkPublicRequestLimit(req);
+
+  await checkPublicRequestLimit(getClientIp());
 
   const invite = await cached(
     () => prisma.invite.findFirstWithCleanup({
@@ -111,9 +114,11 @@ export const lookupInvite = withPublicHandler(async (req) => {
   const token = req.nextUrl.searchParams.get('token') ?? '';
   if (!token) throw new ApiError('Token is required', 400);
 
+  const ip = getClientIp();
+
   const invite = await cached(
     async () => {
-      await checkPublicRequestLimit(req);
+      await checkPublicRequestLimit(ip);
       return prisma.invite.findFirstWithCleanup({
         where:  { token },
         select: { id: true, email: true, invitedBy: true, permissions: true },
