@@ -225,6 +225,14 @@ acceptInvite.mutate(
 );
 ```
 
+## Mutations with no query to invalidate yet
+
+Some mutations (e.g. `useExportExcel` — generates a file client-side, nothing cached)
+have no resource for `invalidateQueries` to target today. Keep the `onSuccess` +
+`invalidateQueries({ queryKey: ['placeholder'] })` slot anyway, so the shape matches
+every other hook in this file and a later "export history" query drops its real key in
+without restructuring the hook.
+
 ## Queries follow the same rule
 
 Read hooks (`useQuery`) don't need a snackbar default — they expose

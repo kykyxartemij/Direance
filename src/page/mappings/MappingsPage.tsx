@@ -6,7 +6,7 @@ import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useGetPagedMappings, useDeleteMapping } from '@/hooks/mapping.hooks';
 import type { MappingPagedModel, ReportType } from '@/models/mapping.models';
 import { REPORT_TYPE_LABELS, REPORT_TYPE_OPTIONS, MappingFilterValidator } from '@/models/mapping.models';
-import type { ArtColumn } from '@/components/ui/ArtDataTable';
+import type { ArtColumn } from '@/components/ui/ArtDataTable/types';
 import ArtData from '@/components/ui/ArtData';
 import ArtBadge from '@/components/ui/ArtBadge';
 import ArtButton from '@/components/ui/ArtButton';

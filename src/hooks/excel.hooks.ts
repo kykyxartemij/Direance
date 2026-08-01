@@ -33,7 +33,7 @@ export function useExportExcel(
   return useMutation<void, ApiError, ExportExcelInput>({
     ...options,
     onSuccess: (...args) => {
-      queryClient.invalidateQueries({ queryKey: ['excel-export'] });
+      queryClient.invalidateQueries({ queryKey: ['placeholder'] });
       options?.onSuccess?.(...args);
     },
     mutationFn: ({

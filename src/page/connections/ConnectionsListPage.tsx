@@ -4,7 +4,7 @@ import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useGetPagedConnections, useDeleteConnection } from '@/hooks/connection.hooks';
 import type { ConnectionModel } from '@/models/connection.models';
 import { CONNECTION_TYPE_LABELS } from '@/models/connection.models';
-import type { ArtColumn } from '@/components/ui/ArtDataTable';
+import type { ArtColumn } from '@/components/ui/ArtDataTable/types';
 import ArtData from '@/components/ui/ArtData';
 import ArtButton from '@/components/ui/ArtButton';
 import { ArtConfirmDialog } from '@/components/ui/ArtDialog';

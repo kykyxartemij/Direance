@@ -1,6 +1,7 @@
 'use client';
 
-import ArtComboBox, { type ArtComboBoxSingleProps, type ArtComboBoxOption } from './ArtComboBox';
+import ArtComboBox from './ArtComboBox/ArtComboBox';
+import type { ArtComboBoxSingleProps, ArtComboBoxOption } from './ArtComboBox/types';
 
 /** ArtComboBox with searchable=false — styled button trigger, no typing. */
 type ArtSelectProps = Omit<ArtComboBoxSingleProps, 'searchable'>;

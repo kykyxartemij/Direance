@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox';
+import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox/types';
 import { queryKeys } from '@/lib/queryKeys';
 import fetchClient from "@/lib/fetchClient";
 import { API } from '@/lib/apiUrl';

@@ -1,207 +1,16 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, useId, type ReactNode, type Ref } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useId } from 'react';
 import { createPortal } from 'react-dom';
-import { useAnchoredPanel } from './art.hooks';
-import ArtInput from './ArtInput';
-import ArtBadge from './ArtBadge';
-import ArtLabel from './ArtLabel';
-import ArtHelperText from './ArtHelperText';
-import ArtListbox from './ArtListbox';
-import ArtIcon, { type ArtIconProps, type ArtIconName } from './ArtIcon';
-import { type ArtOption, type ArtColor, ART_COLOR_CLASS } from './art.types';
-import { cn, mergeRefs } from './art.utils';
-
-// ArtComboBoxOption = ArtOption (shared shape). Re-exported for consumers.
-type ArtComboBoxOption = ArtOption;
-export type { ArtComboBoxOption };
-
-// ==== Shared base props ====
-
-interface ArtComboBoxBaseProps {
-  ref?: Ref<HTMLInputElement>;
-  options: ArtComboBoxOption[];
-  label?: string;
-  helperText?: string;
-  errorText?: string;
-  required?: boolean;
-  placeholder?: string;
-  icon?: ArtIconProps;
-  clearable?: boolean;
-  size?: 'sm' | 'md' | 'lg';
-  debounceMs?: boolean | number;
-  /** Fires after debounceMs of inactivity — use for async/server-side option fetching */
-  onDebouncedChange?: (inputText: string) => void;
-  /** See ArtListbox.noOptionsMessage — false suppresses the empty-state row and keeps the dropdown closed when options are empty */
-  noOptionsMessage?: ReactNode | boolean;
-  /** Called when the user scrolls near the bottom of the list — wire to fetchNextPage for infinite queries */
-  onEndReached?: () => void;
-  /** When true, renders a loading skeleton at the bottom (use with hasNextPage) */
-  hasMore?: boolean;
-  isLoading?: boolean;
-  disabled?: boolean;
-  readOnly?: boolean;
-  className?: string;
-  /** true = text input + filter (default). false = styled button trigger, pick only. */
-  searchable?: boolean;
-  /** When true, pressing Enter auto-selects the first visible option */
-  selectFirstOnEnter?: boolean;
-  /** Called with the current input text on Enter — useful for free-text navigation */
-  onSubmit?: (inputText: string) => void;
-}
-
-// ==== Single-select props ====
-
-export interface ArtComboBoxSingleProps extends ArtComboBoxBaseProps {
-  multiple?: false;
-  /**
-   * Controlled: provide to manage selection yourself.
-   * Uncontrolled: omit and the component manages its own state.
-   */
-  selected?: ArtComboBoxOption | null;
-  defaultSelected?: ArtComboBoxOption | null;
-  onChange?: (option: ArtComboBoxOption | null) => void;
-}
-
-// ==== Multi-select props ====
-
-export interface ArtComboBoxMultiProps extends ArtComboBoxBaseProps {
-  multiple: true;
-  selected?: ArtComboBoxOption[];
-  defaultSelected?: ArtComboBoxOption[];
-  onChange?: (options: ArtComboBoxOption[]) => void;
-}
-
-export type ArtComboBoxProps = ArtComboBoxSingleProps | ArtComboBoxMultiProps;
-
-// ==== Internal helpers ====
-
-const FIELD_SIZE: Record<NonNullable<ArtComboBoxBaseProps['size']>, string> = {
-  sm: 'art-field--sm',
-  md: '',
-  lg: 'art-field--lg',
-};
-
-const CHIPS_MAX_COLLAPSED = 3;
-
-function renderOptionContent(opt: ArtComboBoxOption) {
-  return (
-    <span className="art-combobox-option-inner">
-      {opt.icon && <ArtIcon name={opt.icon as ArtIconName} size="sm" />}
-      {opt.label}
-    </span>
-  );
-}
-
-// ==== Internal sub-components ====
-
-interface ChipsInputFieldProps {
-  chipsExpanded: boolean;
-  selectedMulti: ArtComboBoxOption[];
-  size: NonNullable<ArtComboBoxBaseProps['size']>;
-  disabled: boolean;
-  readOnly: boolean;
-  chipsInputRef: React.RefObject<HTMLInputElement | null>;
-  inputRef: Ref<HTMLInputElement> | undefined;
-  labelId: string;
-  label: string | undefined;
-  userSearch: string | null;
-  placeholder: string | undefined;
-  show: () => void;
-  handleChange: React.ChangeEventHandler<HTMLInputElement>;
-  handleKeyDown: React.KeyboardEventHandler;
-  removeMultiItem: (opt: ArtComboBoxOption) => void;
-  setChipsUserExpanded: React.Dispatch<React.SetStateAction<boolean>>;
-}
-
-function ChipsInputField({
-  chipsExpanded, selectedMulti, size, disabled, readOnly, chipsInputRef, inputRef,
-  labelId, label, userSearch, placeholder, show, handleChange, handleKeyDown,
-  removeMultiItem, setChipsUserExpanded,
-}: ChipsInputFieldProps) {
-  // Native <label htmlFor> focuses the input when blank field area is clicked —
-  // the input's onFocus opens the dropdown, so no manual click handler is needed.
-  const setInputRef = useMemo(() => mergeRefs(chipsInputRef, inputRef), [chipsInputRef, inputRef]);
-  return (
-    <label
-      htmlFor={labelId}
-      className={cn(
-        'art-field art-combobox-chips-field',
-        chipsExpanded ? 'art-combobox-chips-field--expanded' : 'art-combobox-chips-field--collapsed',
-        FIELD_SIZE[size],
-        disabled && 'art-field--disabled',
-      )}
-    >
-      {(chipsExpanded ? selectedMulti : selectedMulti.slice(0, CHIPS_MAX_COLLAPSED)).map((opt) => (
-        <ArtBadge
-          key={opt.value}
-          size="sm"
-          variant="outlined"
-          color={opt.color as ArtColor | undefined}
-          icon={opt.icon as ArtIconName | undefined}
-          onRemove={readOnly ? undefined : () => removeMultiItem(opt)}
-        >
-          {opt.label}
-        </ArtBadge>
-      ))}
-      {!chipsExpanded && selectedMulti.length > CHIPS_MAX_COLLAPSED && (
-        <button
-          type="button"
-          className="art-combobox-chips-more"
-          onClick={() => setChipsUserExpanded(true)}
-        >
-          +{selectedMulti.length - CHIPS_MAX_COLLAPSED} more
-        </button>
-      )}
-      <input
-        ref={setInputRef}
-        id={labelId}
-        className="art-combobox-chips-input"
-        aria-label={label ?? placeholder ?? 'Search'}
-        value={userSearch ?? ''}
-        readOnly={readOnly}
-        onChange={handleChange}
-        onFocus={() => !disabled && !readOnly && show()}
-        onKeyDown={handleKeyDown}
-        placeholder={selectedMulti.length === 0 ? placeholder : undefined}
-        disabled={disabled}
-      />
-    </label>
-  );
-}
-
-interface ButtonTriggerProps {
-  labelId: string;
-  disabled: boolean;
-  readOnly: boolean;
-  size: NonNullable<ArtComboBoxBaseProps['size']>;
-  selectedSingle: ArtComboBoxOption | null;
-  placeholder: string | undefined;
-  toggle: () => void;
-  handleTriggerKeyDown: React.KeyboardEventHandler;
-}
-
-function ButtonTrigger({ labelId, disabled, readOnly, size, selectedSingle, placeholder, toggle, handleTriggerKeyDown }: ButtonTriggerProps) {
-  return (
-    <button
-      type="button"
-      id={labelId}
-      disabled={disabled}
-      className={cn(
-        'art-field art-select-trigger',
-        FIELD_SIZE[size],
-        selectedSingle?.color && ART_COLOR_CLASS[selectedSingle.color],
-      )}
-      onClick={() => !disabled && !readOnly && toggle()}
-      onKeyDown={readOnly ? undefined : handleTriggerKeyDown}
-    >
-      {selectedSingle
-        ? renderOptionContent(selectedSingle)
-        : <span className="text-muted">{placeholder ?? 'Select…'}</span>}
-      <ArtIcon name="ChevronDown" size="sm" className="ml-auto shrink-0 opacity-50" />
-    </button>
-  );
-}
+import { useAnchoredPanel } from '../art.hooks';
+import ArtInput from '../ArtInput';
+import ArtLabel from '../ArtLabel';
+import ArtHelperText from '../ArtHelperText';
+import ArtListbox from '../ArtListbox';
+import { type ArtIconName } from '../ArtIcon';
+import { cn } from '../art.utils';
+import { ChipsInputField, ButtonTrigger } from './subcomponents';
+import { CHIPS_MAX_COLLAPSED, type ArtComboBoxProps, type ArtComboBoxOption, type ArtComboBoxSingleProps, type ArtComboBoxMultiProps } from './types';
 
 // ==== Component ====
 
@@ -483,7 +292,7 @@ function ArtComboBox(props: ArtComboBoxProps) {
 
       {/* ── Dropdown list — rendered into document.body so it escapes any
            overflow:hidden / overflow:auto ancestor (table wrappers, collapse panels, etc.) */}
-      {open && (visibleOptions.length > 0 || isLoading || hasMore || (noOptionsMessage !== false && searchable && (userSearch?.trim().length ?? 0) > 0)) && createPortal(
+      {open && (visibleOptions.length > 0 || isLoading || hasMore || (noOptionsMessage !== false && searchable && (userSearch?.trim().length ?? 0) > 0)) && typeof document !== 'undefined' && createPortal(
         <div
           ref={portalRef}
           className="art-combobox-portal"

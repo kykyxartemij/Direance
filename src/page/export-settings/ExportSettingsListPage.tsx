@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useGetPagedExportSettings, useDeleteExportSetting } from '@/hooks/export-settings.hooks';
 import type { ExportSettingPagedModel } from '@/models/export-settings.models';
-import type { ArtColumn } from '@/components/ui/ArtDataTable';
+import type { ArtColumn } from '@/components/ui/ArtDataTable/types';
 import ArtData from '@/components/ui/ArtData';
 import ArtButton from '@/components/ui/ArtButton';
 import { ArtConfirmDialog } from '@/components/ui/ArtDialog';

@@ -1,7 +1,8 @@
 'use client';
 
 import { Controller, useFormContext } from 'react-hook-form';
-import ArtComboBox, { type ArtComboBoxSingleProps, type ArtComboBoxOption } from '@/components/ui/ArtComboBox';
+import ArtComboBox from '@/components/ui/ArtComboBox/ArtComboBox';
+import type { ArtComboBoxSingleProps, ArtComboBoxOption } from '@/components/ui/ArtComboBox/types';
 
 // ==== Types ====
 

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useReports } from '@/providers/ReportProvider';
+import { useReports } from '@/providers/ReportProvider/ReportProvider';
 import ArtUpload from '@/components/ui/ArtUpload';
 import ArtButton from '@/components/ui/ArtButton';
 

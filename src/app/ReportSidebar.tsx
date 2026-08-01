@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useGetLightConnections } from '@/hooks/connection.hooks';
-import { useReports, isConnectionActive } from '@/providers/ReportProvider';
+import { useReports } from '@/providers/ReportProvider/ReportProvider';
+import { isConnectionActive } from '@/providers/ReportProvider/helpers';
 import { useAuth } from '@/providers/AuthProvider';
 import ArtCheckbox from '@/components/ui/ArtCheckbox';
 import ArtIconButton from '@/components/ui/ArtIconButton';
@@ -12,7 +13,7 @@ import ArtSkeleton from '@/components/ui/ArtSkeleton';
 import { HREF } from '@/lib/hrefUrl';
 import { REPORT_TYPES, REPORT_TYPE_LABELS } from '@/models/mapping.models';
 import type { ConnectionLightModel } from '@/models/connection.models';
-import type { UploadedReport } from '@/providers/ReportProvider';
+import type { UploadedReport } from '@/providers/ReportProvider/types';
 
 // ==== Helpers ====
 

@@ -2,7 +2,8 @@
 
 import { useMemo } from 'react';
 import { useGetLightConnections, useGetFinancialPositionReportsByConnections } from '@/hooks/connection.hooks';
-import { useReports, isConnectionActive } from '@/providers/ReportProvider';
+import { useReports } from '@/providers/ReportProvider/ReportProvider';
+import { isConnectionActive } from '@/providers/ReportProvider/helpers';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
 import {
   defaultFinancialPositionFilterValues,

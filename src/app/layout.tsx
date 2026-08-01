@@ -6,7 +6,7 @@ import ReportSidebar from './ReportSidebar';
 import QueryProvider from '@/providers/QueryProvider';
 import { AuthProvider } from '@/providers/AuthProvider';
 import AuthGate from '@/providers/AuthGate';
-import { ReportProvider } from '@/providers/ReportProvider';
+import { ReportProvider } from '@/providers/ReportProvider/ReportProvider';
 import { ArtSnackbarProvider } from '@/components/ui/ArtSnackbar';
 import { ArtDialogProvider } from '@/components/ui/ArtDialog';
 import GlobalLoaderBlur from '@/components/GlobalLoaderBlur';

@@ -13,7 +13,7 @@ import { useGetLightConnections, useFetchPnlConnectionById, useFetchFinancialPos
 import { defaultPnlFilterValues, buildPnlFetchFilters } from '@/page/reports/pnl/pnlFilterFields';
 import { defaultFinancialPositionFilterValues, buildFinancialPositionFetchFilters } from '@/page/reports/financial-position/financialPositionFilterFields';
 import { autoDetectLayout } from './applyMapping';
-import SourceLayoutSection from './SourceLayoutSection';
+import SourceLayoutSection from './SourceLayoutSection/SourceLayoutSection';
 
 // ==== Types ====
 
@@ -200,9 +200,10 @@ function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSh
 
     function processWorkbook(wb: XLSX.WorkBook) {
       const expected = Object.keys(sheetLayouts);
+      const expectedSet = new Set(expected);
       const incoming = new Set(wb.SheetNames);
       const missing = expected.filter((n) => !incoming.has(n));
-      const extra = wb.SheetNames.filter((n) => expected.length > 0 && !expected.includes(n));
+      const extra = wb.SheetNames.filter((n) => expected.length > 0 && !expectedSet.has(n));
 
       let nextWarning: string | null = null;
       if (missing.length || extra.length) {

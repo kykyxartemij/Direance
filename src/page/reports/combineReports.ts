@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { type UploadedReport } from '@/providers/ReportProvider';
+import { type UploadedReport } from '@/providers/ReportProvider/types';
 import { type TotalColumnInfo } from '@/page/mapping/applyMapping';
 import type { ArtColor } from '@/components/ui/art.types';
 

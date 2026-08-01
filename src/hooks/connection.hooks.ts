@@ -20,7 +20,7 @@ import type {
 } from '@/models/connection.models';
 import type { PaginatedResponse } from '@/models/paginated-response.model';
 import type { ApiError } from '@/models/api-error';
-import type { UploadedReport } from '@/providers/ReportProvider';
+import type { UploadedReport } from '@/providers/ReportProvider/types';
 import { buildConnectionReport } from '@/page/reports/buildReport';
 
 // #region Connections
@@ -143,11 +143,17 @@ type FetchPnlConnectionsInput = { ids: string[] } & PnlFetchFiltersModel;
 export function useFetchPnlConnectionsByIds(
   options?: Omit<UseMutationOptions<ConnectionFetchManyResponse, ApiError, FetchPnlConnectionsInput>, 'mutationFn'>
 ) {
+  const queryClient = useQueryClient();
   return useMutation<ConnectionFetchManyResponse, ApiError, FetchPnlConnectionsInput>({
     ...options,
     mutationFn: async ({ ids, ...filters }) => {
       const { data } = await fetchClient.post<ConnectionFetchManyResponse>(API.connection.fetchProfit(), { ids, ...filters });
       return data;
+    },
+    onSuccess: (...args) => {
+      // Placeholder — no query reads this key yet, keeps the invalidation slot ready for one.
+      queryClient.invalidateQueries({ queryKey: ['placeholder'] });
+      options?.onSuccess?.(...args);
     },
   });
 }
@@ -186,11 +192,17 @@ type FetchPnlConnectionByIdInput = { id: string } & PnlFetchFiltersModel;
 export function useFetchPnlConnectionById(
   options?: Omit<UseMutationOptions<ConnectionFetchResult, ApiError, FetchPnlConnectionByIdInput>, 'mutationFn'>
 ) {
+  const queryClient = useQueryClient();
   return useMutation<ConnectionFetchResult, ApiError, FetchPnlConnectionByIdInput>({
     ...options,
     mutationFn: async ({ id, ...filters }) => {
       const { data } = await fetchClient.post<ConnectionFetchResult>(API.connection.fetchProfitById(id), filters);
       return data;
+    },
+    onSuccess: (...args) => {
+      // Placeholder — no query reads this key yet, keeps the invalidation slot ready for one.
+      queryClient.invalidateQueries({ queryKey: ['placeholder'] });
+      options?.onSuccess?.(...args);
     },
   });
 }
@@ -200,10 +212,16 @@ export function useFetchPnlConnectionById(
 export function useTestPnlConnection(
   options?: Omit<UseMutationOptions<void, ApiError, TestConnectionInput>, 'mutationFn'>
 ) {
+  const queryClient = useQueryClient();
   return useMutation<void, ApiError, TestConnectionInput>({
     ...options,
     mutationFn: async (body) => {
       await fetchClient.post(API.connection.testProfit(), body);
+    },
+    onSuccess: (...args) => {
+      // Placeholder — no query reads this key yet, keeps the invalidation slot ready for one.
+      queryClient.invalidateQueries({ queryKey: ['placeholder'] });
+      options?.onSuccess?.(...args);
     },
   });
 }
@@ -217,11 +235,17 @@ type FetchFinancialPositionConnectionsInput = { ids: string[] } & FinancialPosit
 export function useFetchFinancialPositionConnectionsByIds(
   options?: Omit<UseMutationOptions<ConnectionFetchManyResponse, ApiError, FetchFinancialPositionConnectionsInput>, 'mutationFn'>
 ) {
+  const queryClient = useQueryClient();
   return useMutation<ConnectionFetchManyResponse, ApiError, FetchFinancialPositionConnectionsInput>({
     ...options,
     mutationFn: async ({ ids, ...filters }) => {
       const { data } = await fetchClient.post<ConnectionFetchManyResponse>(API.connection.fetchFinancialPosition(), { ids, ...filters });
       return data;
+    },
+    onSuccess: (...args) => {
+      // Placeholder — no query reads this key yet, keeps the invalidation slot ready for one.
+      queryClient.invalidateQueries({ queryKey: ['placeholder'] });
+      options?.onSuccess?.(...args);
     },
   });
 }
@@ -250,11 +274,17 @@ type FetchFinancialPositionConnectionByIdInput = { id: string } & FinancialPosit
 export function useFetchFinancialPositionConnectionById(
   options?: Omit<UseMutationOptions<ConnectionFetchResult, ApiError, FetchFinancialPositionConnectionByIdInput>, 'mutationFn'>
 ) {
+  const queryClient = useQueryClient();
   return useMutation<ConnectionFetchResult, ApiError, FetchFinancialPositionConnectionByIdInput>({
     ...options,
     mutationFn: async ({ id, ...filters }) => {
       const { data } = await fetchClient.post<ConnectionFetchResult>(API.connection.fetchFinancialPositionById(id), filters);
       return data;
+    },
+    onSuccess: (...args) => {
+      // Placeholder — no query reads this key yet, keeps the invalidation slot ready for one.
+      queryClient.invalidateQueries({ queryKey: ['placeholder'] });
+      options?.onSuccess?.(...args);
     },
   });
 }
@@ -264,10 +294,16 @@ export function useFetchFinancialPositionConnectionById(
 export function useTestFinancialPositionConnection(
   options?: Omit<UseMutationOptions<void, ApiError, TestConnectionInput>, 'mutationFn'>
 ) {
+  const queryClient = useQueryClient();
   return useMutation<void, ApiError, TestConnectionInput>({
     ...options,
     mutationFn: async (body) => {
       await fetchClient.post(API.connection.testFinancialPosition(), body);
+    },
+    onSuccess: (...args) => {
+      // Placeholder — no query reads this key yet, keeps the invalidation slot ready for one.
+      queryClient.invalidateQueries({ queryKey: ['placeholder'] });
+      options?.onSuccess?.(...args);
     },
   });
 }

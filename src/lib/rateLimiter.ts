@@ -70,11 +70,12 @@ function checkMemIp(ip: string): boolean {
   }
   if (_ipMem.size > MEM_MAP_CAP) _ipMem.clear();
 
-  const entry = _ipMem.get(ip);
+  let entry = _ipMem.get(ip);
   if (!entry || now - entry.windowStart > RATE_LIMITS.ip_ops.windowMs) {
-    _ipMem.set(ip, { count: 0, windowStart: now });
+    entry = { count: 0, windowStart: now };
+    _ipMem.set(ip, entry);
   }
-  return ++_ipMem.get(ip)!.count <= RATE_LIMITS.ip_ops.max * RATE_LIMITS.privileged_multiplier;
+  return ++entry.count <= RATE_LIMITS.ip_ops.max * RATE_LIMITS.privileged_multiplier;
 }
 
 export function assertIpCapacity(ip: string): void {
@@ -96,11 +97,12 @@ function checkMemUser(userId: string): boolean {
   }
   if (_userMem.size > MEM_MAP_CAP) _userMem.clear();
 
-  const entry = _userMem.get(userId);
+  let entry = _userMem.get(userId);
   if (!entry || now - entry.windowStart > RATE_LIMITS.user_ops.windowMs) {
-    _userMem.set(userId, { count: 0, windowStart: now });
+    entry = { count: 0, windowStart: now };
+    _userMem.set(userId, entry);
   }
-  return ++_userMem.get(userId)!.count <= RATE_LIMITS.user_ops.max * RATE_LIMITS.privileged_multiplier;
+  return ++entry.count <= RATE_LIMITS.user_ops.max * RATE_LIMITS.privileged_multiplier;
 }
 
 export function assertUserCapacity(userId: string): void {

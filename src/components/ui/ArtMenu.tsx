@@ -58,7 +58,7 @@ function ArtMenu({ children, items, onSelect, placement = 'bottom', className }:
         {trigger}
       </span>
 
-      {open && createPortal(
+      {open && typeof document !== 'undefined' && createPortal(
         <div
           ref={panelRef}
           className={cn('art-popover', className)}

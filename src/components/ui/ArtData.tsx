@@ -2,7 +2,8 @@
 
 import { useCallback, useMemo, useReducer, type ReactNode } from 'react';
 import ArtDataFilters from './ArtDataFilters';
-import ArtDataTable, { type ArtColumn } from './ArtDataTable';
+import ArtDataTable from './ArtDataTable/ArtDataTable';
+import type { ArtColumn } from './ArtDataTable/types';
 import ArtPagination from './ArtPagination';
 import { cn } from './art.utils';
 

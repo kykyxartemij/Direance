@@ -30,14 +30,15 @@ export function checkPermission(
   userOrPerms: { permissions: string[] } | string[] | null | undefined,
   check: PermissionCheck,
 ): boolean {
-  const perms = Array.isArray(userOrPerms)
+  const permsList = Array.isArray(userOrPerms)
     ? userOrPerms
     : (userOrPerms?.permissions ?? []);
+  const perms = new Set(permsList);
 
-  if (perms.includes(Permission.IS_ADMIN)) return true;
-  if (typeof check === 'string') return perms.includes(check);
-  if ('anyOf' in check) return check.anyOf.some(p => perms.includes(p));
-  return check.allOf.every(p => perms.includes(p));
+  if (perms.has(Permission.IS_ADMIN)) return true;
+  if (typeof check === 'string') return perms.has(check);
+  if ('anyOf' in check) return check.anyOf.some(p => perms.has(p));
+  return check.allOf.every(p => perms.has(p));
 }
 
 export const hasPermission = checkPermission;

@@ -11,7 +11,7 @@ import { ArtDialog } from '@/components/ui/ArtDialog';
 import ArtButton from '@/components/ui/ArtButton';
 import ArtLabel from '@/components/ui/ArtLabel';
 import { ArtFormInput, ArtFormCheckbox, ArtFormComboBox } from '@/components/form';
-import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox';
+import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox/types';
 import type { ExportSettingModel, ExportSettingResolvedModel } from '@/models/export-settings.models';
 
 // ==== Helpers ====

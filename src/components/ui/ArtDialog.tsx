@@ -63,9 +63,16 @@ const ArtDialogContext = createContext<ArtDialogContextValue | null>(null);
 
 export function ArtDialogProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<ArtDialogConfig | null>(null);
+  const onCloseRef = useRef<(() => void) | undefined>(undefined);
 
-  const show  = useCallback((cfg: ArtDialogConfig) => setConfig(cfg), []);
-  const close = useCallback(() => setConfig((prev) => { prev?.onClose?.(); return null; }), []);
+  const show = useCallback((cfg: ArtDialogConfig) => {
+    onCloseRef.current = cfg.onClose;
+    setConfig(cfg);
+  }, []);
+  const close = useCallback(() => {
+    onCloseRef.current?.();
+    setConfig(null);
+  }, []);
 
   // Stable object — prevents all useContext(ArtDialogContext) consumers from
   // re-rendering when config state changes (show/close are already stable callbacks).
@@ -74,7 +81,7 @@ export function ArtDialogProvider({ children }: { children: ReactNode }) {
   return (
     <ArtDialogContext.Provider value={value}>
       {children}
-      {createPortal(<DialogUI config={config} onClose={close} />, document.body)}
+      {typeof document !== 'undefined' && createPortal(<DialogUI config={config} onClose={close} />, document.body)}
     </ArtDialogContext.Provider>
   );
 }
@@ -146,7 +153,7 @@ export function ArtDialog({
       {trigger}
 
       {/* Local portal — rendered when not delegating to the provider */}
-      {!useProvider && createPortal(
+      {!useProvider && typeof document !== 'undefined' && createPortal(
         <DialogUI
           config={isOpen ? { ...config, onClose: handleClose } : null}
           onClose={handleClose}
@@ -232,7 +239,7 @@ function DialogUI({ config, onClose }: { config: ArtDialogConfig | null; onClose
   }, []);
 
   return (
-    <dialog ref={dialogRef} className="art-dialog-native">
+    <dialog ref={dialogRef} className="art-dialog-native" aria-label={config?.title}>
       {config && <DialogBox config={config} onClose={onClose} />}
     </dialog>
   );

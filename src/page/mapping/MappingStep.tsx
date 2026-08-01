@@ -8,20 +8,21 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FSLink } from '@/components/FSLink';
 import { HREF } from '@/lib/hrefUrl';
-import { useReports, type UploadedReport } from '@/providers/ReportProvider';
+import { useReports } from '@/providers/ReportProvider/ReportProvider';
+import type { UploadedReport } from '@/providers/ReportProvider/types';
 import { useGetLightMappings, useCreateMapping, useUpdateMapping, fetchMappingById } from '@/hooks/mapping.hooks';
 import type {
   MappingConfig, RowMapping, SourceLayout, ReportType, MappingModel, SheetConfig, TotalColumnMode,
 } from '@/models/mapping.models';
 import type { ArtFormButtonProps } from '@/components/ui/ArtForm';
-import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox';
+import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox/types';
 import { autoDetectLayout, extractRowNames } from './applyMapping';
 import RowMappingsSection, { type RowMappingRow, type RowMappingsSectionRef } from './RowMappingsSection';
-import SourceLayoutSection from './SourceLayoutSection';
+import SourceLayoutSection from './SourceLayoutSection/SourceLayoutSection';
 import MappingMetaSection from './MappingMetaSection';
 import { REPORT_TYPE_OPTIONS } from '@/models/mapping.models';
 import ArtForm from '@/components/ui/ArtForm';
-import ArtComboBox from '@/components/ui/ArtComboBox';
+import ArtComboBox from '@/components/ui/ArtComboBox/ArtComboBox';
 import { ArtFormSelect } from '@/components/form';
 import FormSection from '@/components/FormSection';
 import { useSaveMappingDialog } from './SaveMappingDialog';

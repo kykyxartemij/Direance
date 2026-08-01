@@ -1,175 +1,12 @@
 'use client';
 
-import React, { useMemo } from 'react';
-import ArtIcon from './ArtIcon';
-import ArtSkeleton from './ArtSkeleton';
-import ArtCut from './ArtCut';
-import { cn } from './art.utils';
-import { type ReactNode } from 'react';
-
-// ==== Types ====
-
-export interface ArtColumn<T> {
-  key: string;
-  label: string;
-  /** true / 'left' → pin left edge. 'right' → pin right edge. Pixel string widths required for stacking offsets. */
-  sticky?: boolean | 'left' | 'right';
-  sortable?: boolean;
-  render?: (row: T, index: number) => ReactNode;
-  /**
-   * width: number → percentage mode (÷10 = %). width: 300 = 30%.
-   *   Last column auto-gets remaining % (100 - sum of others). Sum > 100 → horizontal scroll.
-   * width: string → literal CSS value ("200px") for sticky-offset columns.
-   * renderLoading: show shimmer bar during loading.
-   */
-  sizing: {
-    width?: number | string;
-    renderLoading?: boolean;
-  };
-}
-
-// ==== Internal helpers ====
-
-function colWidthPx(w: number | string | undefined): number {
-  if (typeof w === 'string' && w.endsWith('px')) return parseFloat(w);
-  return 0;
-}
-
-function colWidthAsPct(w: number | string | undefined): number {
-  return typeof w === 'number' ? w / 10 : 0;
-}
-
-type ProcessedColumn<T> = ArtColumn<T> & {
-  _stickyLeft: number;
-  _stickyRight?: number;
-  _isFiller?: boolean;
-  _cutWidth?: string | number;
-  _isLast?: boolean;
-};
-
-const FILLER_KEY = '__art_filler__';
-
-interface ArtDataTableProps<T> {
-  columns: ArtColumn<T>[];
-  data: T[];
-  loading?: boolean;
-  sortKey?: string;
-  sortDir?: 'asc' | 'desc';
-  onSort?: (key: string, dir: 'asc' | 'desc') => void;
-  onRowClick?: (row: T, index: number) => void;
-  emptyMessage?: string;
-  rowKey?: (row: T, index: number) => string | number;
-  rowClassName?: (row: T, index: number) => string | undefined;
-  /** Drives skeleton row count. Default: 5. */
-  pageSize?: number;
-  /** Fixed height per row (px). Applied via ArtCut so both skeleton and data rows match. */
-  rowHeight?: number;
-  className?: string;
-  /**
-   * Custom row renderer. ArtDataTable owns wrapper, scroll, colgroup, thead.
-   * Loading and empty states still managed by ArtDataTable.
-   */
-  renderRow?: (row: T, index: number) => ReactNode;
-  /**
-   * When true (default): filler col inserted before the last column so the
-   * last column sits flush against the right edge (e.g. action columns).
-   * When false: columns flow left-to-right, filler appended at the end —
-   * use this for data tables where the natural last column shouldn't be
-   * forced to the right edge.
-   */
-  lastColRightAlign?: boolean;
-}
-
-// ==== Internal row (memoised) ====
-
-interface InternalRowProps {
-  row: unknown;
-  columns: ProcessedColumn<unknown>[];
-  index: number;
-  onRowClick?: (row: unknown, index: number) => void;
-  isClickable: boolean;
-  rowClassName?: string;
-  rowHeight?: number;
-}
-
-const DataRow = React.memo(function DataRow({
-  row,
-  columns,
-  index,
-  onRowClick,
-  isClickable,
-  rowClassName,
-  rowHeight,
-}: InternalRowProps) {
-  const cellContent = (col: ProcessedColumn<unknown>) => {
-    const raw = col.render
-      ? col.render(row, index)
-      : String((row as Record<string, unknown>)[col.key] ?? '');
-    if (col._cutWidth || rowHeight) {
-      return (
-        <ArtCut
-          width={col._cutWidth}
-          height={rowHeight}
-          text={!col.render && !!col._cutWidth}
-          style={col._isLast ? { justifyContent: 'flex-end' } : undefined}
-        >
-          {raw}
-        </ArtCut>
-      );
-    }
-    return raw;
-  };
-
-  return (
-    <tr
-      className={cn('art-data-tr', isClickable && 'art-data-tr--clickable', rowClassName)}
-      onClick={isClickable ? () => onRowClick?.(row, index) : undefined}
-    >
-      {columns.map((col) => {
-        if (col._isFiller) return <td key={FILLER_KEY} className="art-data-filler-col" aria-label="spacer" />;
-        const isLeft  = col.sticky === true || col.sticky === 'left';
-        const isRight = col.sticky === 'right';
-        return (
-          <td
-            key={col.key}
-            className={cn(
-              'art-data-td',
-              isLeft  && 'art-data-sticky',
-              isRight && 'art-data-sticky-right',
-            )}
-            style={{
-              ...(isLeft  ? { left:  col._stickyLeft       } : {}),
-              ...(isRight ? { right: col._stickyRight ?? 0 } : {}),
-            }}
-          >
-            {cellContent(col)}
-          </td>
-        );
-      })}
-    </tr>
-  );
-});
-
-// ==== Skeleton cell ====
-
-function SkeletonCell({ col }: { col: ProcessedColumn<unknown> }) {
-  const content = col.render ? col.render({} as unknown, 0) : <span>&nbsp;</span>;
-  return (
-    <ArtCut width={col._cutWidth ?? '100%'}>
-      <ArtSkeleton wrap>{content}</ArtSkeleton>
-    </ArtCut>
-  );
-}
-
-// ==== Custom-row wrapper ====
-// Wraps the caller's renderRow prop in its own component so React keeps row state
-// stable across re-renders (avoids no-render-in-render remounts).
-
-function RenderedRow({ render, row, index }: { render: (row: unknown, index: number) => ReactNode; row: unknown; index: number }) {
-  return <>{render(row, index)}</>;
-}
-
-// ==== Component ====
+import React, { useMemo, type ReactNode } from 'react';
+import ArtIcon from '../ArtIcon';
+import { cn } from '../art.utils';
+import { DataRow, type InternalRowProps } from './DataRow';
+import { SkeletonCell } from './SkeletonCell';
+import { RenderedRow } from './RenderedRow';
+import { FILLER_KEY, colWidthPx, colWidthAsPct, type ArtColumn, type ArtDataTableProps, type ProcessedColumn } from './types';
 
 function ArtDataTable<T>({
   columns,
@@ -317,6 +154,9 @@ function ArtDataTable<T>({
                       ...(isRight ? { right: col._stickyRight ?? 0 } : {}),
                     }}
                     onClick={() => handleSort(col)}
+                    onKeyDown={col.sortable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSort(col); } } : undefined}
+                    tabIndex={col.sortable ? 0 : undefined}
+                    role={col.sortable ? 'button' : undefined}
                   >
                     <span className="art-data-th-inner">
                       {col.label}
@@ -389,26 +229,6 @@ function ArtDataTable<T>({
   );
 }
 
-// ==== Row primitives ====
-// Use these inside renderRow so callers never depend on internal CSS class names.
-
-export function ArtDataTr({
-  children,
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLTableRowElement>) {
-  return <tr className={cn('art-data-tr', className)} {...props}>{children}</tr>;
-}
-
-export function ArtDataTd({
-  children,
-  className,
-  ...props
-}: React.TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td className={cn('art-data-td', className)} {...props}>{children}</td>;
-}
-
 ArtDataTable.displayName = 'ArtDataTable';
 export default ArtDataTable;
 export { ArtDataTable };
-export type { ArtDataTableProps };

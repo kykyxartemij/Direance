@@ -8,7 +8,7 @@ import { createPaginatedProps } from '@/components/ui/artData.utils';
 import ArtBadge from '@/components/ui/ArtBadge';
 import ArtPopover from '@/components/ui/ArtPopover';
 import PermissionBadge from '@/components/PermissionBadge';
-import type { ArtColumn } from '@/components/ui/ArtDataTable';
+import type { ArtColumn } from '@/components/ui/ArtDataTable/types';
 import type { UserModel } from '@/models/user.models';
 
 // ==== PermissionsCell ====

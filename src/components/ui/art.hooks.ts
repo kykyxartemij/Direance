@@ -1,19 +1,20 @@
 'use client';
 
-import { useRef, useEffect, useCallback, useState, type MutableRefObject } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import debounce from 'lodash.debounce';
 
 const DEFAULT_DEBOUNCE_MS = 300;
 
 /**
- * Ref whose value is built once on first render, never rebuilt-and-discarded.
- * Use for mutable containers (Map/Set) read only in handlers/effects — refs need
- * no deps, so callbacks stay stable.
+ * Value built once on mount, never rebuilt — for mutable containers (Map/Set)
+ * mutated in place via their own methods (.set/.get/.delete), read only in
+ * handlers/effects. Backed by useState's lazy initializer (called exactly once,
+ * per React's contract) instead of a ref, since nothing here ever *reassigns*
+ * the container — only mutates its contents, so no `.current` indirection needed.
  */
-export function useLazyRef<T>(init: () => T): MutableRefObject<T> {
-  const ref = useRef<T | null>(null);
-  if (ref.current === null) ref.current = init();
-  return ref as MutableRefObject<T>;
+export function useLazyValue<T>(init: () => T): T {
+  const [value] = useState(init);
+  return value;
 }
 
 /**
@@ -137,12 +138,9 @@ export function useAnchoredPanel<
   }, []);
 
   const toggle = useCallback(() => {
-    setOpen((v) => {
-      const next = !v;
-      if (next) requestAnimationFrame(computeAndApply);
-      return next;
-    });
-  }, [computeAndApply]);
+    if (open) hide();
+    else show();
+  }, [open, hide, show]);
 
   useEffect(() => {
     if (!open) return;

@@ -1,16 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import type { UploadedReport } from '@/providers/ReportProvider';
+import type { UploadedReport } from '@/providers/ReportProvider/types';
 import { useGetLightExportSettings, useGetExportSettingById } from '@/hooks/export-settings.hooks';
+import { useExportExcel } from '@/hooks/excel.hooks';
 import ArtBadge from '@/components/ui/ArtBadge';
-import ArtComboBox, { type ArtComboBoxOption } from '@/components/ui/ArtComboBox';
-import ArtDataTable, { type ArtColumn } from '@/components/ui/ArtDataTable';
+import ArtComboBox from '@/components/ui/ArtComboBox/ArtComboBox';
+import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox/types';
+import ArtDataTable from '@/components/ui/ArtDataTable/ArtDataTable';
+import type { ArtColumn } from '@/components/ui/ArtDataTable/types';
 import ArtTabs from '@/components/ui/ArtTabs';
 import type { ArtColor } from '@/components/ui/art.types';
 import type { ExportSettingResolvedModel, MappedValueModel } from '@/models/export-settings.models';
 import { combineReports, buildProcessedWorkbook, type Row } from './combineReports';
-import { exportToExcel } from './exportExcel';
 import ExcelViewer from './ExcelViewer';
 import ExportDialog from './ExportDialog';
 import { FSLink } from '@/components/FSLink';
@@ -165,6 +167,7 @@ export default function ReportView({ reports }: ReportViewProps) {
   const { data: selectedExportSetting } = useGetExportSettingById(selectedExportSettingId ?? undefined, {
     meta: { withGlobalLoaderBlur: true },
   });
+  const { mutateAsync: exportExcel } = useExportExcel();
 
   if (reports.length === 0) {
     return (
@@ -209,10 +212,10 @@ export default function ReportView({ reports }: ReportViewProps) {
     placeholders?: Record<string, string>,
     fileName?: string,
   ) {
-    await exportToExcel(
+    await exportExcel({
       headers, rows, rowIndents, rowColors, valueColorByHeader,
-      setting, originalWorkbooks, placeholders, fileName, undefined,
-    );
+      exportSettings: setting, originalWorkbooks, placeholders, fileName,
+    });
   }
 
   return (

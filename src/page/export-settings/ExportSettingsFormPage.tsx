@@ -14,7 +14,8 @@ import {
   useGetLogoById,
   useGetLightLogos,
 } from '@/hooks/logo.hooks';
-import ArtComboBox, { type ArtComboBoxOption } from '@/components/ui/ArtComboBox';
+import ArtComboBox from '@/components/ui/ArtComboBox/ArtComboBox';
+import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox/types';
 import ArtTabs from '@/components/ui/ArtTabs';
 import type { HeaderItemModel, HeaderLayoutModel, CreateExportSettingModel, UpdateExportSettingModel, MappedValueModel } from '@/models/export-settings.models';
 import { ArtForm, ArtFormInput, ArtFormCheckbox } from '@/components/form';

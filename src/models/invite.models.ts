@@ -16,8 +16,9 @@ const SendInviteValidator = yup.object({
 // Bakes inviter's permission context into the validator: body-shape checks PLUS grant rules
 // (IS_ADMIN never grantable, needs CAN_CHANGE_USER_PERMISSIONS, can't grant perms not held).
 export function buildSendInviteValidator(inviterPerms: string[]) {
-  const isAdmin = inviterPerms.includes(Permission.IS_ADMIN);
-  const canGrant = isAdmin || inviterPerms.includes(Permission.CAN_CHANGE_USER_PERMISSIONS);
+  const inviterPermsSet = new Set(inviterPerms);
+  const isAdmin = inviterPermsSet.has(Permission.IS_ADMIN);
+  const canGrant = isAdmin || inviterPermsSet.has(Permission.CAN_CHANGE_USER_PERMISSIONS);
 
   return SendInviteValidator.shape({
     permissions: yup
@@ -36,7 +37,7 @@ export function buildSendInviteValidator(inviterPerms: string[]) {
       )
       .test('subset-of-inviter', function (perms) {
         if (!perms?.length || isAdmin) return true;
-        const exceeds = perms.filter((p) => !inviterPerms.includes(p as string));
+        const exceeds = perms.filter((p) => !inviterPermsSet.has(p as string));
         if (exceeds.length === 0) return true;
         return this.createError({
           message: `You cannot grant permissions you don't hold: ${exceeds.join(', ')}`,

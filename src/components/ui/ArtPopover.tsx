@@ -44,7 +44,7 @@ function ArtPopover({ trigger, children, placement = 'bottom', trackWidth = fals
         {triggerEl}
       </span>
 
-      {open && createPortal(
+      {open && typeof document !== 'undefined' && createPortal(
         <div
           ref={panelRef}
           className={cn('art-popover', className)}

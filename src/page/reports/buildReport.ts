@@ -2,7 +2,7 @@ import * as XLSX from 'xlsx';
 import { applyMappingMultiSheet } from '@/page/mapping/applyMapping';
 import type { MappingModel } from '@/models/mapping.models';
 import type { ConnectionLightModel, ConnectionSheet, ConnectionFetchResult } from '@/models/connection.models';
-import type { UploadedReport, MappedReport } from '@/providers/ReportProvider';
+import type { UploadedReport, MappedReport } from '@/providers/ReportProvider/types';
 
 // ==== Report building — shared by ReportProvider (file uploads) and the report pages
 // (connection fetches). Kept out of the provider so a connection report can be built

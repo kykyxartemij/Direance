@@ -2,7 +2,8 @@
 
 import { useMemo } from 'react';
 import { useGetLightConnections, useGetPnlReportsByConnections } from '@/hooks/connection.hooks';
-import { useReports, isConnectionActive } from '@/providers/ReportProvider';
+import { useReports } from '@/providers/ReportProvider/ReportProvider';
+import { isConnectionActive } from '@/providers/ReportProvider/helpers';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { defaultPnlFilterValues, buildPnlFetchFilters } from '@/page/reports/pnl/pnlFilterFields';
 import PnlFilterForm from '@/page/reports/pnl/PnlFilterForm';

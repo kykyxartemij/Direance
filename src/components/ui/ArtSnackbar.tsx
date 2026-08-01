@@ -17,7 +17,7 @@ import ArtTitle from './ArtTitle';
 import ArtIconButton from './ArtIconButton';
 import ArtLoadingBar from './ArtLoadingBar';
 import { type ArtColor, ART_COLOR_CLASS } from './art.types';
-import { useLazyRef } from './art.hooks';
+import { useLazyValue } from './art.hooks';
 import { cn } from './art.utils';
 
 export interface SnackOptions {
@@ -145,6 +145,8 @@ function SnackStack({
     flexDirection: vertical === 'bottom' ? 'column' : 'column-reverse',
   };
 
+  if (typeof document === 'undefined') return null;
+
   return createPortal(
     <div className="art-snackbar-stack" style={style}>
       {items.map((item, index) => (
@@ -183,14 +185,14 @@ export function ArtSnackbarProvider({
   const itemsRef = useRef(items);
   useLayoutEffect(() => { itemsRef.current = items; });
 
-  const timersRef = useLazyRef(() => new Map<string, TimerEntry>());
+  const timers = useLazyValue(() => new Map<string, TimerEntry>());
 
   const closeSnack = useCallback((id: string) => {
-    const t = timersRef.current.get(id);
-    if (t) { clearTimeout(t.handle); timersRef.current.delete(id); }
+    const t = timers.get(id);
+    if (t) { clearTimeout(t.handle); timers.delete(id); }
     setItems((prev) => prev.map((s) => s.id === id ? { ...s, removing: true } : s));
     setTimeout(() => setItems((prev) => prev.filter((s) => s.id !== id)), EXIT_MS);
-  }, [timersRef]);
+  }, [timers]);
 
   const startEntry = useCallback((id: string, entry: TimerEntry) => {
     if (entry.remaining <= 0) return;
@@ -200,29 +202,29 @@ export function ArtSnackbarProvider({
   }, [closeSnack]);
 
   const pauseTimer = useCallback((id: string) => {
-    const t = timersRef.current.get(id);
+    const t = timers.get(id);
     if (!t) return;
     clearTimeout(t.handle);
     t.remaining = Math.max(0, t.remaining - (Date.now() - t.startedAt));
-  }, [timersRef]);
+  }, [timers]);
 
   const resumeTimer = useCallback((id: string) => {
-    const t = timersRef.current.get(id);
+    const t = timers.get(id);
     if (t) startEntry(id, t);
-  }, [startEntry, timersRef]);
+  }, [startEntry, timers]);
 
   const initTimer = useCallback((id: string, duration: number) => {
     if (duration === 0) return;
     const entry: TimerEntry = { remaining: duration, startedAt: 0, handle: undefined };
-    timersRef.current.set(id, entry);
+    timers.set(id, entry);
     startEntry(id, entry);
-  }, [startEntry, timersRef]);
+  }, [startEntry, timers]);
 
   const resetTimer = useCallback((id: string, duration: number) => {
-    const t = timersRef.current.get(id);
+    const t = timers.get(id);
     if (t) { t.remaining = duration; startEntry(id, t); }
     else initTimer(id, duration);
-  }, [startEntry, initTimer, timersRef]);
+  }, [startEntry, initTimer, timers]);
 
   const enqueue = useCallback((title: string, opts: SnackOptions = {}): string => {
     const { color, duration = defaultDuration, description, icon } = opts;

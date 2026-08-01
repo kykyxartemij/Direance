@@ -56,9 +56,12 @@ export interface ArtListboxProps {
   hasMore?: boolean;
 }
 
+const EMPTY_SELECTED_VALUES: string[] = [];
+const EMPTY_ACTIONS: ArtListboxAction[] = [];
+
 const ArtListbox = memo(function ArtListbox({
-  options, selectedValues = [], onSelect, noOptionsMessage, isLoading, isError, className,
-  extraActions = [], actionsPosition = 'bottom', query = '', onEndReached, hasMore, ref,
+  options, selectedValues = EMPTY_SELECTED_VALUES, onSelect, noOptionsMessage, isLoading, isError, className,
+  extraActions = EMPTY_ACTIONS, actionsPosition = 'bottom', query = '', onEndReached, hasMore, ref,
 }: ArtListboxProps) {
   const trimmedQuery = query.trim();
 
@@ -103,9 +106,11 @@ const ArtListbox = memo(function ArtListbox({
     [visibleActions, trimmedQuery],
   );
 
+  const selectedValuesSet = useMemo(() => new Set(selectedValues), [selectedValues]);
+
   const optionRows = useMemo(() =>
     options.map((opt) => {
-      const isSelected = selectedValues.includes(opt.value);
+      const isSelected = selectedValuesSet.has(opt.value);
       return (
         <div
           key={opt.value}
@@ -132,7 +137,7 @@ const ArtListbox = memo(function ArtListbox({
         </div>
       );
     }),
-    [options, selectedValues, onSelect],
+    [options, selectedValuesSet, onSelect],
   );
 
   const divider = visibleActions.length > 0

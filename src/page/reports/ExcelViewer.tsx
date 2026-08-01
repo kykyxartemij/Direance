@@ -46,8 +46,14 @@ interface ExcelViewerProps {
 
 // ==== Component ====
 
+// TODO: validate and update — ExcelViewer isn't working right currently, needs a real look.
 export default function ExcelViewer({ workbook, layout, fixedSheet }: ExcelViewerProps) {
   const [activeSheet, setActiveSheet] = useState(workbook.SheetNames[0]);
+  const [seenWorkbook, setSeenWorkbook] = useState(workbook);
+  if (workbook !== seenWorkbook) {
+    setSeenWorkbook(workbook);
+    setActiveSheet(workbook.SheetNames[0]);
+  }
   const sheet = fixedSheet ?? activeSheet;
 
   const ws = workbook.Sheets[sheet];
