@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useGetPagedExportSettings, useDeleteExportSetting } from '@/hooks/export-settings.hooks';
-import type { ExportSettingModel } from '@/models/export-settings.models';
+import type { ExportSettingPagedModel } from '@/models/export-settings.models';
 import type { ArtColumn } from '@/components/ui/ArtDataTable';
 import ArtData from '@/components/ui/ArtData';
 import ArtButton from '@/components/ui/ArtButton';
@@ -22,7 +22,7 @@ export default function ExportSettingsListPage() {
   const { data: pagedData, isLoading } = useGetPagedExportSettings(page, PAGE_SIZE, search);
   const deleteMutation = useDeleteExportSetting();
 
-  const columns: ArtColumn<ExportSettingModel>[] = [
+  const columns: ArtColumn<ExportSettingPagedModel>[] = [
     {
       key: 'name',
       label: 'Name',
@@ -70,7 +70,7 @@ export default function ExportSettingsListPage() {
   ];
 
   return (
-    <ArtData<ExportSettingModel>
+    <ArtData<ExportSettingPagedModel>
       columns={columns}
       data={pagedData?.data ?? []}
       rowKey={(row) => row.id}

@@ -1,4 +1,5 @@
 import * as yup from 'yup';
+import type { Prisma } from '../../generated/prisma/client';
 import { Permission } from '@/lib/permissions';
 
 // ==== Validators ====
@@ -58,12 +59,20 @@ export const AcceptInviteValidator = yup.object({
 export type SendInviteModel = yup.InferType<typeof SendInviteValidator>;
 export type AcceptInviteModel = yup.InferType<typeof AcceptInviteValidator>;
 
-export type InviteModel = {
-  id: string;
-  email: string;
-  invitedBy: string;
-  permissions: Permission[];
-};
+// ==== Select ====
+
+export const INVITE_SELECT = {
+  id: true,
+  email: true,
+  invitedBy: true,
+  permissions: true,
+} as const;
+
+// permissions is Prisma String[] — no native Prisma enum for app-level Permission.
+export type InviteModel = Omit<
+  Prisma.InviteGetPayload<{ select: typeof INVITE_SELECT }>,
+  'permissions'
+> & { permissions: Permission[] };
 
 // Invite send limits. Stats backed by Resend emails.list (page 1 of 100).
 // capped = true when fetched 100 items had_more — real volume ≥ shown.

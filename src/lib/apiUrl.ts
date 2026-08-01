@@ -1,6 +1,6 @@
 // Structure mirrors prisma/schema.prisma domains
 
-import type { MappingFilterModel } from '@/models/mapping.models';
+import type { MappingFilterYupModel } from '@/models/mapping.models';
 
 export const API = {
   user: {
@@ -23,7 +23,7 @@ export const API = {
   mapping: {
     list: () => '/api/mapping',
     light: (reportType?: string) => `/api/mapping/light${reportType ? `?reportType=${reportType}` : ''}`,
-    paged: (page: number, pageSize: number, freeText?: string, filters?: MappingFilterModel) =>
+    paged: (page: number, pageSize: number, freeText?: string, filters?: MappingFilterYupModel) =>
       `/api/mapping/paged?page=${page}&pageSize=${pageSize}${freeText ? `&freeText=${encodeURIComponent(freeText)}` : ''}${filters?.reportType ? `&reportType=${filters.reportType}` : ''}`,
     byId: (id: string) => `/api/mapping/${id}`,
   },

@@ -7,6 +7,7 @@ import { API } from '@/lib/apiUrl';
 import type {
   ConnectionModel,
   ConnectionLightModel,
+  ConnectionPagedModel,
   ConnectionType,
   ConnectionConfig,
   ConnectionSecret,
@@ -43,12 +44,12 @@ export function useGetPagedConnections(
   page: number,
   pageSize: number,
   freeText?: string,
-  options?: Omit<UseQueryOptions<PaginatedResponse<ConnectionModel>, ApiError>, 'queryKey' | 'queryFn'>
+  options?: Omit<UseQueryOptions<PaginatedResponse<ConnectionPagedModel>, ApiError>, 'queryKey' | 'queryFn'>
 ) {
-  return useQuery<PaginatedResponse<ConnectionModel>, ApiError>({
+  return useQuery<PaginatedResponse<ConnectionPagedModel>, ApiError>({
     queryKey: queryKeys.connection.paged(page, pageSize, freeText),
     queryFn: async () => {
-      const { data } = await fetchClient.get<PaginatedResponse<ConnectionModel>>(
+      const { data } = await fetchClient.get<PaginatedResponse<ConnectionPagedModel>>(
         API.connection.paged(page, pageSize, freeText),
       );
       return data;

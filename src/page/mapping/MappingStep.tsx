@@ -318,8 +318,6 @@ function MappingStepInner({ report }: { report: UploadedReport }) {
             hasTotalColumn: linkedExportSetting.hasTotalColumn,
           }
         : null,
-      createdAt: selectedMapping?.createdAt ?? new Date().toISOString(),
-      updatedAt: selectedMapping?.updatedAt ?? new Date().toISOString(),
     };
 
     setMapping(report.id, effectiveMapping);

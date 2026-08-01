@@ -4,6 +4,16 @@ generator client {
   previewFeatures = ["relationJoins"]
 }
 
+// Types the app's Json columns to real shapes instead of Prisma.JsonValue — see the
+// `/// [TypeName]` comments above each Json field, and src/lib/prisma/prisma-json.d.ts for
+// where each name resolves to.
+generator json {
+  provider     = "prisma-json-types-generator"
+  namespace    = "PrismaJson"
+  clientOutput = "../generated/prisma"
+  allowAny     = false
+}
+
 datasource db {
   provider = "postgresql"
 }

@@ -11,7 +11,7 @@ import { ApiError } from '@/models/api-error';
 import { sendInviteEmail, fetchInviteLimits } from '@/lib/email';
 import { Permission } from '@/lib/permissions';
 import { checkUserRequestLimit, checkPublicRequestLimit } from '@/lib/rateLimiter';
-import { buildSendInviteValidator, AcceptInviteValidator } from '@/models/invite.models';
+import { buildSendInviteValidator, AcceptInviteValidator, INVITE_SELECT } from '@/models/invite.models';
 
 // ==== NOTES ====
 // Lazy cleanup + limit enforcement via prisma.invite.assertLimit() and findFirstWithCleanup().
@@ -77,7 +77,7 @@ export const acceptInvite = withPublicHandler(async (req) => {
   const invite = await cached(
     () => prisma.invite.findFirstWithCleanup({
       where:  { token: data.token },
-      select: { id: true, email: true, invitedBy: true, permissions: true },
+      select: INVITE_SELECT,
     }),
     CACHE_KEYS.invite.byToken(data.token),
     INVITE_CACHE_TTL,
@@ -121,7 +121,7 @@ export const lookupInvite = withPublicHandler(async (req) => {
       await checkPublicRequestLimit(ip);
       return prisma.invite.findFirstWithCleanup({
         where:  { token },
-        select: { id: true, email: true, invitedBy: true, permissions: true },
+        select: INVITE_SELECT,
       });
     },
     CACHE_KEYS.invite.byToken(token),

@@ -18,6 +18,9 @@ import {
   FinancialPositionFetchManyValidator,
   PnlFetchValidator,
   FinancialPositionFetchValidator,
+  CONNECTION_SELECT_LIGHT,
+  CONNECTION_SELECT_PAGED,
+  CONNECTION_SELECT,
   type ConnectionType,
   type ConnectionSecret,
 } from '@/models/connection.models';
@@ -25,39 +28,7 @@ import { parsePaginationFromUrl, createPaginatedResponse } from '@/models/pagina
 import { parseFreeTextFromUrl } from '@/lib/normalizeText';
 import { encryptSecret, decryptSecret } from '@/lib/crypto';
 import { runPnlConnectionDriver, runFinancialPositionConnectionDriver, testPnlConnectionDriver, testFinancialPositionConnectionDriver } from '@/lib/connections';
-import { MAPPING_SELECT } from '@/services/mapping.service';
-
-// ==== Select ====
-// `secret` is NEVER returned to FE — only decrypted server-side in fetch endpoint.
-
-const CONNECTION_SELECT_LIGHT = {
-  id: true,
-  name: true,
-  type: true,
-  reportType: true,
-  isDefault: true,
-  mapping: { select: { id: true, name: true } },
-} as const;
-
-const CONNECTION_SELECT_PAGED = {
-  id: true,
-  name: true,
-  type: true,
-  reportType: true,
-  isDefault: true,
-  config: true,
-  mapping: { select: { id: true, name: true } },
-} as const;
-
-const CONNECTION_SELECT = {
-  id: true,
-  name: true,
-  type: true,
-  reportType: true,
-  isDefault: true,
-  config: true,
-  mapping: { select: { id: true, name: true } },
-} as const;
+import { MAPPING_SELECT } from '@/models/mapping.models';
 
 // ==== HTTP handlers ====
 // #region Connections

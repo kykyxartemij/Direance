@@ -5,7 +5,7 @@ import { cached, invalidateCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { withHandler } from '@/lib/withHandler';
 import { getAuth, getClientIp } from '@/lib/requestContext';
-import { UpdateUserValidator } from '@/models/user.models';
+import { UpdateUserValidator, USER_SELECT } from '@/models/user.models';
 import { checkUserRequestLimit } from '@/lib/rateLimiter';
 import { checkUserDbLimits, computeUserDbConsumption } from '@/lib/userLimits';
 import { Permission } from '@/lib/permissions';
@@ -22,15 +22,6 @@ function maskEmail(email: string): string {
 function maskUser<T extends { email: string }>(user: T): T {
   return { ...user, email: maskEmail(user.email) };
 }
-
-// ==== Select ====
-
-const USER_SELECT = {
-  id: true,
-  email: true,
-  name: true,
-  permissions: true,
-} as const;
 
 // ==== HTTP handlers ====
 

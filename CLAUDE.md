@@ -38,6 +38,7 @@ When working in an area, read the relevant guide first:
 | Navigation, links, loading states, page structure (ArtPage), URL filters | `docs/InstantNavigationAndLoadingState.md` |
 | Tailwind CSS reference — width/height, flex, grid, positioning, overflow, breakpoints, z-index | `docs/LayoutGuide.md` |
 | UI consistency — don't gate components on empty data, let them own their empty state | `docs/UIConsistencyGuide.md` |
+| Models & validators — yup field-once pattern, Prisma-derived response models, Json column typing | `docs/ModelsAndValidationGuide.md` |
 
 ---
 
@@ -87,10 +88,36 @@ function) — don't write more prose. Never stack 4+ line blocks: no API-spec tr
 restating a pattern already established elsewhere in the file, no justifying a choice nobody
 questioned.
 
-**`/** */` vs `//`:** audience, not preference. `/** */` on exported helpers/factories/
-components read by callers who won't open the source file (`handleApiError`, `withCrud`,
-Art components). `//` for everything internal — logic, locals, section headers. Same 1–2
-line cap either way.
+**`/** */` vs `//`:** audience split, not style pick. `/** */` on exported helpers/factories/
+components callers won't open source for (`handleApiError`, `withCrud`, Art components).
+`//` for everything internal — logic, locals, section headers.
+
+**Naming beats commenting.** If a better name fits the why, rename — don't comment. Comment
+is fallback only for stuff no name can carry (external quirk, magic number, cross-file
+contract).
+
+**Before writing any comment, gate it through 3 questions:**
+1. **Why here?** — real hidden reason, and no rename fixes it? No reason or rename works →
+   no comment.
+2. **Short** — caveman it. Drop articles/filler. One line, not paragraph.
+3. **Explanatory** — reader gets the *why* in that one line, not restated *what*.
+
+```ts
+// bad — restates name, no why
+// gets user id by auth token
+function getUserIdByAuthToken(token: string) { ... }
+
+// bad — name could just say this, comment is a crutch
+// verifies token from merit
+function verifyMeritToken(token: string) { ... }
+
+// good — no name fixes this, external system quirk
+// Merit hashes token before send; hashing again here breaks auth silently.
+function verifyMeritToken(token: string) { ... }
+
+/** Central error → HTTP response mapper. Callers outside this file don't read impl. */
+export function handleApiError(err: unknown) { ... }
+```
 
 **`// NOTE:`** flags something surprising the code can't show itself — e.g. `ArtListbox`
 using `role="option"` on `<li>` instead of a native `<option>` (custom widget, no native
@@ -125,6 +152,16 @@ the suppression.
 - **Never delete hooks or helpers because a linter flags them as "unused".** This project follows one-API-one-hook: every API route has a matching hook, and infrastructure helpers (`withPublicHandler`, `getAuthOptional`, etc.) exist before their callers do. "No current imports" is not a reason to delete. Only delete when you can confirm there is no corresponding API route AND no planned use — and even then, ask first.
 - **Answer format:** start with a short answer that explains your thinking, using real
   code for the explanation. After the short summary, describe whatever else needs detail.
+- **Docs describe the system as it should be built right now, not a timeline.** Never write
+  "in future", "in a real implementation", "currently we don't do this", "eventually", or
+  similar hedging in any doc or `CLAUDE.md`. If something isn't implemented, either implement
+  it or leave it out of the doc — don't narrate a future or hypothetical state as if it were
+  a caveat on the present one.
+- **Narrate mid-task, not just at the end.** During longer work, check in periodically with a
+  short status, not raw tool output: what's been done, any moment that looked risky or
+  surprising, what you concluded from it, what's next. Not a transcript of every command run —
+  the developer's mental model of progress, in a few sentences. Skip this for single-step tasks;
+  it's for multi-step work where silently moving from step to step hides the reasoning.
 
 ---
 
@@ -283,6 +320,18 @@ Validators live in two places with distinct responsibilities:
 - FE-only fields (e.g. `confirmPassword`) exist only in the local schema — never in models.
 - When yup `InferType` causes TS errors, define `FormValues` explicitly and cast the resolver: `yupResolver(schema) as Resolver<FormValues>`.
 - When `FormValues` uses a wider type but the mutation expects a union, cast at the call site: `data.reportType as ReportType`.
+
+**Request contracts (`Create`/`Update`/`Filter`) are always `yup.InferType<...>` — never
+hand-typed alongside their validator.** Write the fields once, derive `Update` as
+`CreateXValidator.partial()`, never a second hand-duplicated object. `FilterModel`s are named
+`XFilterYupModel` — the `Filter` suffix alone doesn't read as validated the way `Create`/`Update`
+do, `YupModel` makes it explicit.
+
+**Response models (`XModel`, `XLightModel`, `XPagedModel`) are derived from Prisma, not
+hand-typed.** `Prisma.TableGetPayload<{ select: typeof TABLE_SELECT }>` — the type can never
+drift from what the query actually returns. A `Json` column comes back typed via
+`prisma-json-types-generator`, not a hand-written field. See `docs/ModelsAndValidationGuide.md`
+for the full pattern, including the `#region` layout for model files.
 
 ---
 

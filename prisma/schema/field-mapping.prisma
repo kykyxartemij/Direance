@@ -4,14 +4,21 @@
 //  userId   = null for global mappings
 // ─────────────────────────────────────────────────────────────────
 
-model FieldMapping {
-  id         String  @id @default(dbgenerated("gen_random_uuid()"))
-  name       String
-  isGlobal   Boolean @default(false)
-  reportType String  @default("pnl")
-  userId     String?
-  user       User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+// Shared with Connection.reportType — which report a mapping/connection produces.
+enum ReportType {
+  pnl
+  financial_position
+}
 
+model FieldMapping {
+  id         String     @id @default(dbgenerated("gen_random_uuid()"))
+  name       String
+  isGlobal   Boolean    @default(false)
+  reportType ReportType @default(pnl)
+  userId     String?
+  user       User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// [MappingConfig]
   config Json @default("{}")
 
   exportSettingId String?

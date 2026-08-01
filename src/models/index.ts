@@ -19,8 +19,10 @@ export async function parseFiltersFromUrl<S extends yup.ObjectSchema<yup.AnyObje
   return validator.validate(raw, { abortEarly: false });
 }
 
+export const IdFieldValidator = yup.string().required('ID is required').uuid('ID must be a valid UUID');
+
 const IdValidator = yup.object({
-  id: yup.string().required('ID is required').uuid('ID must be a valid UUID'),
+  id: IdFieldValidator,
 });
 
 export type IdParams = yup.InferType<typeof IdValidator>;

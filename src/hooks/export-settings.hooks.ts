@@ -7,6 +7,7 @@ import { API } from '@/lib/apiUrl';
 import type {
   ExportSettingModel,
   ExportSettingLightModel,
+  ExportSettingPagedModel,
   CreateExportSettingModel,
   UpdateExportSettingModel,
 } from '@/models/export-settings.models';
@@ -34,12 +35,12 @@ export function useGetPagedExportSettings(
   page: number,
   pageSize: number,
   freeText?: string,
-  options?: Omit<UseQueryOptions<PaginatedResponse<ExportSettingModel>, ApiError>, 'queryKey' | 'queryFn'>
+  options?: Omit<UseQueryOptions<PaginatedResponse<ExportSettingPagedModel>, ApiError>, 'queryKey' | 'queryFn'>
 ) {
-  return useQuery<PaginatedResponse<ExportSettingModel>, ApiError>({
+  return useQuery<PaginatedResponse<ExportSettingPagedModel>, ApiError>({
     queryKey: queryKeys.exportSetting.paged(page, pageSize, freeText),
     queryFn: async () => {
-      const { data } = await fetchClient.get<PaginatedResponse<ExportSettingModel>>(
+      const { data } = await fetchClient.get<PaginatedResponse<ExportSettingPagedModel>>(
         API.exportSetting.paged(page, pageSize, freeText)
       );
       return data;
@@ -108,11 +109,11 @@ type UpdateExportSettingResult = { setting: ExportSettingModel; logoId?: string 
 // logo?: File  → creates logo first (via useCreateLogo), links logoId via PATCH
 // logo?: string → treats the value as logoId directly
 export function useUpdateExportSetting(
-  options?: Omit<UseMutationOptions<UpdateExportSettingResult, ApiError, { id: string; body: Omit<UpdateExportSettingModel, 'id'>; logo?: File | string }>, 'mutationFn'>
+  options?: Omit<UseMutationOptions<UpdateExportSettingResult, ApiError, { id: string; body: UpdateExportSettingModel; logo?: File | string }>, 'mutationFn'>
 ) {
   const queryClient = useQueryClient();
   const createLogo = useCreateLogo();
-  return useMutation<UpdateExportSettingResult, ApiError, { id: string; body: Omit<UpdateExportSettingModel, 'id'>; logo?: File | string }>({
+  return useMutation<UpdateExportSettingResult, ApiError, { id: string; body: UpdateExportSettingModel; logo?: File | string }>({
     ...options,
     mutationFn: async ({ id, body, logo }) => {
       let logoId = body.logoId;

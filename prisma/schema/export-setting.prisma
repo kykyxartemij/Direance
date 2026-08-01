@@ -12,6 +12,7 @@ model ExportSetting {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Header layout: logo position, arbitrary text/placeholder cells, where the DataTable starts
+  /// [HeaderLayoutModel]
   headerLayout           Json?
   applyHeaderToAllSheets Boolean @default(false)
 
@@ -21,6 +22,7 @@ model ExportSetting {
 
   includeOriginalSheets Boolean  @default(false)
   hasTotalColumn        Boolean  @default(false)
+  /// [MappedValueModels]
   mappedValues          Json     @default("[]")
 
   // Back-reference required by Prisma — never selected in queries; ExportSetting does not expose FieldMappings

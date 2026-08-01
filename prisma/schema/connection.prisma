@@ -29,10 +29,11 @@ model Connection {
   isDefault  Boolean @default(false)
 
   // Which report this connection produces — drives mapping selector filtering.
-  reportType String  @default("pnl")
+  reportType ReportType @default(pnl)
 
+  /// [ConnectionConfig]
   config Json   @default("{}")
-  secret Bytes
+  secret Bytes // encrypted at rest via pgcrypto — never Json, decrypted+parsed server-side only
 
   mappingId String?
   mapping   FieldMapping? @relation(fields: [mappingId], references: [id], onDelete: SetNull)

@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import Link from 'next/link';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useGetPagedMappings, useDeleteMapping } from '@/hooks/mapping.hooks';
-import type { MappingModel, ReportType } from '@/models/mapping.models';
+import type { MappingPagedModel, ReportType } from '@/models/mapping.models';
 import { REPORT_TYPE_LABELS, REPORT_TYPE_OPTIONS, MappingFilterValidator } from '@/models/mapping.models';
 import type { ArtColumn } from '@/components/ui/ArtDataTable';
 import ArtData from '@/components/ui/ArtData';
@@ -44,7 +44,7 @@ export default function MappingsPage() {
     [selectedReportType, setFilter],
   );
 
-  const columns: ArtColumn<MappingModel>[] = [
+  const columns: ArtColumn<MappingPagedModel>[] = [
     {
       key: 'name',
       label: 'Name',
@@ -93,7 +93,7 @@ export default function MappingsPage() {
   ];
 
   return (
-    <ArtData<MappingModel>
+    <ArtData<MappingPagedModel>
         columns={columns}
         data={pagedData?.data ?? []}
         rowKey={(row) => row.id}

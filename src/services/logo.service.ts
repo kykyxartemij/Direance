@@ -14,18 +14,11 @@ import { parseIdFromRoute } from '@/models';
 import { BytesResponse } from '@/lib/images/BytesResponse';
 import { processImageFile } from '@/lib/images/imageProcessor';
 import type { LogoMetadataModel } from '@/models/logo.model';
+import { LOGO_SELECT_LIGHT } from '@/models/logo.model';
 
 const LOGO_MAX_BYTES = 80 * 1024;
 const LOGO_MAX_WIDTH = 400;
 const processLogo = (file: File) => processImageFile(file, LOGO_MAX_BYTES, LOGO_MAX_WIDTH);
-
-// ==== Selects ====
-
-const LOGO_SELECT_LIGHT = {
-  id: true,
-  mime: true,
-  name: true,
-} as const;
 
 // ==== HTTP handlers ====
 

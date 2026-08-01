@@ -1,9 +1,11 @@
 import * as yup from 'yup';
+import type { Prisma } from '../../generated/prisma/client';
+import type { ReportType } from '../../generated/prisma/enums';
 import type { ArtColor } from '@/components/ui/art.types';
 
 // ==== Enums ====
 
-export type ReportType = 'pnl' | 'financial_position';
+export type { ReportType };
 
 export const REPORT_TYPES: ReportType[] = ['pnl', 'financial_position'];
 
@@ -17,97 +19,121 @@ export const REPORT_TYPE_OPTIONS: { label: string; value: string }[] = REPORT_TY
   value: r,
 }));
 
-// ==== Paged list filters ====
+// #region Prisma's Select
 
-export const MappingFilterValidator = yup.object({
-  reportType: yup.string().oneOf(REPORT_TYPES, 'Invalid report type').optional(),
-});
+// ==== Mapping Light ====
 
-export type MappingFilterModel = yup.InferType<typeof MappingFilterValidator>;
+export const MAPPING_SELECT_LIGHT = {
+  id: true,
+  name: true,
+  reportType: true,
+} as const;
 
-// ==== Config sub-types ====
+export type MappingLightModel = Prisma.FieldMappingGetPayload<{ select: typeof MAPPING_SELECT_LIGHT }>;
 
-export type TableRegion = {
-  descriptionColumn: number;
-  valueColumns: number[];
-  startRow?: number; // 0-indexed first data row; row just before is used for column naming. Defaults to sourceLayout.headerRow + 1
+// ==== Mapping Paged ====
+
+export const MAPPING_SELECT_PAGED = {
+  id: true,
+  name: true,
+  isGlobal: true,
+  reportType: true,
+  exportSetting: { select: { id: true, name: true } },
+} as const;
+
+export type MappingPagedModel = Prisma.FieldMappingGetPayload<{ select: typeof MAPPING_SELECT_PAGED }>;
+
+// ==== Mapping Full ====
+
+export const MAPPING_SELECT = {
+  id: true,
+  name: true,
+  isGlobal: true,
+  reportType: true,
+  config: true,
+  exportSetting: { select: { id: true, name: true, mappedValues: true, hasTotalColumn: true } },
+} as const;
+
+export type MappingModel = Prisma.FieldMappingGetPayload<{ select: typeof MAPPING_SELECT }>;
+
+// #endregion
+// #region Json Config
+// MappingConfig is the PrismaJson bridge target for FieldMapping.config (see prisma-json.d.ts).
+
+const ART_COLORS: ArtColor[] = ['primary', 'warning', 'success', 'danger', 'neutral'];
+
+// ==== Table Region ====
+
+const tableRegionFields = {
+  descriptionColumn: yup.number().integer().min(0).required('This field is required'),
+  valueColumns: yup.array().of(yup.number().integer().min(0).required('This field is required')).required('This field is required'),
+  startRow: yup.number().integer().min(0).optional(), // defaults to sourceLayout.headerRow + 1
 };
+const TableRegionValidator = yup.object(tableRegionFields);
+export type TableRegion = yup.InferType<typeof TableRegionValidator>;
 
-export type TotalColumnDef = {
-  _id?: string; // Stable client-side identity — set on creation, persisted in config JSON, used as React key
-  label: string;
-  sourceValueIndices: number[]; // 0-based, relative to output value headers. Empty = all
-};
+// ==== Total Column Def ====
 
-export type SourceLayout = {
-  regions: TableRegion[];
-  totalColumns?: TotalColumnDef[];
-  headerRow: number;
+const totalColumnDefFields = {
+  _id: yup.string().optional(), // client-side React key
+  label: yup.string().required('This field is required'),
+  sourceValueIndices: yup.array().of(yup.number().integer().min(0).required('This field is required')).required('This field is required'),
 };
+const TotalColumnDefValidator = yup.object(totalColumnDefFields);
+export type TotalColumnDef = yup.InferType<typeof TotalColumnDefValidator>;
 
-export type RowMapping = {
-  sourceName: string;
-  displayName?: string;
-  nameColor?: ArtColor;
-  valueColor?: ArtColor;
-  hidden?: boolean;
-};
+// ==== Source Layout ====
 
-export type ColumnHeaderMapping = {
-  sourceIndex: number;
-  displayName?: string;
-  groupName?: string;
+const sourceLayoutFields = {
+  regions: yup.array().of(TableRegionValidator).min(1, 'At least one region is required').required('This field is required'),
+  totalColumns: yup.array().of(TotalColumnDefValidator).optional(),
+  headerRow: yup.number().integer().min(0).required('This field is required'),
 };
+const SourceLayoutValidator = yup.object(sourceLayoutFields);
+export type SourceLayout = yup.InferType<typeof SourceLayoutValidator>;
+
+// ==== Row Mapping ====
+
+const rowMappingFields = {
+  sourceName: yup.string().required('This field is required'),
+  displayName: yup.string().optional(),
+  nameColor: yup.string().oneOf(ART_COLORS).optional(),
+  valueColor: yup.string().oneOf(ART_COLORS).optional(),
+  hidden: yup.boolean().optional(),
+};
+const RowMappingValidator = yup.object(rowMappingFields);
+export type RowMapping = yup.InferType<typeof RowMappingValidator>;
+
+// ==== Column Header Mapping ====
+
+const columnHeaderMappingFields = {
+  sourceIndex: yup.number().integer().min(0).required('This field is required'),
+  displayName: yup.string().optional(),
+  groupName: yup.string().optional(),
+};
+const ColumnHeaderMappingValidator = yup.object(columnHeaderMappingFields);
+export type ColumnHeaderMapping = yup.InferType<typeof ColumnHeaderMappingValidator>;
+
+// ==== Sheet Config ====
+// Keyed by sheet name (unknown ahead of time) — yup.mixed() passthrough, no validator to derive from.
 
 export type SheetMode = 'combine' | 'skip';
 export type TotalColumnMode = 'none' | 'append' | 'only';
+export type SheetConfig = { mode: SheetMode; totalColumnMode?: TotalColumnMode };
 
-export type SheetConfig = {
-  mode: SheetMode;
-  totalColumnMode?: TotalColumnMode;
+// ==== Mapping Config ====
+
+const mappingConfigFields = {
+  fromCurrency: yup.string().optional(),
+  currency: yup.string().default('EUR'),
+  sourceLayout: SourceLayoutValidator.required('This field is required'),
+  sheetLayouts: yup.mixed<Record<string, SourceLayout>>().optional(),
+  sheetsConfig: yup.mixed<Record<string, SheetConfig>>().optional(),
+  rowMappings: yup.array().of(RowMappingValidator).default([]),
+  columnHeaders: yup.array().of(ColumnHeaderMappingValidator).default([]),
 };
-
-export type ExportSettings = {
-  templateDescription?: string;
-  includeOriginalSheets?: boolean;
-  useLogoOnAllSheets?: boolean;
-};
-
-export type MappingConfig = {
-  fromCurrency?: string;
-  currency: string;
-  sourceLayout: SourceLayout;
-  sheetLayouts?: Record<string, SourceLayout>;
-  sheetsConfig?: Record<string, SheetConfig>;
-  rowMappings: RowMapping[];
-  columnHeaders: ColumnHeaderMapping[];
-};
-
-// ==== Models ====
-
-export type MappingLightModel = {
-  id: string;
-  name: string;
-  reportType: ReportType;
-};
-
-export type MappingModel = {
-  id: string;
-  name: string;
-  isGlobal: boolean;
-  reportType: ReportType;
-  config: MappingConfig;
-  exportSetting?: { // populated via Prisma relation — minimal fields for RowMappings + Dashboard color rule
-    id: string;
-    name: string;
-    mappedValues: import('@/models/export-settings.models').MappedValueModel[];
-    hasTotalColumn: boolean;
-  } | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-// ==== Default config ====
+const MappingConfigValidator = yup.object(mappingConfigFields);
+export type MappingConfig = yup.InferType<typeof MappingConfigValidator>;
 
 export const DEFAULT_MAPPING_CONFIG: MappingConfig = {
   fromCurrency: 'EUR',
@@ -117,66 +143,33 @@ export const DEFAULT_MAPPING_CONFIG: MappingConfig = {
   columnHeaders: [],
 };
 
-// ==== Validators ====
+// #endregion
+// #region Yup
 
-const ART_COLORS: ArtColor[] = ['primary', 'warning', 'success', 'danger', 'neutral'];
+// ==== Mapping Filter ====
 
-const TableRegionValidator = yup.object({
-  descriptionColumn: yup.number().integer().min(0).required('This field is required'),
-  valueColumns: yup.array().of(yup.number().integer().min(0).required('This field is required')).required('This field is required'),
-  startRow: yup.number().integer().min(0).optional(),
+export const MappingFilterValidator = yup.object({
+  reportType: yup.string().oneOf(REPORT_TYPES, 'Invalid report type').optional(),
 });
+export type MappingFilterYupModel = yup.InferType<typeof MappingFilterValidator>;
 
-const TotalColumnDefValidator = yup.object({
-  label: yup.string().required('This field is required'),
-  sourceValueIndices: yup.array().of(yup.number().integer().min(0).required('This field is required')).required('This field is required'),
-});
+// ==== Mapping Create / Update ====
 
-const SourceLayoutValidator = yup.object({
-  regions: yup.array().of(TableRegionValidator).min(1, 'At least one region is required').required('This field is required'),
-  totalColumns: yup.array().of(TotalColumnDefValidator).optional(),
-  headerRow: yup.number().integer().min(0).required('This field is required'),
-});
-
-const RowMappingValidator = yup.object({
-  sourceName: yup.string().required('This field is required'),
-  displayName: yup.string().optional(),
-  nameColor: yup.string().oneOf(ART_COLORS).optional(),
-  valueColor: yup.string().oneOf(ART_COLORS).optional(),
-  hidden: yup.boolean().optional(),
-});
-
-const ColumnHeaderMappingValidator = yup.object({
-  sourceIndex: yup.number().integer().min(0).required('This field is required'),
-  displayName: yup.string().optional(),
-  groupName: yup.string().optional(),
-});
-
-const MappingConfigValidator = yup.object({
-  fromCurrency: yup.string().optional(),
-  currency: yup.string().default('EUR'),
-  sourceLayout: SourceLayoutValidator.required('This field is required'),
-  sheetLayouts: yup.mixed<Record<string, SourceLayout>>().optional(),
-  sheetsConfig: yup.mixed<Record<string, SheetConfig>>().optional(),
-  rowMappings: yup.array().of(RowMappingValidator).default([]),
-  columnHeaders: yup.array().of(ColumnHeaderMappingValidator).default([]),
-});
-
-export const CreateMappingValidator = yup.object({
+// reportType's default lives only on Create — .partial() doesn't strip .default() (see guide).
+const mappingFields = {
   name: yup.string().trim().min(1, 'Name is required').required('Name is required'),
-  reportType: yup.string().oneOf(REPORT_TYPES, 'Invalid report type').default('pnl'),
+  reportType: yup.string().oneOf(REPORT_TYPES, 'Invalid report type').required('Report type is required'),
   config: MappingConfigValidator.required('This field is required'),
   exportSettingId: yup.string().nullable().optional(),
   isGlobal: yup.boolean().optional(),
-});
+};
 
-export const UpdateMappingValidator = yup.object({
-  name: yup.string().trim().min(1, 'Name is required').optional(),
-  reportType: yup.string().oneOf(REPORT_TYPES, 'Invalid report type').optional(),
-  config: MappingConfigValidator.optional(),
-  exportSettingId: yup.string().nullable().optional(),
-  isGlobal: yup.boolean().optional(),
+export const CreateMappingValidator = yup.object(mappingFields).shape({
+  reportType: yup.string().oneOf(REPORT_TYPES, 'Invalid report type').default('pnl'),
 });
+export const UpdateMappingValidator = yup.object(mappingFields).partial();
 
 export type CreateMappingModel = yup.InferType<typeof CreateMappingValidator>;
 export type UpdateMappingModel = yup.InferType<typeof UpdateMappingValidator>;
+
+// #endregion

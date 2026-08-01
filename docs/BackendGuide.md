@@ -570,12 +570,25 @@ stops protecting that other work. Three consequences:
 Never bare `findMany` — always pass `select`. The three tiers exist to bound Network Transfer:
 each one should only carry what the screen that calls it actually renders.
 
+**The `_LIGHT`/`_PAGED`/`_SELECT` consts live in `src/models/*.models.ts`, not in the service**
+— each one sits paired with the `Prisma.TableGetPayload<{ select: typeof TABLE_SELECT }>` type
+it derives, so the FE-facing model can never drift from what the query returns. See
+`docs/ModelsAndValidationGuide.md` for the full pattern.
+
 ```ts
-const MAPPING_SELECT_LIGHT = { id: true, name: true, reportType: true } as const;
-const MAPPING_SELECT_PAGED = { ...MAPPING_SELECT_LIGHT, isGlobal: true, exportSetting: { select: { id: true, name: true } } } as const;
-const MAPPING_SELECT       = { ...MAPPING_SELECT_PAGED, config: true, exportSetting: { select: { id: true, name: true, mappedValues: true, hasTotalColumn: true } } } as const;
-//                                                        ↑ heavy fields (JSON) — full only
+// src/models/mapping.models.ts
+export const MAPPING_SELECT_LIGHT = { id: true, name: true, reportType: true } as const;
+export const MAPPING_SELECT_PAGED = { id: true, name: true, isGlobal: true, reportType: true, exportSetting: { select: { id: true, name: true } } } as const;
+export const MAPPING_SELECT       = { id: true, name: true, isGlobal: true, reportType: true, config: true, exportSetting: { select: { id: true, name: true, mappedValues: true, hasTotalColumn: true } } } as const;
+//                                                                                                ↑ heavy fields (JSON) — full only
 // Bytes (logos/files) never appear in any select tier — dedicated endpoint only
+
+export type MappingLightModel = Prisma.FieldMappingGetPayload<{ select: typeof MAPPING_SELECT_LIGHT }>;
+export type MappingPagedModel = Prisma.FieldMappingGetPayload<{ select: typeof MAPPING_SELECT_PAGED }>;
+export type MappingModel      = Prisma.FieldMappingGetPayload<{ select: typeof MAPPING_SELECT }>;
+
+// src/services/mapping.service.ts — imports the consts, doesn't define them
+import { MAPPING_SELECT_LIGHT, MAPPING_SELECT_PAGED, MAPPING_SELECT } from '@/models/mapping.models';
 ```
 
 | Tier | Fields | Use |
@@ -887,20 +900,7 @@ return NextResponse.json(createPaginatedResponse(data, page, pageSize, total));
 
 **Related models in `_PAGED`/full selects use a light nested `select`, never a bare
 `include`.** A mapping row needs its export setting's name for the list column, not the whole
-row:
-
-```ts
-const MAPPING_SELECT_PAGED = {
-  id: true, name: true, isGlobal: true, reportType: true,
-  exportSetting: { select: { id: true, name: true } },   // light — just what the row needs
-} as const;
-
-const MAPPING_SELECT = {
-  ...MAPPING_SELECT_PAGED,
-  config: true,
-  exportSetting: { select: { id: true, name: true, mappedValues: true, hasTotalColumn: true } }, // full, detail view only
-} as const;
-```
+row — see `MAPPING_SELECT_PAGED`/`MAPPING_SELECT` in `src/models/mapping.models.ts` above.
 
 Same Network Transfer rule as top-level selects: the paged tier's relation select stays as
 narrow as the list UI actually renders; the full tier widens it for the detail view.

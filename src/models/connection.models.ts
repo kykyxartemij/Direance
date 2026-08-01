@@ -1,15 +1,16 @@
 import * as yup from 'yup';
+import type { Prisma } from '../../generated/prisma/client';
+import { ConnectionType } from '../../generated/prisma/enums';
 import { REPORT_TYPES, type ReportType } from '@/models/mapping.models';
 import type { MappingModel } from '@/models/mapping.models';
+import { IdFieldValidator } from '@/models';
 export type { ReportType };
-
-// #region Connections
+export type { ConnectionType };
 
 // ==== Type registry ====
 // merit_estonia/merit_poland are separate types, not one 'merit' + country field — distinct base URLs, see MERIT_BASE_URLS.
 
-export const CONNECTION_TYPES = ['merit_estonia', 'merit_poland', 'odoo'] as const;
-export type ConnectionType = (typeof CONNECTION_TYPES)[number];
+export const CONNECTION_TYPES = Object.values(ConnectionType);
 
 export const CONNECTION_TYPE_LABELS: Record<ConnectionType, string> = {
   merit_estonia: 'Merit Estonia',
@@ -17,71 +18,92 @@ export const CONNECTION_TYPE_LABELS: Record<ConnectionType, string> = {
   odoo:          'Odoo',
 };
 
-// ==== Per-type config + secret shapes ====
-// config = non-secret (URLs, db names, company ids) — stored as Json
-// secret = credentials encrypted at rest via pgcrypto — never returned to FE
-
 export const MERIT_BASE_URLS: Record<'merit_estonia' | 'merit_poland', string> = {
   merit_estonia: 'https://aktiva.merit.ee/api/v1',
   merit_poland:  'https://program.360ksiegowosc.pl/api/v1',
 };
 
-// depFilter/journalIds/accountPrefix are driver-native knobs, set once per
-// connection — not fetch-time filters (those stay universal, see PnlFetchFiltersModel).
-export type MeritConfig = { depFilter?: string };
-export type MeritSecret = { apiKey: string; apiId: string };
+// #region Prisma's Select
+// secret is NEVER returned to FE — decrypted server-side only, in the fetch endpoints.
 
-export type OdooConfig = { url: string; db: string; username: string; journalIds?: number[]; accountPrefix?: string };
-export type OdooSecret = { password: string };
+// ==== Connection Light ====
 
-export type ConnectionConfig = MeritConfig | OdooConfig;
-export type ConnectionSecret = MeritSecret | OdooSecret;
+export const CONNECTION_SELECT_LIGHT = {
+  id: true,
+  name: true,
+  type: true,
+  reportType: true,
+  isDefault: true,
+  mapping: { select: { id: true, name: true } },
+} as const;
 
-// ==== Models ====
+export type ConnectionLightModel = Prisma.ConnectionGetPayload<{ select: typeof CONNECTION_SELECT_LIGHT }>;
 
-export type ConnectionLightModel = {
-  id: string;
-  name: string;
-  type: ConnectionType;
-  reportType: ReportType;
-  isDefault: boolean;
-  mapping?: { id: string; name: string } | null;
-};
+// ==== Connection Paged ====
 
-export type ConnectionModel = {
-  id: string;
-  name: string;
-  type: ConnectionType;
-  reportType: ReportType;
-  isDefault: boolean;
-  config: ConnectionConfig;
-  mapping?: { id: string; name: string } | null;
-};
+export const CONNECTION_SELECT_PAGED = {
+  id: true,
+  name: true,
+  type: true,
+  reportType: true,
+  isDefault: true,
+  config: true,
+  mapping: { select: { id: true, name: true } },
+} as const;
 
-// ==== Validators ====
+export type ConnectionPagedModel = Prisma.ConnectionGetPayload<{ select: typeof CONNECTION_SELECT_PAGED }>;
 
-const MeritConfigValidator = yup.object({
+// ==== Connection Full ====
+
+export const CONNECTION_SELECT = {
+  id: true,
+  name: true,
+  type: true,
+  reportType: true,
+  isDefault: true,
+  config: true,
+  mapping: { select: { id: true, name: true } },
+} as const;
+
+export type ConnectionModel = Prisma.ConnectionGetPayload<{ select: typeof CONNECTION_SELECT }>;
+
+// #endregion
+// #region Json Config
+// Discriminated by yup.lazy() on the sibling `type` field — InferType can't resolve that to a
+// union, so ConnectionConfig/ConnectionSecret below stay hand-typed.
+
+const meritConfigFields = {
   depFilter: yup.string().trim().optional(),
-});
+};
+const MeritConfigValidator = yup.object(meritConfigFields);
+export type MeritConfig = yup.InferType<typeof MeritConfigValidator>;
 
-const MeritSecretValidator = yup.object({
+const meritSecretFields = {
   apiKey: yup.string().trim().min(1, 'API key is required').required('API key is required'),
   apiId: yup.string().trim().min(1, 'API ID is required').required('API ID is required'),
-});
+};
+const MeritSecretValidator = yup.object(meritSecretFields);
+export type MeritSecret = yup.InferType<typeof MeritSecretValidator>;
 
-const OdooConfigValidator = yup.object({
+const odooConfigFields = {
   url: yup.string().trim().url('Must be a valid URL').required('URL is required'),
   db: yup.string().trim().min(1, 'Database is required').required('Database is required'),
   username: yup.string().trim().min(1, 'Username is required').required('Username is required'),
   journalIds: yup.array(yup.number().required()).optional(),
   accountPrefix: yup.string().trim().optional(),
-});
+};
+const OdooConfigValidator = yup.object(odooConfigFields);
+export type OdooConfig = yup.InferType<typeof OdooConfigValidator>;
 
+// Not trimmed — a password can intentionally have leading/trailing spaces.
 const OdooSecretValidator = yup.object({
   password: yup.string().min(1, 'Password is required').required('Password is required'),
 });
+export type OdooSecret = yup.InferType<typeof OdooSecretValidator>;
 
-// Discriminated by `type`. yup.when picks the right shape per type.
+export type ConnectionConfig = MeritConfig | OdooConfig;
+export type ConnectionSecret = MeritSecret | OdooSecret;
+
 const ConfigValidator = yup.lazy((_value, options) => {
   const type = (options.parent as { type?: string })?.type;
   if (type === 'merit_estonia' || type === 'merit_poland') return MeritConfigValidator;
@@ -96,31 +118,34 @@ const SecretValidator = yup.lazy((_value, options) => {
   return yup.object();
 });
 
-export const CreateConnectionValidator = yup.object({
-  name:       yup.string().trim().min(1, 'Name is required').required('Name is required'),
-  type:       yup.string().oneOf(CONNECTION_TYPES, 'Invalid type').required('Type is required'),
+// #endregion
+// #region Yup
+
+// ==== Connection Create / Update ====
+
+const connectionFields = {
+  name: yup.string().trim().min(1, 'Name is required').required('Name is required'),
+  type: yup.string().oneOf(CONNECTION_TYPES, 'Invalid type').required('Type is required'),
   reportType: yup.string().oneOf(REPORT_TYPES, 'Invalid report type').required('Report type is required'),
-  isDefault:  yup.boolean().default(false),
-  config:     ConfigValidator,
-  secret:     SecretValidator,
-  mappingId:  yup.string().uuid('Mapping ID must be UUID').nullable().optional(),
+  isDefault: yup.boolean().required(),
+  mappingId: IdFieldValidator.nullable().optional(),
+};
+
+export const CreateConnectionValidator = yup.object(connectionFields).shape({
+  isDefault: yup.boolean().default(false),
+  config: ConfigValidator,
+  secret: SecretValidator,
 });
 
-// On update, secret is optional — empty means "keep existing".
-export const UpdateConnectionValidator = yup.object({
-  name:       yup.string().trim().min(1).optional(),
-  type:       yup.string().oneOf(CONNECTION_TYPES, 'Invalid type').optional(),
-  reportType: yup.string().oneOf(REPORT_TYPES, 'Invalid report type').optional(),
-  isDefault:  yup.boolean().optional(),
-  config:     ConfigValidator,
-  secret:     SecretValidator,
-  mappingId:  yup.string().uuid('Mapping ID must be UUID').nullable().optional(),
+// config/secret .optional() explicitly — .partial() doesn't reach a yup.lazy() field.
+export const UpdateConnectionValidator = yup.object(connectionFields).partial().shape({
+  config: ConfigValidator.optional(),
+  secret: SecretValidator.optional(),
 });
 
 export type CreateConnectionModel = yup.InferType<typeof CreateConnectionValidator>;
-export type UpdateConnectionModel = Partial<CreateConnectionModel> & { id: string };
+export type UpdateConnectionModel = yup.InferType<typeof UpdateConnectionValidator>;
 
-// No name/isDefault/mappingId/reportType — those are storage concerns, not auth.
 export const TestConnectionValidator = yup.object({
   type:   yup.string().oneOf(CONNECTION_TYPES, 'Invalid type').required('Type is required'),
   config: ConfigValidator,
@@ -129,32 +154,29 @@ export const TestConnectionValidator = yup.object({
 
 export type TestConnectionModel = yup.InferType<typeof TestConnectionValidator>;
 
-// ==== Fetch response — external service data ====
-// Live driver output (src/lib/connections/*), not persisted connection config.
+// #endregion
+// #region Fetch response — external service data
+// Live driver output (src/lib/connections/*) — no validator or Prisma select behind these.
 
 export type ConnectionSheet = {
   name: string;
   rows: Record<string, unknown>[];
 };
 
-// Per-connection result of POST /api/connections/fetch/pnl or fetch/financial-position.
 export type ConnectionFetchResult = {
   sheets: ConnectionSheet[];
   fetchedAt: string;
-  mapping: MappingModel | null; // joined on the connection row server-side — null when none is linked
+  mapping: MappingModel | null;
 };
 
-export type ConnectionFetchManyResponse = Record<string, ConnectionFetchResult>; // keyed by connection id
+export type ConnectionFetchManyResponse = Record<string, ConnectionFetchResult>;
 
 // #endregion
 // #region Pnl
 
 // ==== Fetch filters — Profit & Loss ====
-// Universal across drivers: dateTo (period end), periods (count back from dateTo),
-// dateFrom (explicit range start, alternative to periods). Every driver interprets
-// all three fields — Merit maps periods->PerCount/dateTo->EndDate directly and
-// derives periods from dateFrom when given; Odoo maps dateFrom/dateTo to its
-// domain directly and derives dateFrom from periods when given. See lib/connections/*.
+// dateTo/periods/dateFrom are universal across drivers — each driver derives whatever it
+// doesn't natively use from the other two. See lib/connections/*.
 
 export type PnlFetchFiltersModel = {
   dateTo?: string;
@@ -169,8 +191,7 @@ export const PnlFetchManyValidator = yup.object({
   periods:  yup.number().integer().min(1).optional(),
 });
 
-// Single-connection fetch — id comes from the route, not the body. Same
-// filter fields as PnlFetchManyValidator minus `ids`.
+// Same fields as PnlFetchManyValidator minus `ids` — id comes from the route.
 export const PnlFetchValidator = yup.object({
   dateTo:   yup.string().optional(),
   dateFrom: yup.string().optional(),
@@ -181,8 +202,7 @@ export const PnlFetchValidator = yup.object({
 // #region Financial Position
 
 // ==== Fetch filters — Financial Position ====
-// Balance sheet is as-of, not range — no dateFrom. dateTo (balance date) and
-// periods (count back from dateTo) are universal, same translation rule as Pnl.
+// Balance sheet is as-of, not range — no dateFrom.
 
 export type FinancialPositionFetchFiltersModel = {
   dateTo?: string;
@@ -195,8 +215,6 @@ export const FinancialPositionFetchManyValidator = yup.object({
   periods: yup.number().integer().min(1).optional(),
 });
 
-// Single-connection fetch — id comes from the route, not the body. Same
-// filter fields as FinancialPositionFetchManyValidator minus `ids`.
 export const FinancialPositionFetchValidator = yup.object({
   dateTo:  yup.string().optional(),
   periods: yup.number().integer().min(1).optional(),

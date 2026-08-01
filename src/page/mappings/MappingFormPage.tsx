@@ -6,7 +6,7 @@ import { useForm, useWatch, type Resolver } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { useGetMappingById, useCreateMapping, useUpdateMapping } from '@/hooks/mapping.hooks';
-import { DEFAULT_MAPPING_CONFIG, type MappingModel, type RowMapping } from '@/models/mapping.models';
+import { DEFAULT_MAPPING_CONFIG, REPORT_TYPES, type MappingModel, type RowMapping } from '@/models/mapping.models';
 import { ArtForm, ArtFormInput, ArtFormSelect } from '@/components/form';
 import type { ArtSelectOption } from '@/components/ui/ArtSelect';
 import { useAuth } from '@/providers/AuthProvider';
@@ -30,10 +30,7 @@ import PageLoader from '@/components/PageLoader';
 
 const schema = yup.object({
   name: yup.string().trim().min(1, 'Name is required').required('Name is required'),
-  reportType: yup
-    .string()
-    .oneOf(['pnl', 'financial_position'], 'Invalid report type')
-    .required('Report type is required'),
+  reportType: yup.string().oneOf(REPORT_TYPES, 'Invalid report type').required('Report type is required'),
   fromCurrency: yup.string().default('EUR'),
   toCurrency: yup.string().default('EUR'),
   visibility: yup.string().oneOf(['personal', 'global']).default('personal'),

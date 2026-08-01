@@ -12,34 +12,12 @@ import { parseIdFromRoute } from '@/models';
 import {
   CreateExportSettingValidator,
   UpdateExportSettingValidator,
+  EXPORT_SETTING_SELECT_LIGHT,
+  EXPORT_SETTING_SELECT_PAGED,
+  EXPORT_SETTING_SELECT,
 } from '@/models/export-settings.models';
 import { parsePaginationFromUrl, createPaginatedResponse } from '@/models/paginated-response.model';
 import { parseFreeTextFromUrl } from '@/lib/normalizeText';
-
-// ==== Select ====
-
-// Light — id + name only, dropdowns and lightweight lists
-const EXPORT_SETTING_SELECT_LIGHT = {
-  id: true,
-  name: true,
-} as const;
-
-// Paged — list view, no logo fields (logo changes never invalidate this cache group)
-const EXPORT_SETTING_SELECT_PAGED = {
-  id: true,
-  name: true,
-  applyHeaderToAllSheets: true,
-  includeOriginalSheets: true,
-  mappedValues: true,
-  hasTotalColumn: true,
-} as const;
-
-// Full — detail view, adds headerLayout and logo metadata (no bytes — bytes can't survive JSON caching)
-const EXPORT_SETTING_SELECT = {
-  ...EXPORT_SETTING_SELECT_PAGED,
-  headerLayout: true,
-  logo: { select: { id: true, mime: true, name: true } },
-} as const;
 
 // ==== HTTP handlers ====
 

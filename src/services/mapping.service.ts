@@ -8,39 +8,18 @@ import { getAuth, getClientIp } from '@/lib/requestContext';
 import { ApiError } from '@/models/api-error';
 import { checkUserDbLimits } from '@/lib/userLimits';
 import { parseIdFromRoute, parseFiltersFromUrl } from '@/models';
-import { CreateMappingValidator, UpdateMappingValidator, MappingFilterValidator } from '@/models/mapping.models';
+import {
+  CreateMappingValidator,
+  UpdateMappingValidator,
+  MappingFilterValidator,
+  MAPPING_SELECT_LIGHT,
+  MAPPING_SELECT_PAGED,
+  MAPPING_SELECT,
+} from '@/models/mapping.models';
 import { parsePaginationFromUrl, createPaginatedResponse } from '@/models/paginated-response.model';
 import { parseFreeTextFromUrl } from '@/lib/normalizeText';
 import { checkUserRequestLimit } from '@/lib/rateLimiter';
 import { hasPermission, Permission } from '@/lib/permissions';
-
-// ==== Select ====
-
-// Light — id + name only, dropdowns and lightweight lists
-const MAPPING_SELECT_LIGHT = {
-  id: true,
-  name: true,
-  reportType: true,
-} as const;
-
-// Paged — list view, no config (heavy field)
-const MAPPING_SELECT_PAGED = {
-  id: true,
-  name: true,
-  isGlobal: true,
-  reportType: true,
-  exportSetting: { select: { id: true, name: true } },
-} as const;
-
-// Full — detail view, adds config and full exportSetting
-export const MAPPING_SELECT = {
-  id: true,
-  name: true,
-  isGlobal: true,
-  reportType: true,
-  config: true,
-  exportSetting: { select: { id: true, name: true, mappedValues: true, hasTotalColumn: true } },
-} as const;
 
 // ==== HTTP handlers ====
 
@@ -48,7 +27,7 @@ export const getLightMappings = withHandler(async (req) => {
   const { userId, permissions } = getAuth();
   const ip = getClientIp();
 
-  const reportType = new URL(req.url).searchParams.get('reportType') ?? undefined;
+  const filters = await parseFiltersFromUrl(new URL(req.url).searchParams, MappingFilterValidator);
 
   const mappings = await cached(
     async () => {
@@ -56,13 +35,13 @@ export const getLightMappings = withHandler(async (req) => {
       return prisma.fieldMapping.findMany({
         where: {
           OR: [{ userId }, { isGlobal: true }],
-          ...(reportType ? { reportType } : {}),
+          ...(filters.reportType ? { reportType: filters.reportType } : {}),
         },
         select: MAPPING_SELECT_LIGHT,
         orderBy: { name: 'asc' },
       });
     },
-    CACHE_KEYS.mapping.light(userId, reportType),
+    CACHE_KEYS.mapping.light(userId, filters.reportType),
   );
 
   return NextResponse.json(mappings);
