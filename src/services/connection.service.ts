@@ -1,7 +1,7 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { cached, invalidateCache } from '@/lib/serverCache';
+import { cached, invalidateCache, setCache } from '@/lib/serverCache';
 import { createBatchLoader } from '@/lib/batchLoader';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { withHandler } from '@/lib/withHandler';
@@ -132,7 +132,7 @@ export const createConnection = withHandler(async (req) => {
   });
 
   invalidateCache(...CACHE_KEYS.connection.invalidate(userId));
-  await cached(() => Promise.resolve(connection), CACHE_KEYS.connection.byId(userId, connection.id));
+  await setCache(connection, CACHE_KEYS.connection.byId(userId, connection.id));
 
   return NextResponse.json(connection, { status: 201 });
 });
@@ -148,7 +148,7 @@ export const updateConnection = withHandler<{ id: string }>(async (req, { params
   await checkUserDbLimits(userId, permissions);
 
   // NOTE: mappingId is not verified against the caller — same known gap as createConnection above.
-  const results = await prisma.connection.updateManyAndReturn({
+  const connection = await prisma.connection.update({
     where: { id, userId },
     data: {
       ...rest,
@@ -157,11 +157,9 @@ export const updateConnection = withHandler<{ id: string }>(async (req, { params
     },
     select: CONNECTION_SELECT,
   });
-  if (results.length === 0) throw new ApiError('Connection not found', 404);
-  const connection = results[0];
 
   invalidateCache(...CACHE_KEYS.connection.invalidate(userId));
-  await cached(() => Promise.resolve(connection), CACHE_KEYS.connection.byId(userId, id));
+  await setCache(connection, CACHE_KEYS.connection.byId(userId, id));
 
   return NextResponse.json(connection);
 });
@@ -174,8 +172,7 @@ export const deleteConnection = withHandler<{ id: string }>(async (req, { params
 
   await checkUserRequestLimit(ip, userId, permissions);
 
-  const { count } = await prisma.connection.deleteMany({ where: { id, userId } });
-  if (count === 0) throw new ApiError('Connection not found', 404);
+  await prisma.connection.delete({ where: { id, userId } });
 
   invalidateCache(...CACHE_KEYS.connection.invalidate(userId));
   return new NextResponse(null, { status: 204 });

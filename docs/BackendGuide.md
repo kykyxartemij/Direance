@@ -18,8 +18,8 @@ mainly `src/services/mapping.service.ts`, with `invite.service.ts`, `connection.
 | Yup validation | Always `{ abortEarly: false }` |
 | Prisma reads | Always wrap in `cached()` — never call bare |
 | Cache keys | Always `CACHE_KEYS.*` — never raw string arrays |
-| Update | `updateManyAndReturn` — ownership in WHERE clause (Prisma native) |
-| Delete | `deleteManyAndReturn` — ownership in WHERE clause (custom extension) |
+| Update | `update()` — ownership in WHERE clause, P2025 on no match auto-maps to 404 |
+| Delete | `delete()` — ownership in WHERE clause, P2025 on no match auto-maps to 404 |
 | Upsert | `upsertAndReturn` — single roundtrip, returns `wasUpdated: boolean` (custom extension) |
 | Relations | FK assigned directly (`{ ...data, userId }`) — Prisma `connect` never used |
 | Ownership fail | Throw 404, not 403 — no info disclosure |
@@ -46,7 +46,7 @@ common review comment on a new route — treat this as the checklist.
 1. withHandler          entry point — auth, permission gate, try/catch already done
 2. getAuth()             read the identity the wrapper resolved
 3. validate/parse        Yup validators + route/query parsing — no DB yet
-4. checks, cheapest first  rate limit → custom guards → DB limit → permission/ownership
+4. checks, cheapest first  permission gate (free) → rate limit → custom guards → DB limit → ownership-in-where
 5. the Prisma call        cache wrap, select tier, FTS, batch loader, CRUD extension
 6. (FTS only) DB setup   prisma/fts.sql — one-time per searchable table
 7. aftermath             invalidateCache() + reseed the by-id entry
@@ -260,11 +260,31 @@ Once step 3 confirms the request is well-formed, run the checks that cost someth
 **cheapest first, so an abusive or over-limit caller is rejected before the more expensive
 checks (and the DB call itself) ever run.**
 
+`withHandler`'s own trip-wires (`assertInstanceCapacity`/`assertIpCapacity`/`assertUserCapacity`)
+already ran before the body — those are in-memory, free, no DB. Everything in this step is
+different: `checkUserRequestLimit`, `checkUserDbLimits`, and lazy-cleanup's `assertLimit` all hit
+Postgres. A permission/ownership check on data already in `getAuth()` (e.g. `hasPermission`) is
+pure JS, free, no DB — so it goes **first**, ahead of the paid checks, not after:
+
 ```
-rate limit  →  custom guards (e.g. assertLimit)  →  DB storage limit  →  permission/ownership
+permission/ownership (free)  →  rate limit  →  custom guards (e.g. assertLimit)  →  DB storage limit
 ```
 
-### 1. Rate limit — cheap, applies almost everywhere
+### 1. Permission gate — free, resolved in JS, goes first
+
+```ts
+const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
+if (!canModifyGlobal && data.isGlobal) throw new ApiError('Only users with permission CAN_MODIFY_GLOBAL can create global mappings.', 403);
+```
+
+`permissions` already came back from `getAuth()` — no DB call to resolve it. Checking it first
+means a request with no chance of passing never touches `checkUserRequestLimit`/
+`checkUserDbLimits`, both of which are real Postgres round trips (see below), not free checks.
+This is a **different** step from encoding ownership into a query's `where` (Step 4.5 below) —
+that part does need to sit right before the Prisma call, since it builds the query itself. This
+step is just the yes/no permission gate on the request's own content (e.g. `data.isGlobal`).
+
+### 2. Rate limit — cheap, applies almost everywhere
 
 ```ts
 const ip = getClientIp();
@@ -310,13 +330,14 @@ possible cache misses, each triggering its own Postgres/external call. One reque
 doesn't map cleanly onto that per-id cost, so it stays unconditional rather than guessing at
 which granularity is "right." Left as an open judgment call, not mechanically converted.
 
-### 2. Custom guards — endpoint-specific, still before the expensive checks
+### 3. Custom guards — endpoint-specific, still before the expensive checks
 
 Anything that doesn't fit `checkUserRequestLimit`/`checkUserDbLimits` but still needs to run
 before the DB write. `prisma.invite.assertLimit()` (`invite.service.ts`) is the reference case
-— see Lazy cleanup below.
+— see Lazy cleanup below. Like the two checks around it, this is a real Postgres round trip
+(the lazy-cleanup DELETE + count), not free.
 
-### 3. DB storage limit — before CREATE and UPDATE only
+### 4. DB storage limit — before CREATE and UPDATE only
 
 ```ts
 await checkUserDbLimits(userId, permissions);
@@ -326,11 +347,10 @@ Not on DELETE (frees space, nothing to guard) and not on pure reads. Skipped ent
 endpoints with no DB write of ours — `testPnlConnection` above needs neither this nor the rate
 limit's DB-cost reasoning, since there's no storage being touched.
 
-### 4. Permission + ownership, resolved in JS, encoded into the query
+### 5. Ownership encoded into the query
 
-The last check before the Prisma call. It decides **what the caller is actually allowed to
-do**, not just whether they're allowed to call the endpoint at all. Never fetch-then-check.
-Resolve the permission in JS and encode ownership into the `where` so one query does auth,
+The last thing before the Prisma call — not a standalone check, part of building the `where`
+itself. Never fetch-then-check. Encode ownership into the `where` so one query does auth,
 ownership and visibility together, one round trip instead of a fetch plus a check plus a write.
 Same reason every check in this step exists: minimize what crosses the wire (Network Transfer
 rule). The mapping CRUD trio is the canonical example, same shape repeated for create, update,
@@ -343,11 +363,11 @@ export const createMapping = withHandler(async (req) => {
 
   const data = await CreateMappingValidator.validate(await req.json(), { abortEarly: false });
 
-  await checkUserRequestLimit(ip, userId, permissions);
-  await checkUserDbLimits(userId, permissions);
-
   const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
   if (!canModifyGlobal && data.isGlobal) throw new ApiError('Only users with permission CAN_MODIFY_GLOBAL can create global mappings.', 403);
+
+  await checkUserRequestLimit(ip, userId, permissions);
+  await checkUserDbLimits(userId, permissions);
 
   const mapping = await prisma.fieldMapping.create({
     data: { ...data, userId },   // FK assigned directly — Prisma `connect` never used, extra round trip
@@ -363,17 +383,17 @@ export const updateMapping = withHandler<{ id: string }>(async (req, { params })
   const id = parseIdFromRoute(await params);
   const data = await UpdateMappingValidator.validate(await req.json(), { abortEarly: false });
 
+  const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
+  if (!canModifyGlobal && data.isGlobal) throw new ApiError('Only users with permission CAN_MODIFY_GLOBAL can modify global mappings.', 403);
+
   await checkUserRequestLimit(ip, userId, permissions);
   await checkUserDbLimits(userId, permissions);
 
-  const canModifyGlobal = hasPermission(permissions, Permission.CAN_MODIFY_GLOBAL);
-  if (!canModifyGlobal && data.isGlobal) throw new ApiError('Only users with permission CAN_MODIFY_GLOBAL can modify global mappings.', 403);
   const where = canModifyGlobal
     ? { id, OR: [{ userId }, { isGlobal: true }] }
     : { id, userId, isGlobal: false };
 
-  const results = await prisma.fieldMapping.updateManyAndReturn({ where, data, select: MAPPING_SELECT });
-  if (results.length === 0) throw new ApiError('Mapping not found', 404);
+  const mapping = await prisma.fieldMapping.update({ where, data, select: MAPPING_SELECT });
   // ... invalidate + reseed, see Step 7
 });
 
@@ -390,18 +410,17 @@ export const deleteMapping = withHandler<{ id: string }>(async (req, { params })
     ? { id, OR: [{ userId }, { isGlobal: true }] }
     : { id, userId, isGlobal: false };
 
-  const deleted = await prisma.fieldMapping.deleteManyAndReturn({ where, select: { isGlobal: true } });
-  if (deleted.length === 0) throw new ApiError('Mapping not found', 404);
+  const deleted = await prisma.fieldMapping.delete({ where, select: { isGlobal: true } });
   // ... invalidate, see Step 7
 });
 ```
 
 The `where` is doing three jobs in one round trip: does the row exist, does the caller own it
-or is it global, is the caller allowed to touch a global row. `results.length === 0` covers all
-three failure modes identically — **404 for all of them, never 403 for "exists but not
-yours."** Distinguishing the two would leak record existence to an attacker probing ids; a
-plain "not found" costs the attacker nothing to learn from, which is also less to send over the
-wire (Network Transfer rule) than a more specific error body would be.
+or is it global, is the caller allowed to touch a global row. Prisma throws `P2025` when zero
+rows match, which `handleApiError` maps to 404 for all three failure modes identically —
+**never 403 for "exists but not yours."** Distinguishing the two would leak record existence to
+an attacker probing ids; a plain "not found" costs the attacker nothing to learn from, which is
+also less to send over the wire (Network Transfer rule) than a more specific error body would be.
 
 ### Lazy cleanup (`withLazyCleanup`) — the custom-guard example
 
@@ -454,11 +473,14 @@ All raw-SQL capability the codebase adds on top of Prisma ORM, in one place:
 
 | Extension | File | Adds |
 |-----------|------|------|
-| `withCrud` | `src/lib/prismaCrud.ts` | `deleteManyAndReturn`, `upsertAndReturn` |
+| `withCrud` | `src/lib/prismaCrud.ts` | `upsertAndReturn` |
 | `withFts` | `src/lib/prismaFts.ts` | `findManyFts`, `countFts` |
 | `withLazyCleanup` | `src/lib/prismaLazyCleanup.ts` | `findFirstWithCleanup`, `findManyWithCleanup`, `assertLimit`, `cleanupExpired` |
 
-`updateManyAndReturn` is the one exception — it's Prisma-native (5.x), not a custom extension.
+Ownership-scoped update/delete use plain Prisma-native `update()`/`delete()` — no custom
+extension needed. `where: { id, userId }` (or an `OR` for global-row access) is a valid
+`WhereUniqueInput` as long as `id` anchors it; zero matches throws `P2025`, which
+`handleApiError` maps to 404. See below.
 
 ### Cache wrapping — `cached` / `populateCache`
 
@@ -638,36 +660,32 @@ await prisma.user.create({ data });
 Requires the `@unique` (or `@@unique`) constraint in the schema — the DB is the source of
 truth, not a JS pre-check.
 
-### `updateManyAndReturn` / `deleteManyAndReturn`
+### `update()` / `delete()` — ownership in WHERE
 
 > Ownership check lives in WHERE, not in code. One round trip. No TOCTOU.
 
 ```ts
-// ✅ Update — Prisma native (5.x)
-const results = await prisma.fieldMapping.updateManyAndReturn({
-  where: { id, userId }, // wrong owner → results.length === 0, same as not found
+// ✅ Update — wrong owner → P2025 → handleApiError → 404
+const mapping = await prisma.fieldMapping.update({
+  where: { id, userId },
   data,
   select: MAPPING_SELECT,
 });
-if (results.length === 0) throw new ApiError('Mapping not found', 404);
 
-// ✅ Delete — custom extension (withCrud in prismaCrud.ts)
-const deleted = await prisma.fieldMapping.deleteManyAndReturn({
+// ✅ Delete — same P2025 → 404 path, single round trip (real DELETE ... RETURNING)
+const deleted = await prisma.fieldMapping.delete({
   where: { id, userId },
   select: { id: true },
 });
-if (deleted.length === 0) throw new ApiError('Mapping not found', 404);
 ```
 
-Postgres doesn't support `DELETE ... RETURNING` natively in Prisma ORM — `withCrud` adds it via
-`$queryRaw`. Accepts Prisma-style `where` (equality + OR), `select`, and optional `limit`.
-Return type is inferred from `select` — no manual generics at the call site.
+Both `update()` and `delete()` return the row shaped by `select` directly (not an array) and
+throw `P2025` when the `where` matches nothing — `handleApiError` maps that to 404, so no
+manual length/count check is needed. `where` accepts any extra filter fields alongside the
+unique anchor (`id`), including `OR`, as seen in `updateMapping`/`deleteMapping` above.
 
-Plain `update()` is the better call when `where` is just `{ id: userId }` straight from the
-session, no ownership to encode. That's `patchMe` in `user.service.ts`. Everywhere else,
-`updateManyAndReturn` is the standard even though `deleteManyAndReturn` (no native
-`updateAndReturn` to pair with) is the only reason both ended up as `*ManyAndReturn`. Known
-imperfect, kept anyway, update and delete stay symmetric across services.
+No custom extension required for either — `updateManyAndReturn`/`deleteManyAndReturn` were
+removed; native `update()`/`delete()` cover the same ownership-in-WHERE pattern with less code.
 
 ### `createBatchLoader` — N cache-aware lookups, 1 DB call
 
@@ -862,8 +880,8 @@ await cached(() => Promise.resolve(mapping), CACHE_KEYS.mapping.byId(userId, map
 - Invalidate the **narrowest** tag that covers what changed first (`mapping.invalidate(userId)`
   clears that user's lists/paged/count), then the broader one only if the mutation could affect
   other users' views (`isGlobal` toggled → also clear `invalidateAll()`).
-- The reseed always uses the value already returned by `updateManyAndReturn` /
-  `deleteManyAndReturn` / `create` — never a fresh `findFirst` just to populate cache.
+- The reseed always uses the value already returned by `update()` / `create()` — never a fresh
+  `findFirst` just to populate cache.
 - Delete has no reseed step — there's nothing to cache, only the invalidate calls.
 
 ---

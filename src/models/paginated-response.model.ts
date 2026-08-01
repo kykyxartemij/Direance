@@ -56,3 +56,20 @@ export async function parsePaginationFromUrl(
 
   return await PaginatedResponseValidator.validate(paginationData);
 }
+
+export async function parseFiltersFromUrl<S extends yup.ObjectSchema<yup.AnyObject>>(
+  searchParams: URLSearchParams,
+  validator: S,
+): Promise<yup.InferType<S>> {
+  const raw: Record<string, string | undefined> = {};
+  for (const key of Object.keys(validator.fields)) {
+    raw[key] = searchParams.get(key) ?? undefined;
+  }
+  return validator.validate(raw, { abortEarly: false });
+}
+
+export function whereFromFilters<T extends Record<string, unknown>>(filters: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(filters).filter(([, v]) => v !== undefined),
+  ) as Partial<T>;
+}

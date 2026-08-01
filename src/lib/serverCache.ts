@@ -14,8 +14,8 @@ export async function cached<T>(
   return cachedFn();
 }
 
-export function invalidateCache(...tags: string[]): void {
-  for (const tag of tags) {
+export function invalidateCache(...tags: (string | string[])[]): void {
+  for (const tag of tags.flat()) {
     revalidateTag(tag);
   }
 }
@@ -30,4 +30,13 @@ export async function populateCache<T>(
   // eslint-disable-next-line local/require-cache-keys-constant
   await cached(() => Promise.resolve(value), cacheKey, ttl);
   return value;
+}
+
+export function setCache<T>(
+  value: T, 
+  cacheKey: string[], 
+  ttl: number = DEFAULT_TTL
+): Promise<T> {
+  // eslint-disable-next-line local/require-cache-keys-constant
+  return cached(() => Promise.resolve(value), cacheKey, ttl);
 }

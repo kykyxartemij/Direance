@@ -1,7 +1,7 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { cached, invalidateCache } from '@/lib/serverCache';
+import { cached, invalidateCache, setCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { withHandler } from '@/lib/withHandler';
 import { getAuth, getClientIp } from '@/lib/requestContext';
@@ -56,7 +56,7 @@ export const patchMe = withHandler(async (req) => {
   });
 
   invalidateCache(...CACHE_KEYS.user.invalidate());
-  await cached(() => Promise.resolve(user), CACHE_KEYS.user.byId(userId));
+  await setCache(user, CACHE_KEYS.user.byId(userId));
 
   return NextResponse.json(maskUser(user));
 });

@@ -1,9 +1,7 @@
 import 'server-only';
 import { Prisma } from '../../generated/prisma/client';
 import type { PrismaClient } from '../../generated/prisma/client';
-import { buildWhere, buildReturning, type SimpleWhere } from './prisma/simpleWhere';
-export type { SimpleWhere } from './prisma/simpleWhere';
-export { buildWhere, buildReturning } from './prisma/simpleWhere';
+import { buildReturning } from './prisma/simpleWhere';
 
 // ==== Value → Prisma.Sql ====
 // Maps a JS value to a parameterized SQL fragment with the correct Postgres type cast.
@@ -21,40 +19,11 @@ const toSql = (v: unknown): Prisma.Sql => {
 // ==== Factory ====
 
 /**
- * Registers { upsertAndReturn, deleteManyAndReturn } on a Prisma $extends model block.
+ * Registers { upsertAndReturn } on a Prisma $extends model block.
  * Uses $queryRaw, so Prisma middleware/hooks (@updatedAt etc.) don't run — see CLAUDE.md.
  */
 export function withCrud<TModel extends object>(client: PrismaClient, table: string) {
   return {
-    deleteManyAndReturn<
-      TSelect extends Partial<Record<keyof TModel, boolean>> | undefined = undefined,
-    >(args: {
-      where: SimpleWhere<TModel>;
-      select?: TSelect;
-      limit?: number;
-    }): Prisma.PrismaPromise<
-      (TSelect extends undefined
-        ? TModel
-        : Pick<TModel, Extract<keyof NonNullable<TSelect>, keyof TModel>>)[]
-    > {
-      const whereSql = buildWhere(args.where as SimpleWhere);
-      const returningSql = buildReturning(args.select as Record<string, boolean> | undefined);
-      const t = Prisma.raw(table);
-
-      if (args.limit !== undefined) {
-        const limit = args.limit;
-        return client.$queryRaw`
-          DELETE FROM ${t}
-          WHERE id IN (SELECT id FROM ${t} WHERE ${whereSql} LIMIT ${limit})
-          RETURNING ${returningSql}
-        `;
-      }
-
-      return client.$queryRaw`
-        DELETE FROM ${t} WHERE ${whereSql} RETURNING ${returningSql}
-      `;
-    },
-
     // INSERT ... ON CONFLICT DO UPDATE ... RETURNING, single roundtrip. wasUpdated: true = row existed.
     upsertAndReturn<
       TSelect extends Partial<Record<keyof TModel, boolean>> | undefined = undefined,

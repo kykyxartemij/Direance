@@ -1,11 +1,10 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { cached, invalidateCache } from '@/lib/serverCache';
+import { cached, invalidateCache, setCache } from '@/lib/serverCache';
 import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { withHandler } from '@/lib/withHandler';
 import { getAuth, getClientIp } from '@/lib/requestContext';
-import { ApiError } from '@/models/api-error';
 import { checkUserRequestLimit } from '@/lib/rateLimiter';
 import { checkUserDbLimits } from '@/lib/userLimits';
 import { parseIdFromRoute } from '@/models';
@@ -116,7 +115,7 @@ export const createExportSetting = withHandler(async (req) => {
   });
 
   invalidateCache(...CACHE_KEYS.exportSetting.invalidate(userId));
-  await cached(() => Promise.resolve(settings), CACHE_KEYS.exportSetting.byId(userId, settings.id));
+  await setCache(settings, CACHE_KEYS.exportSetting.byId(userId, settings.id));
 
   return NextResponse.json(settings, { status: 201 });
 });
@@ -131,7 +130,7 @@ export const updateExportSetting = withHandler<{ id: string }>(async (req, { par
   await checkUserRequestLimit(ip, userId, permissions);
   await checkUserDbLimits(userId, permissions);
 
-  const results = await prisma.exportSetting.updateManyAndReturn({
+  const meta = await prisma.exportSetting.update({
     where: { id, userId },
     data: {
       ...rest,
@@ -140,11 +139,9 @@ export const updateExportSetting = withHandler<{ id: string }>(async (req, { par
     },
     select: EXPORT_SETTING_SELECT,
   });
-  if (results.length === 0) throw new ApiError('Export setting not found', 404);
-  const meta = results[0];
 
   invalidateCache(...CACHE_KEYS.exportSetting.invalidate(userId));
-  await cached(() => Promise.resolve(meta), CACHE_KEYS.exportSetting.byId(userId, id));
+  await setCache(meta, CACHE_KEYS.exportSetting.byId(userId, id));
 
   return NextResponse.json(meta);
 });
@@ -157,8 +154,7 @@ export const deleteExportSetting = withHandler<{ id: string }>(async (req, { par
 
   await checkUserRequestLimit(ip, userId, permissions);
 
-  const { count } = await prisma.exportSetting.deleteMany({ where: { id, userId } });
-  if (count === 0) throw new ApiError('Export setting not found', 404);
+  await prisma.exportSetting.delete({ where: { id, userId } });
 
   invalidateCache(...CACHE_KEYS.exportSetting.invalidate(userId));
   return new NextResponse(null, { status: 204 });
