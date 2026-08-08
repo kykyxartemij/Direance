@@ -498,6 +498,11 @@
   /* Reduce right padding when badge has a remove button */
   .art-badge--removable { padding-right: 4px; }
 
+  /* Clickable badge (e.g. ArtPopover trigger) — hover/press per Interactive State Rule */
+  .art-badge--interactive { cursor: pointer; }
+  .art-badge--interactive:hover  { background: var(--border); }
+  .art-badge--interactive:active { background: color-mix(in srgb, white 18%, var(--border)); }
+
   /* ===== ArtSwitch ===== */
   .art-switch-root {
     display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;
@@ -874,6 +879,10 @@
     min-width: 1.2rem; height: 1.2rem; padding: 0 4px;
     background: var(--art-accent); color: #fff; border-radius: 9999px;
     font-size: 0.68rem; font-weight: 600; line-height: 1;
+  }
+  /* Zero state — always mounted (reserves space so the button never resizes), toned down */
+  .art-data-filters-count--neutral {
+    background: var(--border); color: var(--text-muted);
   }
   /* Panel owns filter layout — fields flow 3-per-row, so filter forms render bare fields
      (no own grid) and every filter bar stays visually consistent. */

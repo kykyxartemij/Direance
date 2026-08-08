@@ -103,7 +103,6 @@ export const getPagedUsers = withHandler(
           await checkUserRequestLimit(ip, userId, permissions);
           return prisma.user.findManyFts({
             freeText,
-            userId,
             select: USER_SELECT,
             orderBy: { email: 'asc' },
             skip: page * pageSize,
@@ -113,7 +112,7 @@ export const getPagedUsers = withHandler(
         CACHE_KEYS.user.paged(userId, page, pageSize, freeText),
       ),
       cached(
-        () => prisma.user.countFts({ freeText, userId }),
+        () => prisma.user.countFts({ freeText }),
         CACHE_KEYS.user.count(userId, freeText),
       ),
     ]);

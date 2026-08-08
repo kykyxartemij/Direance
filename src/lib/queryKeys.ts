@@ -2,6 +2,8 @@
 // Format: [resource, kind, subtype, ...args]
 
 import type { MappingFilterYupModel } from '@/models/mapping.models';
+import type { ConnectionFilterYupModel } from '@/models/connection.models';
+import type { ExportSettingFilterYupModel } from '@/models/export-settings.models';
 
 export const queryKeys = {
   user: {
@@ -36,8 +38,8 @@ export const queryKeys = {
       lists: () => ['exportSetting', 'list'] as const,
     },
     light: () => ['exportSetting', 'list', 'light'] as const,
-    paged: (page: number, pageSize: number, freeText?: string) =>
-      ['exportSetting', 'list', 'paged', page, pageSize, freeText ?? ''] as const,
+    paged: (page: number, pageSize: number, freeText?: string, filters?: ExportSettingFilterYupModel) =>
+      ['exportSetting', 'list', 'paged', page, pageSize, freeText ?? '', filters?.hasTotalColumn ?? ''] as const,
     byId: (id: string) => ['exportSetting', 'single', 'byId', id] as const,
   },
   connection: {
@@ -50,8 +52,8 @@ export const queryKeys = {
       fetches: () => ['connection', 'fetchMany'] as const,
     },
     light: () => ['connection', 'list', 'light'] as const,
-    paged: (page: number, pageSize: number, freeText?: string) =>
-      ['connection', 'list', 'paged', page, pageSize, freeText ?? ''] as const,
+    paged: (page: number, pageSize: number, freeText?: string, filters?: ConnectionFilterYupModel) =>
+      ['connection', 'list', 'paged', page, pageSize, freeText ?? '', filters?.type ?? '', filters?.reportType ?? ''] as const,
     byId: (id: string) => ['connection', 'single', 'byId', id] as const,
     fetch: (id: string, filters: object) => ['connection', 'fetch', id, filters] as const,
     fetchManyPnl: (connections: { id: string }[], filters: object) =>

@@ -10,6 +10,7 @@ import type {
   ExportSettingPagedModel,
   CreateExportSettingModel,
   UpdateExportSettingModel,
+  ExportSettingFilterYupModel,
 } from '@/models/export-settings.models';
 import type { PaginatedResponse } from '@/models/paginated-response.model';
 import type { ApiError } from '@/models/api-error';
@@ -35,13 +36,14 @@ export function useGetPagedExportSettings(
   page: number,
   pageSize: number,
   freeText?: string,
+  filters?: ExportSettingFilterYupModel,
   options?: Omit<UseQueryOptions<PaginatedResponse<ExportSettingPagedModel>, ApiError>, 'queryKey' | 'queryFn'>
 ) {
   return useQuery<PaginatedResponse<ExportSettingPagedModel>, ApiError>({
-    queryKey: queryKeys.exportSetting.paged(page, pageSize, freeText),
+    queryKey: queryKeys.exportSetting.paged(page, pageSize, freeText, filters),
     queryFn: async () => {
       const { data } = await fetchClient.get<PaginatedResponse<ExportSettingPagedModel>>(
-        API.exportSetting.paged(page, pageSize, freeText)
+        API.exportSetting.paged(page, pageSize, freeText, filters)
       );
       return data;
     },

@@ -21,7 +21,7 @@ function PermissionsCell({ permissions }: { permissions: string[] }) {
       <PermissionBadge permission={first} />
       {rest.length > 0 && (
         <ArtPopover
-          trigger={<ArtBadge size="md" variant="outlined">+{rest.length}</ArtBadge>}
+          trigger={<ArtBadge size="md" variant="outlined" className="art-badge--interactive">+{rest.length}</ArtBadge>}
           placement="bottom"
         >
           <div className="flex flex-col gap-1.5 p-2">
@@ -36,7 +36,7 @@ function PermissionsCell({ permissions }: { permissions: string[] }) {
 // ==== Columns ====
 
 const USER_COLUMNS: ArtColumn<UserModel>[] = [
-  { key: 'name', label: 'Name', sizing: { renderLoading: true }, render: (u) => u.name ?? '—' },
+  { key: 'name', label: 'Name', sizing: { renderLoading: true }, render: (u) => u.name ?? '' },
   { key: 'email', label: 'Email', sizing: {} },
   { key: 'permissions', label: 'Permissions', sizing: { renderLoading: true }, render: (u) => <PermissionsCell permissions={u.permissions} /> },
 ];

@@ -88,9 +88,14 @@ const ArtDataFilters = ({
             className={cn('art-data-filters-toggle', open && 'art-data-filters-toggle--open')}
           >
             Filters
-            {activeFilterCount > 0 && (
-              <span className="art-data-filters-count">{activeFilterCount}</span>
-            )}
+            <span
+              className={cn(
+                'art-data-filters-count',
+                activeFilterCount === 0 && 'art-data-filters-count--neutral',
+              )}
+            >
+              {activeFilterCount}
+            </span>
           </ArtButton>
         )}
 

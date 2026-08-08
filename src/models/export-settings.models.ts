@@ -105,4 +105,11 @@ export const UpdateExportSettingValidator = yup.object(exportSettingFields).part
 export type CreateExportSettingModel = yup.InferType<typeof CreateExportSettingValidator>;
 export type UpdateExportSettingModel = yup.InferType<typeof UpdateExportSettingValidator>;
 
+// ==== Export Setting Filter ====
+
+export const ExportSettingFilterValidator = yup.object({
+  hasTotalColumn: yup.boolean().optional(),
+});
+export type ExportSettingFilterYupModel = yup.InferType<typeof ExportSettingFilterValidator>;
+
 // #endregion

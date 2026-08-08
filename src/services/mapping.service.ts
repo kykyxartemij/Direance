@@ -60,7 +60,6 @@ export const getPagedMappings = withHandler(async (req) => {
         await checkUserRequestLimit(ip, userId, permissions);
         return prisma.fieldMapping.findManyFts({
           freeText,
-          userId,
           where,
           select: MAPPING_SELECT_PAGED,
           orderBy: { name: 'asc' },
@@ -71,7 +70,7 @@ export const getPagedMappings = withHandler(async (req) => {
       CACHE_KEYS.mapping.paged(userId, page, pageSize, freeText, filters.reportType),
     ),
     cached(
-      () => prisma.fieldMapping.countFts({ freeText, userId, where }),
+      () => prisma.fieldMapping.countFts({ freeText, where }),
       CACHE_KEYS.mapping.count(userId, freeText, filters.reportType),
     ),
   ]);

@@ -17,6 +17,7 @@ import type {
   FinancialPositionFetchFiltersModel,
   ConnectionFetchManyResponse,
   ConnectionFetchResult,
+  ConnectionFilterYupModel,
 } from '@/models/connection.models';
 import type { PaginatedResponse } from '@/models/paginated-response.model';
 import type { ApiError } from '@/models/api-error';
@@ -44,13 +45,14 @@ export function useGetPagedConnections(
   page: number,
   pageSize: number,
   freeText?: string,
+  filters?: ConnectionFilterYupModel,
   options?: Omit<UseQueryOptions<PaginatedResponse<ConnectionPagedModel>, ApiError>, 'queryKey' | 'queryFn'>
 ) {
   return useQuery<PaginatedResponse<ConnectionPagedModel>, ApiError>({
-    queryKey: queryKeys.connection.paged(page, pageSize, freeText),
+    queryKey: queryKeys.connection.paged(page, pageSize, freeText, filters),
     queryFn: async () => {
       const { data } = await fetchClient.get<PaginatedResponse<ConnectionPagedModel>>(
-        API.connection.paged(page, pageSize, freeText),
+        API.connection.paged(page, pageSize, freeText, filters),
       );
       return data;
     },

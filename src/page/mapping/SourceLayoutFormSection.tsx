@@ -45,7 +45,7 @@ function colLetter(n: number): string {
 
 function describeRegion(r: { descriptionColumn: number; valueColumns: number[]; startRow?: number }): string {
   const desc = colLetter(r.descriptionColumn);
-  const vals = r.valueColumns.map(colLetter).join(', ') || '—';
+  const vals = r.valueColumns.map(colLetter).join(', ');
   const start = r.startRow != null ? ` from row ${r.startRow + 1}` : '';
   return `desc ${desc} → vals ${vals}${start}`;
 }

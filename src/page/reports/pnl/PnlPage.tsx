@@ -28,7 +28,7 @@ export default function PnlPage() {
   const periods = filters.periods ?? defaultPnlFilterValues().periods;
 
   const activeConnections = connections.filter((c) => c.reportType === 'pnl' && isConnectionActive(c, connectionOverrides));
-  const { data: connectionReports = [] } = useGetPnlReportsByConnections(
+  const { data: connectionReports = [], isFetching } = useGetPnlReportsByConnections(
     activeConnections,
     buildPnlFetchFilters({ dateTo, dateFrom, periods }),
     { throwOnError: true },
@@ -54,7 +54,7 @@ export default function PnlPage() {
         activeFilterCount={activeCount}
         onClearFilters={clearFilters}
       />
-      <ReportView reports={reports} />
+      <ReportView reports={reports} loading={isFetching} />
     </div>
   );
 }

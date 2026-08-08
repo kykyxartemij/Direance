@@ -7,6 +7,7 @@ import { useExportExcel } from '@/hooks/excel.hooks';
 import ArtBadge from '@/components/ui/ArtBadge';
 import ArtComboBox from '@/components/ui/ArtComboBox/ArtComboBox';
 import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox/types';
+import ArtSkeleton from '@/components/ui/ArtSkeleton';
 import ArtDataTable from '@/components/ui/ArtDataTable/ArtDataTable';
 import type { ArtColumn } from '@/components/ui/ArtDataTable/types';
 import ArtTabs from '@/components/ui/ArtTabs';
@@ -155,9 +156,11 @@ type ReportViewProps = {
   // Already filtered to one report type + merged (file uploads + connection fetches) by the
   // owning page — ReportView is a pure presentation over this list, no data source of its own.
   reports: UploadedReport[];
+  // True while connection reports are still being fetched — owning page passes its query's isFetching.
+  loading?: boolean;
 };
 
-export default function ReportView({ reports }: ReportViewProps) {
+export default function ReportView({ reports, loading }: ReportViewProps) {
   const [view, setView] = useState('table');
 
   // Default ExportSetting comes from the first mapped report's linked ExportSetting.
@@ -168,6 +171,15 @@ export default function ReportView({ reports }: ReportViewProps) {
     meta: { withGlobalLoaderBlur: true },
   });
   const { mutateAsync: exportExcel } = useExportExcel();
+
+  if (loading && reports.length === 0) {
+    return (
+      <div className="flex flex-col gap-2">
+        <ArtSkeleton style={{ height: 36 }} />
+        <ArtSkeleton style={{ height: 220 }} />
+      </div>
+    );
+  }
 
   if (reports.length === 0) {
     return (

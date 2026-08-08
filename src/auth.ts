@@ -64,18 +64,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }) {
       if (user?.id) {
         token.id = user.id;
-        // Embed permissions in JWT on sign-in — no DB call on subsequent requests
+        // Embed permissions + name in JWT on sign-in — no DB call on subsequent requests.
+        // name comes from the DB (not the OAuth/credentials `user` object) so it reflects
+        // whatever's actually stored, not a stale provider-side value.
         const dbUser = await prisma.user.findUnique({
           where: { id: user.id },
-          select: { permissions: true },
+          select: { permissions: true, name: true },
         });
         token.permissions = dbUser?.permissions ?? [];
+        token.name = dbUser?.name ?? null;
       }
       return token;
     },
     session({ session, token }) {
       session.user.id = token.id as string;
       session.user.permissions = token.permissions as string[];
+      session.user.name = token.name as string | null;
       return session;
     },
   },

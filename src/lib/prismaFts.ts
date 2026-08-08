@@ -4,6 +4,7 @@ import { Prisma } from '../../generated/prisma/client';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { unstable_cache } from 'next/cache';
 import { tryParseUuid } from '@/models';
+import { getAuthOptional } from '@/lib/requestContext';
 
 const FTS_CACHE_TTL = 300; // 5 min — keeps results warm for a user's session
 const MIN_FTS_LENGTH = 5;
@@ -39,8 +40,8 @@ const resolveFtsIdsCached = cache(async function (
   searchColumn: string,
   collectionCacheKey: string,
   freeText: string,
-  userId?: string,
 ): Promise<string[]> {
+  const userId = getAuthOptional()?.userId;
   const cacheKey = userId
     ? ['fts', collectionCacheKey, userId, freeText]
     : ['fts', collectionCacheKey, freeText];
@@ -105,9 +106,8 @@ export function withFts<
   return {
     async findManyFts<T extends Parameters<TModel['findMany']>[0]>({
       freeText,
-      userId,
       ...args
-    }: T & { freeText?: string; userId?: string }): Promise<Awaited<ReturnType<TModel['findMany']>>> {
+    }: T & { freeText?: string }): Promise<Awaited<ReturnType<TModel['findMany']>>> {
       const term = freeText?.trim() ?? '';
 
       if (!term) {
@@ -126,7 +126,7 @@ export function withFts<
         return model.findMany({ ...args, where: { ...(args as any).where, id: uuid } }) as Awaited<ReturnType<TModel['findMany']>>;
       }
 
-      const idsByFreeText = await resolveFtsIdsCached(client, table, searchColumn, collectionCacheKey, term, userId);
+      const idsByFreeText = await resolveFtsIdsCached(client, table, searchColumn, collectionCacheKey, term);
       if (idsByFreeText.length === 0 && extraSearchColumns.length === 0) return [] as Awaited<ReturnType<TModel['findMany']>>;
       return model.findMany({
         ...args,
@@ -136,11 +136,9 @@ export function withFts<
 
     async countFts({
       freeText,
-      userId,
       where,
     }: {
       freeText?: string;
-      userId?: string;
       where?: Parameters<TModel['count']>[0]['where'];
     }): Promise<number> {
       const term = freeText?.trim() ?? '';
@@ -158,7 +156,7 @@ export function withFts<
         return model.count({ where: { ...where, id: uuid } });
       }
 
-      const idsByFreeText = await resolveFtsIdsCached(client, table, searchColumn, collectionCacheKey, term, userId);
+      const idsByFreeText = await resolveFtsIdsCached(client, table, searchColumn, collectionCacheKey, term);
       if (idsByFreeText.length === 0 && extraSearchColumns.length === 0) return 0;
       return model.count({ where: buildFtsWhere(idsByFreeText, term, where) });
     },

@@ -5,10 +5,11 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { useRouter } from 'next/navigation';
 import { useSendInvite } from '@/hooks/invite.hooks';
-import InviteLimitsSection from './InviteLimitsSection';
+// Resend limits UI disabled — invites go through SMTP now, not Resend. Leave commented for future.
+// import InviteLimitsSection from './InviteLimitsSection';
 import { useAuth } from '@/providers/AuthProvider';
 import { Permission } from '@/lib/permissions';
-import PermissionGuard from '@/components/PermissionGuard';
+// import PermissionGuard from '@/components/PermissionGuard';
 import { useArtSnackbar } from '@/components/ui/ArtSnackbar';
 import { ArtForm, ArtFormInput, ArtFormListbox } from '@/components/form';
 import ArtLabel from '@/components/ui/ArtLabel';
@@ -124,9 +125,9 @@ export default function InvitePage() {
         </p>
       )}
     </ArtForm>
-    <PermissionGuard permission={Permission.CAN_ACCESS_STATS}>
+    {/* <PermissionGuard permission={Permission.CAN_ACCESS_STATS}>
       <InviteLimitsSection />
-    </PermissionGuard>
+    </PermissionGuard> */}
     </div>
   );
 }

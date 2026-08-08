@@ -146,6 +146,14 @@ export const UpdateConnectionValidator = yup.object(connectionFields).partial().
 export type CreateConnectionModel = yup.InferType<typeof CreateConnectionValidator>;
 export type UpdateConnectionModel = yup.InferType<typeof UpdateConnectionValidator>;
 
+// ==== Connection Filter ====
+
+export const ConnectionFilterValidator = yup.object({
+  type:       yup.string().oneOf(CONNECTION_TYPES, 'Invalid type').optional(),
+  reportType: yup.string().oneOf(REPORT_TYPES, 'Invalid report type').optional(),
+});
+export type ConnectionFilterYupModel = yup.InferType<typeof ConnectionFilterValidator>;
+
 export const TestConnectionValidator = yup.object({
   type:   yup.string().oneOf(CONNECTION_TYPES, 'Invalid type').required('Type is required'),
   config: ConfigValidator,

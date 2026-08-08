@@ -580,10 +580,10 @@ stops protecting that other work. Three consequences:
   const [data, total] = await Promise.all([
     cached(async () => {
       await checkUserRequestLimit(ip, userId, permissions);
-      return prisma.fieldMapping.findManyFts({ freeText, userId, where, select: MAPPING_SELECT_PAGED, orderBy: { name: 'asc' }, skip: page * pageSize, take: pageSize });
+      return prisma.fieldMapping.findManyFts({ freeText, where, select: MAPPING_SELECT_PAGED, orderBy: { name: 'asc' }, skip: page * pageSize, take: pageSize });
     }, CACHE_KEYS.mapping.paged(userId, page, pageSize, freeText)),
 
-    cached(() => prisma.fieldMapping.countFts({ freeText, userId, where }), CACHE_KEYS.mapping.count(userId, freeText)),
+    cached(() => prisma.fieldMapping.countFts({ freeText, where }), CACHE_KEYS.mapping.count(userId, freeText)),
   ]);
   ```
 
@@ -780,9 +780,10 @@ Use `findManyFts` / `countFts` — never write raw FTS SQL in a service.
 
 ```ts
 // Search + count — FTS IDs deduped via React cache(), only one SQL query fires
-// even when findManyFts and countFts are called in Promise.all
-await prisma.model.findManyFts({ freeText, userId, where, select, orderBy, skip, take });
-await prisma.model.countFts({ freeText, userId, where });
+// even when findManyFts and countFts are called in Promise.all. userId is read from
+// getAuthOptional() internally (cache-key tagging only) — never pass it as an arg.
+await prisma.model.findManyFts({ freeText, where, select, orderBy, skip, take });
+await prisma.model.countFts({ freeText, where });
 ```
 
 Setting up a new searchable field/table is a DB-level step — see Step 6 below.
@@ -898,7 +899,8 @@ const [data, total] = await Promise.all([
     async () => {
       await checkUserRequestLimit(ip, userId, permissions);
       return prisma.fieldMapping.findManyFts({
-        freeText, userId, where,
+        freeText, 
+        where,
         select: MAPPING_SELECT_PAGED,
         orderBy: { name: 'asc' },
         skip: page * pageSize,
@@ -908,7 +910,7 @@ const [data, total] = await Promise.all([
     CACHE_KEYS.mapping.paged(userId, page, pageSize, freeText),
   ),
   cached(
-    () => prisma.fieldMapping.countFts({ freeText, userId, where }),
+    () => prisma.fieldMapping.countFts({ freeText, where }),
     CACHE_KEYS.mapping.count(userId, freeText),
   ),
 ]);

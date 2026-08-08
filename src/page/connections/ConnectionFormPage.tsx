@@ -208,7 +208,7 @@ function ConnectionForm({ id, existing, isEdit, onSuccess }: ConnectionFormProps
 
       {isMeritType(type) && (
         <FormSection title={CONNECTION_TYPE_LABELS[type]}>
-          <ArtFormInput name="meritApiId" label="API ID" required={!isEdit} />
+          <ArtFormInput name="meritApiId" label="API ID" required={!isEdit} autoComplete="off" />
           <ArtFormInput
             name="meritApiKey"
             label="API Key"
@@ -216,6 +216,7 @@ function ConnectionForm({ id, existing, isEdit, onSuccess }: ConnectionFormProps
             required={!isEdit}
             placeholder={isEdit && !secretCleared ? '••••• (kept unless you type a new value)' : ''}
             onFocus={() => setSecretCleared(true)}
+            autoComplete="new-password"
           />
           {reportType === 'pnl' && (
             <ArtFormInput
@@ -230,9 +231,9 @@ function ConnectionForm({ id, existing, isEdit, onSuccess }: ConnectionFormProps
 
       {type === 'odoo' && (
         <FormSection title="Odoo">
-          <ArtFormInput name="odooUrl"      label="URL" placeholder="https://my-company.odoo.com" required />
-          <ArtFormInput name="odooDb"       label="Database" required />
-          <ArtFormInput name="odooUsername" label="Username" required />
+          <ArtFormInput name="odooUrl"      label="URL" placeholder="https://my-company.odoo.com" required autoComplete="off" />
+          <ArtFormInput name="odooDb"       label="Database" required autoComplete="off" />
+          <ArtFormInput name="odooUsername" label="Username" required autoComplete="off" />
           <ArtFormInput
             name="odooPassword"
             label="Password"
@@ -240,6 +241,7 @@ function ConnectionForm({ id, existing, isEdit, onSuccess }: ConnectionFormProps
             required={!isEdit}
             placeholder={isEdit && !secretCleared ? '••••• (kept unless you type a new value)' : ''}
             onFocus={() => setSecretCleared(true)}
+            autoComplete="new-password"
           />
           <ArtFormInput
             name="odooJournalIds"

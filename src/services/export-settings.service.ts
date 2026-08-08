@@ -11,11 +11,12 @@ import { parseIdFromRoute } from '@/models';
 import {
   CreateExportSettingValidator,
   UpdateExportSettingValidator,
+  ExportSettingFilterValidator,
   EXPORT_SETTING_SELECT_LIGHT,
   EXPORT_SETTING_SELECT_PAGED,
   EXPORT_SETTING_SELECT,
 } from '@/models/export-settings.models';
-import { parsePaginationFromUrl, createPaginatedResponse } from '@/models/paginated-response.model';
+import { parsePaginationFromUrl, createPaginatedResponse, parseFiltersFromUrl, whereFromFilters } from '@/models/paginated-response.model';
 import { parseFreeTextFromUrl } from '@/lib/normalizeText';
 
 // ==== HTTP handlers ====
@@ -46,15 +47,15 @@ export const getPagedExportSettings = withHandler(async (req) => {
   const searchParams = new URL(req.url).searchParams;
   const { page, pageSize } = await parsePaginationFromUrl(searchParams);
   const freeText = parseFreeTextFromUrl(searchParams);
+  const filters = await parseFiltersFromUrl(searchParams, ExportSettingFilterValidator);
 
-  const where = { userId };
+  const where = { userId, ...whereFromFilters(filters) };
   const [data, total] = await Promise.all([
     cached(
       async () => {
         await checkUserRequestLimit(ip, userId, permissions);
         return prisma.exportSetting.findManyFts({
           freeText,
-          userId,
           where,
           select: EXPORT_SETTING_SELECT_PAGED,
           orderBy: { name: 'asc' },
@@ -62,11 +63,11 @@ export const getPagedExportSettings = withHandler(async (req) => {
           take: pageSize,
         });
       },
-      CACHE_KEYS.exportSetting.paged(userId, page, pageSize, freeText),
+      CACHE_KEYS.exportSetting.paged(userId, page, pageSize, freeText, filters.hasTotalColumn),
     ),
     cached(
-      () => prisma.exportSetting.countFts({ freeText, userId, where }),
-      CACHE_KEYS.exportSetting.count(userId, freeText),
+      () => prisma.exportSetting.countFts({ freeText, where }),
+      CACHE_KEYS.exportSetting.count(userId, freeText, filters.hasTotalColumn),
     ),
   ]);
 

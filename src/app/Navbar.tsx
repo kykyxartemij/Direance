@@ -97,7 +97,7 @@ export default function Navbar() {
             {NAV_MIDDLE.flatMap((item) => (isVisible(item) ? [navLink(item)] : []))}
           </div>
 
-          {/* Right: email (→ profile) + sign out */}
+          {/* Right: name (→ profile) + sign out */}
           <div className="flex items-center gap-4 shrink-0">
             <Link
               href={HREF.profile}
@@ -105,7 +105,7 @@ export default function Navbar() {
               className="text-sm"
               style={{ color: isActive(HREF.profile) ? 'var(--text)' : 'var(--text-muted)' }}
             >
-              {user.email}
+              {user.name ?? user.email}
             </Link>
             <ArtButton
               variant="ghost"

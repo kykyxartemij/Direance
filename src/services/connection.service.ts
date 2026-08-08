@@ -14,6 +14,7 @@ import {
   CreateConnectionValidator,
   UpdateConnectionValidator,
   TestConnectionValidator,
+  ConnectionFilterValidator,
   PnlFetchManyValidator,
   FinancialPositionFetchManyValidator,
   PnlFetchValidator,
@@ -24,7 +25,7 @@ import {
   type ConnectionType,
   type ConnectionSecret,
 } from '@/models/connection.models';
-import { parsePaginationFromUrl, createPaginatedResponse } from '@/models/paginated-response.model';
+import { parsePaginationFromUrl, createPaginatedResponse, parseFiltersFromUrl, whereFromFilters } from '@/models/paginated-response.model';
 import { parseFreeTextFromUrl } from '@/lib/normalizeText';
 import { encryptSecret, decryptSecret } from '@/lib/crypto';
 import { runPnlConnectionDriver, runFinancialPositionConnectionDriver, testPnlConnectionDriver, testFinancialPositionConnectionDriver } from '@/lib/connections';
@@ -59,15 +60,15 @@ export const getPagedConnections = withHandler(async (req) => {
   const searchParams = new URL(req.url).searchParams;
   const { page, pageSize } = await parsePaginationFromUrl(searchParams);
   const freeText = parseFreeTextFromUrl(searchParams);
+  const filters = await parseFiltersFromUrl(searchParams, ConnectionFilterValidator);
 
-  const where = { userId };
+  const where = { userId, ...whereFromFilters(filters) };
   const [data, total] = await Promise.all([
     cached(
       async () => {
         await checkUserRequestLimit(ip, userId, permissions);
         return prisma.connection.findManyFts({
           freeText,
-          userId,
           where,
           select: CONNECTION_SELECT_PAGED,
           orderBy: { name: 'asc' },
@@ -75,11 +76,11 @@ export const getPagedConnections = withHandler(async (req) => {
           take: pageSize,
         });
       },
-      CACHE_KEYS.connection.paged(userId, page, pageSize, freeText),
+      CACHE_KEYS.connection.paged(userId, page, pageSize, freeText, filters.type, filters.reportType),
     ),
     cached(
-      () => prisma.connection.countFts({ freeText, userId, where }),
-      CACHE_KEYS.connection.count(userId, freeText),
+      () => prisma.connection.countFts({ freeText, where }),
+      CACHE_KEYS.connection.count(userId, freeText, filters.type, filters.reportType),
     ),
   ]);
 

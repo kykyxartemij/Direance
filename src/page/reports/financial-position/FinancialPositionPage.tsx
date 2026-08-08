@@ -30,7 +30,7 @@ export default function FinancialPositionPage() {
   const periods = filters.periods ?? defaultFinancialPositionFilterValues().periods;
 
   const activeConnections = connections.filter((c) => c.reportType === 'financial_position' && isConnectionActive(c, connectionOverrides));
-  const { data: connectionReports = [] } = useGetFinancialPositionReportsByConnections(
+  const { data: connectionReports = [], isFetching } = useGetFinancialPositionReportsByConnections(
     activeConnections,
     buildFinancialPositionFetchFilters({ dateTo, periods }),
     { throwOnError: true },
@@ -56,7 +56,7 @@ export default function FinancialPositionPage() {
         activeFilterCount={activeCount}
         onClearFilters={clearFilters}
       />
-      <ReportView reports={reports} />
+      <ReportView reports={reports} loading={isFetching} />
     </div>
   );
 }

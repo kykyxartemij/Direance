@@ -18,8 +18,8 @@ function UserInfoSection() {
       <h3 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
         Account
       </h3>
-      <Field label="Name" value={user.name ?? '—'} />
-      <Field label="Email" value={user.email ?? '—'} />
+      <Field label="Name" value={user.name ?? ''} />
+      <Field label="Email" value={user.email ?? ''} />
     </div>
   );
 }

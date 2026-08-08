@@ -1,6 +1,8 @@
 // Structure mirrors prisma/schema.prisma domains
 
 import type { MappingFilterYupModel } from '@/models/mapping.models';
+import type { ConnectionFilterYupModel } from '@/models/connection.models';
+import type { ExportSettingFilterYupModel } from '@/models/export-settings.models';
 
 export const API = {
   user: {
@@ -34,15 +36,15 @@ export const API = {
   exportSetting: {
     light: () => '/api/export-settings/light',
     list: () => '/api/export-settings',
-    paged: (page: number, pageSize: number, freeText?: string) =>
-      `/api/export-settings/paged?page=${page}&pageSize=${pageSize}${freeText ? `&freeText=${encodeURIComponent(freeText)}` : ''}`,
+    paged: (page: number, pageSize: number, freeText?: string, filters?: ExportSettingFilterYupModel) =>
+      `/api/export-settings/paged?page=${page}&pageSize=${pageSize}${freeText ? `&freeText=${encodeURIComponent(freeText)}` : ''}${filters?.hasTotalColumn !== undefined ? `&hasTotalColumn=${filters.hasTotalColumn}` : ''}`,
     byId: (id: string) => `/api/export-settings/${id}`,
   },
   connection: {
     light: () => '/api/connections/light',
     list: () => '/api/connections',
-    paged: (page: number, pageSize: number, freeText?: string) =>
-      `/api/connections/paged?page=${page}&pageSize=${pageSize}${freeText ? `&freeText=${encodeURIComponent(freeText)}` : ''}`,
+    paged: (page: number, pageSize: number, freeText?: string, filters?: ConnectionFilterYupModel) =>
+      `/api/connections/paged?page=${page}&pageSize=${pageSize}${freeText ? `&freeText=${encodeURIComponent(freeText)}` : ''}${filters?.type ? `&type=${filters.type}` : ''}${filters?.reportType ? `&reportType=${filters.reportType}` : ''}`,
     byId: (id: string) => `/api/connections/${id}`,
     testProfit: () => '/api/connections/test/pnl',
     testFinancialPosition: () => '/api/connections/test/financial-position',

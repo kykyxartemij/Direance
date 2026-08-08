@@ -13,15 +13,28 @@ const USER_DB_INTERNAL_LIMIT = Math.floor(USER_DB_LIMIT_BYTES * 0.95); // 5% buf
 
 // ==== Consumption ====
 
+// pg_column_size(t.*) sums the on-disk size of every column in the row — unlike hand-picking
+// Json/Bytes columns, this can't drift out of sync when a table gains a new column.
+// Covers every row actually attributable to this user, including the User row itself and
+// Auth.js session/account/invite rows — not just app-created content.
 export async function computeUserDbConsumption(userId: string): Promise<DbConsumption> {
   const [row] = await prisma.$queryRaw<[{ total: bigint }]>`
     SELECT (
-      SELECT COALESCE(SUM(octet_length(config::text)), 0) FROM "FieldMapping" WHERE "userId" = ${userId}
+      SELECT COALESCE(pg_column_size(t.*), 0) FROM "User" t WHERE t."id" = ${userId}
     ) + (
-      SELECT COALESCE(SUM(octet_length(data)), 0) FROM "Logo" WHERE "userId" = ${userId}
+      SELECT COALESCE(SUM(pg_column_size(t.*)), 0) FROM "Connection" t WHERE t."userId" = ${userId}
     ) + (
-      SELECT COALESCE(SUM(octet_length("headerLayout"::text)), 0) FROM "ExportSetting"
-      WHERE "userId" = ${userId} AND "headerLayout" IS NOT NULL
+      SELECT COALESCE(SUM(pg_column_size(t.*)), 0) FROM "FieldMapping" t WHERE t."userId" = ${userId}
+    ) + (
+      SELECT COALESCE(SUM(pg_column_size(t.*)), 0) FROM "ExportSetting" t WHERE t."userId" = ${userId}
+    ) + (
+      SELECT COALESCE(SUM(pg_column_size(t.*)), 0) FROM "Logo" t WHERE t."userId" = ${userId}
+    ) + (
+      SELECT COALESCE(SUM(pg_column_size(t.*)), 0) FROM "Invite" t WHERE t."invitedBy" = ${userId}
+    ) + (
+      SELECT COALESCE(SUM(pg_column_size(t.*)), 0) FROM "Account" t WHERE t."userId" = ${userId}
+    ) + (
+      SELECT COALESCE(SUM(pg_column_size(t.*)), 0) FROM "Session" t WHERE t."userId" = ${userId}
     ) AS total
   `;
   return { used: Number(row.total), limit: USER_DB_LIMIT_BYTES };

@@ -30,7 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <div className="flex flex-col" style={{ height: '100vh' }}>
                       <Navbar />
                       <div className="flex flex-1 overflow-hidden">
-                        <main className="flex-1 overflow-y-auto px-6 py-4">{children}</main>
+                        <main className="flex-1 overflow-y-scroll art-scrollable px-6 py-4">{children}</main>
                         <ReportSidebar />
                       </div>
                     </div>
