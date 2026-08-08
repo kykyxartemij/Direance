@@ -58,7 +58,8 @@ So `loading.tsx` still exists — but only for routes with **no** `ArtPage` abov
 route renders `ArtPage`, its loading story is `ArtPage` + the gates below, never a
 `loading.tsx`.
 
-(`app/ui/**` is the Art showcase — exempt from convention entirely, see CLAUDE.md.)
+(`app/ui/**` is the Art component showcase/dev page — exempt from this convention entirely,
+lint-dirty by design.)
 
 ### What the Suspense boundary in `ArtPage` is for
 

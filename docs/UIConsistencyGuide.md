@@ -93,3 +93,108 @@ The anti-pattern is specifically: hiding an interactive element (select, button,
 because its **option/result list happens to be empty right now**, or because it's
 **temporarily inapplicable**. Both of those are states the component should render
 (empty/disabled), not states the parent should branch the tree on.
+
+## ==== Theme ====
+
+Dark only. Token definitions live in `src/app/globals.css`. Art component overrides live in
+`src/components/ui/art.style.css`. All colors reference CSS custom properties
+(`var(--surface)`, `var(--border)`, etc.) — never hardcode hex in component CSS.
+
+## ==== CSS Architecture ====
+
+- `src/app/globals.css` — theme tokens (CSS custom properties) + feature-level global styles.
+- `src/components/ui/art.style.css` — Art component styles only. Feature UI uses Tailwind
+  inline.
+- `art-scrollable` — shared thin scrollbar class defined in `art.style.css`. Add to any
+  scrollable Art element.
+- Memoization (`React.memo`, `useMemo`) only in Art library components, not in feature
+  components.
+
+## ==== Interactive State Rule ====
+
+Every clickable/selectable element needs **4 visually distinct states**, defined in this CSS
+cascade order (later = higher priority, so later rules must come later in the stylesheet):
+
+| Layer   | State           | Trigger                        | Mechanism        |
+|---------|-----------------|---------------------------------|-------------------|
+| 1 base  | default         | resting                        | base CSS class    |
+| 2 hover | cursor over it  | `:hover`                       | pure CSS          |
+| 3 press | being clicked   | `:active` or `[data-pressing]` | CSS or DOM attr   |
+| 4 sel   | persistently on | `--selected` / `checked`       | JS class + CSS    |
+
+Hover must not look like selected; press must look more active than hover.
+
+**`:active` vs `[data-pressing]`:** default to `:active` (ArtButton, links, toggles — no JS
+needed). Switch to `[data-pressing]` only where `e.preventDefault()` runs on `mousedown` —
+that silently cancels `:active`. `ArtListbox` is the reference case (needs `preventDefault`
+to keep the input focused for multi-select, and is hot-path enough that perf matters):
+
+```ts
+// onMouseDown on each <li>
+e.preventDefault();
+const el = e.currentTarget;
+el.setAttribute('data-pressing', '');
+window.addEventListener('mouseup', () => el.removeAttribute('data-pressing'), { once: true });
+```
+
+Values:
+
+```
+default:  transparent
+hover:    var(--border)                                   (#333)
+pressing: color-mix(in srgb, white 18%, var(--border))    (~#585)
+selected: color-mix(in srgb, white  8%, var(--border))    (~#434, between default and hover)
+```
+
+Colored variant:
+
+```
+default:  color: var(--art-accent); background: transparent
+hover:    background: color-mix(in srgb, var(--art-accent) 10%, transparent)
+pressing: background: color-mix(in srgb, var(--art-accent) 22%, transparent)
+selected: background: color-mix(in srgb, var(--art-accent) 14%, transparent)
+```
+
+## ==== Page Metadata — always static ====
+
+Every `page.tsx` exports a **static** metadata title. Dynamic data (e.g. a record's name) goes
+in the on-page heading via `<ArtPage title={...}>` — never in `generateMetadata`.
+
+```tsx
+// page.tsx — metadata always static, heading via ArtPage
+export const metadata: Metadata = { title: 'Mapping Detail' };
+
+export default function Page() {
+  return (
+    <ArtPage title="Mapping Detail">
+      <MappingDetailPage />
+    </ArtPage>
+  );
+}
+```
+
+Root layout defines `title.template: '%s | Direance'` — pages only set the short name.
+
+## ==== Page / Feature-Component Split ====
+
+`page.tsx` is a thin shell rendering `<ArtPage>` (which owns chrome — see
+`InstantNavigationAndLoadingState.md`), and the feature component owns the content.
+
+```
+app/mappings/(list)/
+  page.tsx      ← export metadata + <ArtPage title="Mappings" actions={...}><MappingsPage /></ArtPage>
+```
+
+Title and page-level actions are `ArtPage` props (`title`, `description`, `actions`) — never
+set inside the feature component. `maxWidth` defaults to `5xl`.
+
+### Form button convention
+
+Form action buttons stay **inside** the form component. Always at the bottom, consistent
+order: secondary left, primary right.
+
+| Action      | Props                                    |
+|-------------|-------------------------------------------|
+| Submit/Save | `color="primary" type="submit"`          |
+| Cancel      | `variant="ghost" type="button"`          |
+| Delete      | `color="danger" type="button"`           |

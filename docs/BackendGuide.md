@@ -200,8 +200,9 @@ const data = await UpdateMappingValidator.validate(await req.json(), { abortEarl
 ```
 
 - Always pass `{ abortEarly: false }` — collects all field errors at once, not just the first.
-- Live in model files, next to the type they validate. See Validation Architecture in
-  the project rules in CLAUDE.md for the BE/FE split (models = API contract, page/component = form-only rules).
+- Live in model files, next to the type they validate. See "Where validators live" in
+  `ModelsAndValidationGuide.md` for the full BE/FE split (models = API contract, page/component
+  = form-only rules).
 - **Shared BE + FE — nice to have, not required.** A model validator *can* be reused on the FE
   as-is. In practice BE and FE shapes diverge often enough (HTTP-semantics fields on BE,
   FE-only fields like `confirmPassword`) that most forms end up with their own local `schema`.
@@ -726,7 +727,7 @@ many ids miss in the same request.
 
 **Caveat — every filter the handler is scoped to must also be in the batch `where`.** The
 example above is pinned to `reportType: 'pnl'` (`fetchProfitConnectionsByIds`, a separate
-function from the financial-position one — see the Validation Architecture rule in CLAUDE.md). If
+function from the financial-position one). If
 `reportType` were left out of `where`, a `financial_position` connection id passed to this
 endpoint would still match the `findMany` and leak through — the URL/endpoint choice alone
 isn't enough, the DB query has to enforce it too. Same principle as the permission `where` in
@@ -734,36 +735,9 @@ Step 4: don't trust the caller's framing of the request, encode the real scope i
 
 ### `upsertAndReturn` (custom extension)
 
-Single-roundtrip `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`. Detects insert vs update via
-the Postgres `xmax` trick — no extra query needed.
-
-```ts
-// invite.service.ts — sendInvite
-const [{ id, wasUpdated }] = await prisma.invite.upsertAndReturn({
-  where:  { email: data.email },                                          // conflict key
-  create: { email: data.email, token, invitedBy: inviterId, permissions: data.permissions },
-  update: { token, invitedBy: inviterId, permissions: data.permissions }, // createdAt untouched — trigger owns it
-  select: { id: true },
-});
-// wasUpdated: true = row existed (UPDATE), false = fresh row (INSERT)
-```
-
-Every model has both `createdAt` and `updatedAt` by convention — never reset `createdAt`
-manually in an `update`, that's what `updatedAt` (auto-touched by the DB trigger) is for.
-
-**Raw SQL + DB-level behavior:** `withCrud` uses raw `$queryRaw`, so JS-side Prisma features
-(`@updatedAt`, `@default(cuid()/uuid())`, middleware) don't run there. All auto-behavior is
-instead pushed to Postgres so raw paths get it for free:
-
-| Need | Schema | DB mechanism |
-|------|--------|--------------|
-| `updatedAt` auto-touch | `@default(now())` | `set_updated_at` trigger (`prisma/functions.sql`) fires on UPDATE |
-| Generated id | `@default(dbgenerated("gen_random_uuid()"))` | column DEFAULT — don't pass `id` in `create` |
-| `createdAt` | `@default(now())` | column DEFAULT on INSERT |
-
-Never use JS-side `@updatedAt` / `@default(cuid())` (see the "Raw SQL + Prisma Middleware"
-rule in CLAUDE.md). Still JS-only: Prisma `$extends({ query })` middleware and nested writes don't
-fire on raw paths — split into separate writes when needed.
+Single-roundtrip `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` — see `PrismaGuide.md` for
+the full pattern, the `wasUpdated` detection trick, and why JS-side Prisma features
+(`@updatedAt`, `@default(cuid()/uuid())`, middleware) don't run on this path.
 
 ### `findManyFts` / `countFts` — full-text search
 

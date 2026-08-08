@@ -345,3 +345,33 @@ worth converting to a Prisma enum (`Invite.permissions`/`User.permissions`). `ad
 and `report.models.ts` are untouched on purpose — pure external-API/transient shapes, nothing in
 either bucket to point a generator at. Fields themselves stay plain inline yup, per-model — the
 one shared piece is `IdFieldValidator`.
+
+---
+
+## Where validators live
+
+Validators live in two places with distinct responsibilities:
+
+| Location | Owner | Purpose |
+|---|---|---|
+| `src/models/*.models.ts` | Backend | API request body contracts. Fields follow HTTP semantics: `required` for POST, `optional` for PATCH. |
+| Page / component file | Frontend | Form validation only. Always strict. Never exported. |
+
+**Rules:**
+- Never add a validator to `models/` solely because a form needs it.
+- FE forms define a local `schema` + `type FormValues`. They may mirror a model validator or be
+  stricter.
+- FE-only fields (e.g. `confirmPassword`) exist only in the local schema — never in models.
+- When yup `InferType` causes TS errors, define `FormValues` explicitly and cast the resolver:
+  `yupResolver(schema) as Resolver<FormValues>`.
+- When `FormValues` uses a wider type but the mutation expects a union, cast at the call site:
+  `data.reportType as ReportType`.
+
+## `{ abortEarly: false }` on every `.validate()` call
+
+```ts
+const data = await MyValidator.validate(body, { abortEarly: false });
+```
+
+Collects all field errors at once instead of stopping at the first one. Applies to every
+`.validate()` call regardless of field count.

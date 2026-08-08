@@ -20,7 +20,7 @@ const toSql = (v: unknown): Prisma.Sql => {
 
 /**
  * Registers { upsertAndReturn } on a Prisma $extends model block.
- * Uses $queryRaw, so Prisma middleware/hooks (@updatedAt etc.) don't run — see CLAUDE.md.
+ * Uses $queryRaw, so Prisma middleware/hooks (@updatedAt etc.) don't run — see docs/PrismaGuide.md.
  */
 export function withCrud<TModel extends object>(client: PrismaClient, table: string) {
   return {
