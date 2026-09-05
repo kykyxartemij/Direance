@@ -1,6 +1,6 @@
 'use client';
 
-import { useImperativeHandle, useReducer, useState } from 'react';
+import { useState } from 'react';
 import * as XLSX from 'xlsx';
 import type { SourceLayout, SheetConfig, TotalColumnMode, ReportType } from '@/models/mapping.models';
 import type { ConnectionSheet } from '@/models/connection.models';
@@ -12,21 +12,24 @@ import ArtTabs from '@/components/ui/ArtTabs';
 import { useGetLightConnections, useFetchPnlConnectionById, useFetchFinancialPositionConnectionById } from '@/hooks/connection.hooks';
 import { defaultPnlFilterValues, buildPnlFetchFilters } from '@/page/reports/pnl/pnlFilterFields';
 import { defaultFinancialPositionFilterValues, buildFinancialPositionFetchFilters } from '@/page/reports/financial-position/financialPositionFilterFields';
-import { autoDetectLayout } from './applyMapping';
+import { buildLoadedWorkbookState, type LoadedWorkbookState } from './applyMapping';
 import SourceLayoutSection from './SourceLayoutSection/SourceLayoutSection';
 
-// ==== Types ====
+export type { LoadedWorkbookState };
 
-export interface SourceLayoutFormSectionRef {
-  getSourceLayout(): SourceLayout;
-  getSheetLayouts(): Record<string, SourceLayout> | undefined;
-  getSheetsConfig(): Record<string, SheetConfig> | undefined;
-}
+// ==== Types ====
 
 interface SourceLayoutFormSectionProps {
   initialLayout: SourceLayout;
   initialSheetLayouts?: Record<string, SourceLayout>;
   initialSheetsConfig?: Record<string, SheetConfig>;
+  /** Owned by the parent — set via onWorkbookLoaded, null until a file/connection sample is loaded. */
+  loaded: LoadedWorkbookState | null;
+  /** Called when a file is picked or a connection sample is fetched. Pass null to clear. */
+  onWorkbookLoaded: (state: LoadedWorkbookState | null) => void;
+  onSheetLayoutChange: (sheetName: string, layout: SourceLayout) => void;
+  onSheetModeChange: (sheetName: string, mode: 'combine' | 'skip') => void;
+  onSheetTotalColumnModeChange: (sheetName: string, mode: TotalColumnMode) => void;
   /** When set, shows a "fetch sample from connection" picker scoped to this report type. Omit for manual-upload contexts. */
   reportType?: ReportType;
 }
@@ -119,56 +122,23 @@ function ReadonlySummary({
   );
 }
 
-// ==== Reducer ====
-
-type LayoutState = {
-  workbook: XLSX.WorkBook | null;
-  sheetLayouts: Record<string, SourceLayout>;
-  autoDetectedLayouts: Record<string, SourceLayout>;
-  sheetsConfig: Record<string, SheetConfig>;
-  warning: string | null;
-};
-
-type LayoutAction =
-  | { type: 'LOAD_WORKBOOK'; workbook: XLSX.WorkBook; sheetLayouts: Record<string, SourceLayout>; autoDetectedLayouts: Record<string, SourceLayout>; sheetsConfig: Record<string, SheetConfig>; warning: string | null }
-  | { type: 'CLEAR_WORKBOOK' }
-  | { type: 'SET_WARNING'; warning: string | null }
-  | { type: 'SET_SHEET_LAYOUT'; sheetName: string; layout: SourceLayout }
-  | { type: 'SET_SHEET_MODE'; sheetName: string; mode: 'combine' | 'skip' }
-  | { type: 'SET_SHEET_TOTAL_COLUMN_MODE'; sheetName: string; mode: TotalColumnMode };
-
-function layoutReducer(state: LayoutState, action: LayoutAction): LayoutState {
-  switch (action.type) {
-    case 'LOAD_WORKBOOK':
-      return { ...state, workbook: action.workbook, sheetLayouts: action.sheetLayouts, autoDetectedLayouts: action.autoDetectedLayouts, sheetsConfig: action.sheetsConfig, warning: action.warning };
-    case 'CLEAR_WORKBOOK':
-      return { ...state, workbook: null, warning: null };
-    case 'SET_WARNING':
-      return { ...state, warning: action.warning };
-    case 'SET_SHEET_LAYOUT':
-      return { ...state, sheetLayouts: { ...state.sheetLayouts, [action.sheetName]: action.layout } };
-    case 'SET_SHEET_MODE':
-      return { ...state, sheetsConfig: { ...state.sheetsConfig, [action.sheetName]: { ...(state.sheetsConfig[action.sheetName] ?? { mode: 'combine' }), mode: action.mode } } };
-    case 'SET_SHEET_TOTAL_COLUMN_MODE':
-      return { ...state, sheetsConfig: { ...state.sheetsConfig, [action.sheetName]: { ...(state.sheetsConfig[action.sheetName] ?? { mode: 'combine' }), totalColumnMode: action.mode } } };
-  }
-}
-
 // ==== Section ====
 
-function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSheetsConfig, reportType, ref }: SourceLayoutFormSectionProps & { ref?: React.Ref<SourceLayoutFormSectionRef> }) {
-    const [state, dispatch] = useReducer(layoutReducer, {
-      workbook: null,
-      sheetLayouts: initialSheetLayouts ?? {},
-      autoDetectedLayouts: {},
-      sheetsConfig: initialSheetsConfig ?? {},
-      warning: null,
-    });
-    const { workbook, sheetLayouts, autoDetectedLayouts, sheetsConfig, warning } = state;
-
+function SourceLayoutFormSection({
+  initialLayout,
+  initialSheetLayouts,
+  initialSheetsConfig,
+  loaded,
+  onWorkbookLoaded,
+  onSheetLayoutChange,
+  onSheetModeChange,
+  onSheetTotalColumnModeChange,
+  reportType,
+}: SourceLayoutFormSectionProps) {
     const [sourceMode, setSourceMode] = useState<'upload' | 'connection'>('upload');
     const [connectionId, setConnectionId] = useState<string | null>(null);
     const [sourceLabel, setSourceLabel] = useState<string | null>(null);
+    const [warningOverride, setWarningOverride] = useState<string | null>(null);
     const { data: connections = [] } = useGetLightConnections();
     const { mutateAsync: fetchPnl, isPending: fetchingPnl } = useFetchPnlConnectionById({
       meta: { withPageLoaderBlur: true },
@@ -181,62 +151,28 @@ function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSh
       c.reportType === reportType ? [{ label: c.name, value: c.id }] : []
     );
 
-    useImperativeHandle(
-      ref,
-      () => ({
-        getSourceLayout: () => {
-          // Prefer the first non-skipped sheet's layout. Falls back to initialLayout.
-          const primaryName = workbook?.SheetNames.find((n) => sheetsConfig[n]?.mode !== 'skip')
-            ?? workbook?.SheetNames[0];
-          return (primaryName && sheetLayouts[primaryName]) || initialLayout;
-        },
-        getSheetLayouts: () =>
-          Object.keys(sheetLayouts).length > 0 ? sheetLayouts : undefined,
-        getSheetsConfig: () =>
-          Object.keys(sheetsConfig).length > 0 ? sheetsConfig : undefined,
-      }),
-      [workbook, sheetLayouts, sheetsConfig, initialLayout],
-    );
-
-    function processWorkbook(wb: XLSX.WorkBook) {
-      const expected = Object.keys(sheetLayouts);
-      const expectedSet = new Set(expected);
-      const incoming = new Set(wb.SheetNames);
-      const missing = expected.filter((n) => !incoming.has(n));
-      const extra = wb.SheetNames.filter((n) => expected.length > 0 && !expectedSet.has(n));
-
-      let nextWarning: string | null = null;
-      if (missing.length || extra.length) {
-        const parts: string[] = [];
-        if (missing.length) parts.push(`missing sheets: ${missing.join(', ')}`);
-        if (extra.length) parts.push(`extra sheets: ${extra.join(', ')}`);
-        nextWarning = `Uploaded file does not match stored layout — ${parts.join('; ')}`;
-      }
-
-      const nextLayouts: Record<string, SourceLayout> = { ...sheetLayouts };
-      const nextAuto: Record<string, SourceLayout> = {};
-      const nextConfig: Record<string, SheetConfig> = { ...sheetsConfig };
-      for (const name of wb.SheetNames) {
-        const auto = autoDetectLayout(wb, name);
-        nextAuto[name] = auto;
-        if (!nextLayouts[name]) nextLayouts[name] = auto;
-        if (!nextConfig[name]) nextConfig[name] = { mode: 'combine' };
-      }
-      dispatch({ type: 'LOAD_WORKBOOK', workbook: wb, sheetLayouts: nextLayouts, autoDetectedLayouts: nextAuto, sheetsConfig: nextConfig, warning: nextWarning });
+    function loadWorkbook(wb: XLSX.WorkBook) {
+      setWarningOverride(null);
+      const state = buildLoadedWorkbookState(
+        wb,
+        loaded?.sheetLayouts ?? initialSheetLayouts ?? {},
+        loaded?.sheetsConfig ?? initialSheetsConfig ?? {},
+      );
+      onWorkbookLoaded(state);
     }
 
     async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
       const file = e.target.files?.[0];
       if (!file) {
-        dispatch({ type: 'CLEAR_WORKBOOK' });
+        onWorkbookLoaded(null);
         return;
       }
       try {
         const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellStyles: true });
-        processWorkbook(wb);
+        loadWorkbook(wb);
         setSourceLabel(file.name);
       } catch (err) {
-        dispatch({ type: 'SET_WARNING', warning: `Failed to parse Excel file: ${(err as Error).message}` });
+        setWarningOverride(`Failed to parse Excel file: ${(err as Error).message}`);
       }
     }
 
@@ -247,35 +183,26 @@ function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSh
           ? await fetchPnl({ id: connectionId, ...buildPnlFetchFilters(defaultPnlFilterValues()) })
           : await fetchFinancialPosition({ id: connectionId, ...buildFinancialPositionFetchFilters(defaultFinancialPositionFilterValues()) });
         const wb = buildWorkbookFromSheets(result.sheets);
-        processWorkbook(wb);
+        loadWorkbook(wb);
         const connectionName = connections.find((c) => c.id === connectionId)?.name ?? 'connection';
         setSourceLabel(`Connection: ${connectionName}`);
       } catch (err) {
-        dispatch({ type: 'SET_WARNING', warning: `Failed to fetch from connection: ${(err as Error).message}` });
+        setWarningOverride(`Failed to fetch from connection: ${(err as Error).message}`);
       }
     }
 
     function clearWorkbook() {
-      dispatch({ type: 'CLEAR_WORKBOOK' });
+      onWorkbookLoaded(null);
       setSourceLabel(null);
+      setWarningOverride(null);
     }
 
-    function handleSheetLayoutChange(sheetName: string, newLayout: SourceLayout) {
-      dispatch({ type: 'SET_SHEET_LAYOUT', sheetName, layout: newLayout });
-    }
-
-    function handleSheetModeChange(sheetName: string, mode: 'combine' | 'skip') {
-      dispatch({ type: 'SET_SHEET_MODE', sheetName, mode });
-    }
-
-    function handleSheetTotalColumnModeChange(sheetName: string, mode: TotalColumnMode) {
-      dispatch({ type: 'SET_SHEET_TOTAL_COLUMN_MODE', sheetName, mode });
-    }
+    const warning = warningOverride ?? loaded?.warning ?? null;
 
     return (
       <ArtCollapse title="Source Layout" defaultOpen={false}>
         <div className="flex flex-col gap-3">
-          {!workbook && (
+          {!loaded && (
             <ReadonlySummary
               layout={initialLayout}
               sheetLayouts={initialSheetLayouts}
@@ -296,7 +223,7 @@ function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSh
 
           {sourceMode === 'upload' || !reportType ? (
             <ArtUpload
-              label={workbook ? 'Replace Excel file' : 'Upload Excel to edit Source Layout'}
+              label={loaded ? 'Replace Excel file' : 'Upload Excel to edit Source Layout'}
               hint="Excel (.xlsx, .xls)"
               accept=".xlsx,.xls"
               onChange={handleFileChange}
@@ -327,7 +254,7 @@ function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSh
             </div>
           )}
 
-          {workbook && sourceLabel?.startsWith('Connection:') && (
+          {loaded && sourceLabel?.startsWith('Connection:') && (
             <div className="flex items-center justify-between rounded px-3 py-2 text-xs" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
               <span style={{ color: 'var(--text-muted)' }}>
                 Loaded: <strong style={{ color: 'var(--text)' }}>{sourceLabel}</strong>
@@ -344,16 +271,16 @@ function SourceLayoutFormSection({ initialLayout, initialSheetLayouts, initialSh
             </p>
           )}
 
-          {workbook && (
+          {loaded && (
             <SourceLayoutSection
               bare
-              workbook={workbook}
-              sheetLayouts={sheetLayouts}
-              autoDetectedLayouts={autoDetectedLayouts}
-              sheetsConfig={sheetsConfig}
-              onSheetLayoutChange={handleSheetLayoutChange}
-              onSheetModeChange={handleSheetModeChange}
-              onSheetTotalColumnModeChange={handleSheetTotalColumnModeChange}
+              workbook={loaded.workbook}
+              sheetLayouts={loaded.sheetLayouts}
+              autoDetectedLayouts={loaded.autoDetectedLayouts}
+              sheetsConfig={loaded.sheetsConfig}
+              onSheetLayoutChange={onSheetLayoutChange}
+              onSheetModeChange={onSheetModeChange}
+              onSheetTotalColumnModeChange={onSheetTotalColumnModeChange}
             />
           )}
         </div>

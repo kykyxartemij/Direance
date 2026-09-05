@@ -16,7 +16,31 @@ interface ArtCutProps {
   style?: React.CSSProperties;
 }
 
+// ArtTooltip's singleton reads data-tooltip on native mouseover (see artTooltipSingleton.ts) —
+// checking scrollWidth vs clientWidth here, lazily on first hover, needs no React state/effect.
+function checkTruncatedOnHover(e: React.MouseEvent<HTMLSpanElement>) {
+  const el = e.currentTarget;
+  if (el.dataset.tooltipChecked) return;
+  el.dataset.tooltipChecked = 'true';
+  if (el.scrollWidth > el.clientWidth) el.dataset.tooltip = el.textContent ?? '';
+}
+
 export default function ArtCut({ width, height, text, children, className, style }: ArtCutProps) {
+  const ellipsisMode = !!(text && width);
+
+  // Ellipsis must live on an inner block-level span, not a flex container itself —
+  // flex items ignore text-overflow (min-width:auto blocks shrinking).
+  const content = ellipsisMode
+    ? (
+      <span
+        onMouseEnter={checkTruncatedOnHover}
+        style={{ display: 'block', width: '100%', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}
+      >
+        {children}
+      </span>
+    )
+    : children;
+
   return (
     <div
       className={`art-cut${className ? ` ${className}` : ''}`}
@@ -25,10 +49,9 @@ export default function ArtCut({ width, height, text, children, className, style
         ...(width  ? { width,  minWidth:  width,  maxWidth:  width  } : {}),
         ...(height ? { minHeight: height, maxHeight: height, display: 'flex', alignItems: 'center', overflowY: 'hidden' } : {}),
         ...(width  ? { overflow: 'hidden' } : {}),
-        ...(text && width ? { whiteSpace: 'nowrap', textOverflow: 'ellipsis' } : {}),
       }}
     >
-      {children}
+      {content}
     </div>
   );
 }

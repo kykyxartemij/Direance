@@ -30,7 +30,6 @@ export default function MappingsPage() {
 
   const selectedReportType = REPORT_TYPE_OPTIONS.find((o) => o.value === filters.reportType) ?? null;
 
-  // Stable reference required — a fresh element every render trips react-doctor/jsx-no-jsx-as-prop.
   const reportTypeFilter = useMemo(
     () => (
       <ArtSelect

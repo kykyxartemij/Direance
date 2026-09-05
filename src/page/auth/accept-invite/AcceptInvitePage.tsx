@@ -97,7 +97,7 @@ export default function AcceptInvitePage() {
       >
         <ArtFormInput
           name="name"
-          label="Display name (optional)"
+          label="Display name"
           placeholder="A nickname, your real name — anything"
           helperText="Used to identify you in the system. A nickname is fine — your real name isn't required."
           autoComplete="nickname"

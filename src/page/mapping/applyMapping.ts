@@ -4,7 +4,7 @@
 
 import * as XLSX from 'xlsx';
 import type { ArtColor } from '@/components/ui/art.types';
-import type { MappingConfig, SourceLayout, TableRegion, TotalColumnMode } from '@/models/mapping.models';
+import type { MappingConfig, SourceLayout, SheetConfig, TableRegion, TotalColumnMode } from '@/models/mapping.models';
 
 // ==== Types ====
 
@@ -309,6 +309,48 @@ export function autoDetectLayout(
   }
 
   return { regions, headerRow: 0 };
+}
+
+// ==== Build sheet layouts/config for a freshly-loaded workbook ====
+
+export type LoadedWorkbookState = {
+  workbook: XLSX.WorkBook;
+  sheetLayouts: Record<string, SourceLayout>;
+  autoDetectedLayouts: Record<string, SourceLayout>;
+  sheetsConfig: Record<string, SheetConfig>;
+  warning: string | null;
+};
+
+export function buildLoadedWorkbookState(
+  wb: XLSX.WorkBook,
+  prevSheetLayouts: Record<string, SourceLayout>,
+  prevSheetsConfig: Record<string, SheetConfig>,
+): LoadedWorkbookState {
+  const expected = Object.keys(prevSheetLayouts);
+  const expectedSet = new Set(expected);
+  const incoming = new Set(wb.SheetNames);
+  const missing = expected.filter((n) => !incoming.has(n));
+  const extra = wb.SheetNames.filter((n) => expected.length > 0 && !expectedSet.has(n));
+
+  let warning: string | null = null;
+  if (missing.length || extra.length) {
+    const parts: string[] = [];
+    if (missing.length) parts.push(`missing sheets: ${missing.join(', ')}`);
+    if (extra.length) parts.push(`extra sheets: ${extra.join(', ')}`);
+    warning = `Uploaded file does not match stored layout — ${parts.join('; ')}`;
+  }
+
+  const sheetLayouts: Record<string, SourceLayout> = { ...prevSheetLayouts };
+  const autoDetectedLayouts: Record<string, SourceLayout> = {};
+  const sheetsConfig: Record<string, SheetConfig> = { ...prevSheetsConfig };
+  for (const name of wb.SheetNames) {
+    const auto = autoDetectLayout(wb, name);
+    autoDetectedLayouts[name] = auto;
+    if (!sheetLayouts[name]) sheetLayouts[name] = auto;
+    if (!sheetsConfig[name]) sheetsConfig[name] = { mode: 'combine' };
+  }
+
+  return { workbook: wb, sheetLayouts, autoDetectedLayouts, sheetsConfig, warning };
 }
 
 // ==== Extract unique row names from all regions ====

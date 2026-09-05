@@ -24,7 +24,7 @@ import { REPORT_TYPE_OPTIONS } from '@/models/mapping.models';
 import ArtForm from '@/components/ui/ArtForm';
 import ArtComboBox from '@/components/ui/ArtComboBox/ArtComboBox';
 import { ArtFormSelect } from '@/components/form';
-import FormSection from '@/components/FormSection';
+import ArtDivider from '@/components/ui/ArtDivider';
 import { useSaveMappingDialog } from './SaveMappingDialog';
 
 // ==== Schema ====
@@ -399,29 +399,28 @@ function MappingStepInner({ report }: { report: UploadedReport }) {
 
       <FormProvider {...methods}>
         <ArtForm onSubmit={handleFormSubmit} buttons={formButtons}>
-          <FormSection title="Upload">
-            <ArtComboBox
-              label="Mapping"
-              options={mappingOptions}
-              selected={selectedMappingOption}
-              onChange={handleMappingChange}
-              placeholder="Select or create mapping…"
-              clearable
-            />
-            <ArtFormSelect
-              name="reportType"
-              label="Report Type"
-              options={REPORT_TYPE_OPTIONS}
-              required
-            />
-            {selectedMapping && (
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                {selectedMapping.isGlobal
-                  ? 'Global mapping — changes are not saved unless you save a copy.'
-                  : `Editing: ${selectedMapping.name}`}
-              </p>
-            )}
-          </FormSection>
+          <ArtDivider label="Upload" />
+          <ArtComboBox
+            label="Mapping"
+            options={mappingOptions}
+            selected={selectedMappingOption}
+            onChange={handleMappingChange}
+            placeholder="Select or create mapping…"
+            clearable
+          />
+          <ArtFormSelect
+            name="reportType"
+            label="Report Type"
+            options={REPORT_TYPE_OPTIONS}
+            required
+          />
+          {selectedMapping && (
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              {selectedMapping.isGlobal
+                ? 'Global mapping — changes are not saved unless you save a copy.'
+                : `Editing: ${selectedMapping.name}`}
+            </p>
+          )}
 
           <MappingMetaSection />
 

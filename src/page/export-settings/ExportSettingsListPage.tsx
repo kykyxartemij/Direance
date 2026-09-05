@@ -32,7 +32,6 @@ export default function ExportSettingsListPage() {
 
   const selectedHasTotalColumn = HAS_TOTAL_COLUMN_OPTIONS.find((o) => o.value === filters.hasTotalColumn) ?? null;
 
-  // Stable reference required — a fresh element every render trips react-doctor/jsx-no-jsx-as-prop.
   const advancedFilters = useMemo(
     () => (
       <ArtSelect

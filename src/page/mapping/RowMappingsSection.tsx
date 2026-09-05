@@ -33,16 +33,14 @@ export interface RowMappingsSectionRef {
 }
 
 interface RowMappingsSectionProps {
-  /** Live data — always reflected in read-only mode (editable=false). */
   rowMappings?: RowMappingRow[];
-  /** Editable-mode seed — only read at mount. Use key= on the caller to reset. */
-  initialRowMappings?: RowMappingRow[];
+  onRowsChange?: (rows: RowMappingRow[]) => void;
   initialExportSettingId?: string | null;
   collapseOpen?: boolean;
   onCollapseChange?: (open: boolean) => void;
   /**
-   * Form mode: sourceName is an input, section owns add/remove, "+ Add row" button shown.
-   * Excel mode (default false): sourceName is read-only text, rows mirror the prop.
+   * Form mode: sourceName is an input, "+ Add row" button shown, edits go through onRowsChange.
+   * Excel mode (default false): sourceName is read-only text, rows are display-only.
    */
   editable?: boolean;
 }
@@ -163,13 +161,10 @@ const EDITABLE_COLUMNS: ArtColumn<RowMappingRow>[] = [
 
 // ==== Section ====
 
-function RowMappingsSection({ rowMappings = EMPTY_ROWS, initialRowMappings = EMPTY_ROWS, initialExportSettingId = null, collapseOpen, onCollapseChange, editable = false, ref }: RowMappingsSectionProps & { ref?: React.Ref<RowMappingsSectionRef> }) {
+function RowMappingsSection({ rowMappings = EMPTY_ROWS, onRowsChange, initialExportSettingId = null, collapseOpen, onCollapseChange, editable = false, ref }: RowMappingsSectionProps & { ref?: React.Ref<RowMappingsSectionRef> }) {
     const [exportSettingId, setExportSettingId] = useState<string | null>(initialExportSettingId);
 
-    // initialRowMappings is the seed — only read at mount. key= on the caller resets on ID change.
-    const [editableRows, setEditableRows] = useState<RowMappingRow[]>(initialRowMappings);
-
-    const rows = editable ? editableRows : rowMappings;
+    const rows = rowMappings;
     const nextIndex = rows.reduce((max, r) => Math.max(max, r._index), -1) + 1;
 
     const { data: exportSettingsList = [] } = useGetLightExportSettings();
@@ -185,31 +180,31 @@ function RowMappingsSection({ rowMappings = EMPTY_ROWS, initialRowMappings = EMP
     const mappedValueOptions: ArtComboBoxOption[] =
       mappedValues.map((v) => ({ label: v.name, value: v.name, color: v.color }));
 
-    useImperativeHandle(
-      ref,
-      () => ({
-        getRowMappings: () => editableRows,
-        getExportSettingId: () => exportSettingId,
-        setExportSettingId,
-        getLinkedExportSetting: () => linkedExportSetting,
-      }),
-      [editableRows, exportSettingId, linkedExportSetting],
-    );
-
     const selectedExportSetting =
       exportSettingOptions.find((o) => o.value === exportSettingId) ?? null;
 
     function handleRowChange(index: number, patch: Partial<RowMapping>) {
-      setEditableRows((prev) => prev.map((r) => r._index === index ? { ...r, ...patch } : r));
+      onRowsChange?.(rows.map((r) => r._index === index ? { ...r, ...patch } : r));
     }
 
     function handleAddRow() {
-      setEditableRows((prev) => [...prev, { sourceName: '', _index: nextIndex }]);
+      onRowsChange?.([...rows, { sourceName: '', _index: nextIndex }]);
     }
 
     function handleRemoveRow(index: number) {
-      setEditableRows((prev) => prev.filter((r) => r._index !== index));
+      onRowsChange?.(rows.filter((r) => r._index !== index));
     }
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        getRowMappings: () => rows,
+        getExportSettingId: () => exportSettingId,
+        setExportSettingId,
+        getLinkedExportSetting: () => linkedExportSetting,
+      }),
+      [rows, exportSettingId, linkedExportSetting],
+    );
 
     return (
       <ArtCollapse title="Row Mappings" open={collapseOpen} onChange={onCollapseChange}>

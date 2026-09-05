@@ -90,6 +90,52 @@ function) — don't write more prose. Never stack 4+ line blocks: no API-spec tr
 restating a pattern already established elsewhere in the file, no justifying a choice nobody
 questioned.
 
+**Don't comment a field's behavior — that's what the code that uses it is for.** A prop or
+form field earns a comment only for things you truly can't get by reading the file (unit,
+external-system quirk, non-obvious default). "What happens when this is true/false" is not
+that — it's derivable from the handler/effect that reads it, and duplicating it on the
+field just means two places to keep in sync, and they will drift.
+
+```ts
+// bad — behavior belongs to the code that reads this field, not the field
+/** Edit mode only. FE-only — stripped before the save payload is built, never sent to BE. */
+usePreviousSecret: boolean;
+
+// bad — same info, now duplicated at the effect that actually implements it
+// usePreviousSecret toggled on (edit mode only) skips the required-secret checks below —
+// those fields go unfilled and are omitted from the save payload entirely.
+const requireSecret = !isEdit || !usePreviousSecret;
+
+// good — no comment, requireSecret already says what it computes
+usePreviousSecret: boolean;
+const requireSecret = !isEdit || !usePreviousSecret;
+```
+
+**Touching existing code = zero new comments, default.** New prop, extended function, field
+wired into a handler — self-explanatory, no comment. Don't narrate "also update this when
+that changes" either; redundant, just noise for future readers. Write one only if dev asks,
+or the bar above is met (non-obvious default, cross-file contract, quirk). Anything else
+worth flagging — tradeoff, assumption, thing to double check — say in chat, not in code.
+
+**Bug fixes don't get a comment explaining the old mistake.** Fixed code just is correct code.
+Nobody reads the diff to relive the bug. Say what broke and why in chat/commit, not in code.
+
+```ts
+// bad — narrates the fix instead of just being the fix
+// mutate ref directly here instead of creating a new const, otherwise stale closure
+inputRef.current = value;
+
+// good
+inputRef.current = value;
+
+// bad — self-explanatory field add, comment adds nothing
+// added isArchived field to payload
+const payload = { ...data, isArchived };
+
+// good
+const payload = { ...data, isArchived };
+```
+
 **`/** */` vs `//`:** audience split, not style pick. `/** */` on everything exported —
 callers don't open the source, so even a small exported helper gets one. `//` for everything
 internal — logic, locals, section headers. Either form stays short: a line or two, why over

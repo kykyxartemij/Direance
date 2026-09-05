@@ -251,6 +251,42 @@ const [mode, setMode] = useState<'existing' | 'upload'>('existing');
 
 ---
 
+## Pattern D — resetting a dependent field on change
+
+When picking a new value for field A invalidates whatever's in field B (e.g. picking a new
+`reportType` invalidates the currently selected `mappingId`, since mappings are scoped to a
+report type), don't reach for `useEffect` watching A to reset B — that's an extra render, and
+`react-doctor` flags both the effect and any render-time `setState`/`ref` write as unsound.
+
+Bypass `ArtFormSelect` for field A and wire it with `Controller` directly, so its `onChange`
+resets B in the same event:
+
+```tsx
+function handleReportTypeChange(next: ReportType) {
+  methods.setValue('reportType', next);
+  methods.setValue('mappingId', null);
+}
+
+<Controller
+  name="reportType"
+  control={methods.control}
+  render={({ field, fieldState }) => (
+    <ArtSelect
+      label="Report Type"
+      options={REPORT_TYPE_OPTIONS}
+      selected={REPORT_TYPE_OPTIONS.find((o) => o.value === field.value) ?? null}
+      onChange={(opt) => handleReportTypeChange(opt?.value as ReportType)}
+      errorText={fieldState.error?.message}
+    />
+  )}
+/>
+```
+
+No `useEffect`, no `useRef` mount-guard, no eslint-disable. The reset happens exactly once,
+driven by the user action that caused it — not inferred after the fact from a watched value.
+
+---
+
 ## What stays controlled
 
 These always need `useState` — or `watch()` in RHF — because there is no DOM property to read back:

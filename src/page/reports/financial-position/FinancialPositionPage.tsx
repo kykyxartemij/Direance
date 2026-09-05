@@ -41,7 +41,6 @@ export default function FinancialPositionPage() {
     ...connectionReports,
   ];
 
-  // Stable reference required — a fresh element every render trips react-doctor/jsx-no-jsx-as-prop.
   const advancedFilters = useMemo(
     () => <FinancialPositionFilterForm values={{ dateTo, periods }} onChange={(key, value) => setFilter(key, value)} />,
     [dateTo, periods, setFilter],

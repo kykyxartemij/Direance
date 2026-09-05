@@ -3,6 +3,7 @@
 import React, { useMemo, type Ref } from 'react';
 import ArtBadge from '../ArtBadge';
 import ArtIcon, { type ArtIconName } from '../ArtIcon';
+import ArtIconButton from '../ArtIconButton';
 import { type ArtColor, ART_COLOR_CLASS } from '../art.types';
 import { cn, mergeRefs } from '../art.utils';
 import { FIELD_SIZE, CHIPS_MAX_COLLAPSED, type ArtComboBoxBaseProps, type ArtComboBoxOption } from './types';
@@ -104,26 +105,40 @@ export interface ButtonTriggerProps {
   placeholder: string | undefined;
   toggle: () => void;
   handleTriggerKeyDown: React.KeyboardEventHandler;
+  clearable?: boolean;
+  onClear?: () => void;
 }
 
-export function ButtonTrigger({ labelId, disabled, readOnly, size, selectedSingle, placeholder, toggle, handleTriggerKeyDown }: ButtonTriggerProps) {
+export function ButtonTrigger({ labelId, disabled, readOnly, size, selectedSingle, placeholder, toggle, handleTriggerKeyDown, clearable, onClear }: ButtonTriggerProps) {
+  const showClear = clearable && !readOnly && !disabled && !!selectedSingle;
   return (
-    <button
-      type="button"
-      id={labelId}
-      disabled={disabled}
-      className={cn(
-        'art-field art-select-trigger',
-        FIELD_SIZE[size],
-        selectedSingle?.color && ART_COLOR_CLASS[selectedSingle.color],
+    <div className="art-field-inner">
+      <button
+        type="button"
+        id={labelId}
+        disabled={disabled}
+        className={cn(
+          'art-field art-select-trigger',
+          FIELD_SIZE[size],
+          selectedSingle?.color && ART_COLOR_CLASS[selectedSingle.color],
+        )}
+        onClick={() => !disabled && !readOnly && toggle()}
+        onKeyDown={readOnly ? undefined : handleTriggerKeyDown}
+      >
+        {selectedSingle
+          ? renderOptionContent(selectedSingle)
+          : <span className="text-muted">{placeholder ?? 'Select…'}</span>}
+        <ArtIcon name="ChevronDown" size="sm" className="ml-auto shrink-0 opacity-50" />
+      </button>
+      {showClear && (
+        <ArtIconButton
+          icon={{ name: 'Close', size: 14 }}
+          aria-label="Clear"
+          className="art-field-clear"
+          onClick={onClear}
+          tabIndex={-1}
+        />
       )}
-      onClick={() => !disabled && !readOnly && toggle()}
-      onKeyDown={readOnly ? undefined : handleTriggerKeyDown}
-    >
-      {selectedSingle
-        ? renderOptionContent(selectedSingle)
-        : <span className="text-muted">{placeholder ?? 'Select…'}</span>}
-      <ArtIcon name="ChevronDown" size="sm" className="ml-auto shrink-0 opacity-50" />
-    </button>
+    </div>
   );
 }

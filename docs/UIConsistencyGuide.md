@@ -198,3 +198,50 @@ order: secondary left, primary right.
 | Submit/Save | `color="primary" type="submit"`          |
 | Cancel      | `variant="ghost" type="button"`          |
 | Delete      | `color="danger" type="button"`           |
+
+---
+
+## ==== Memoize JSX passed as a prop ====
+
+Any element built inline and passed as a prop (e.g. `advancedFilters` on `ArtData`) is a new
+reference every render, which trips `react-doctor/jsx-no-jsx-as-prop`. Wrap it in `useMemo`
+with the values it reads as deps — this is the standard pattern across every list page
+(`ConnectionsListPage`, `MappingsPage`, `ExportSettingsListPage`, the report pages). No comment
+needed at each call site; this doc is the one place that explains why.
+
+```tsx
+const advancedFilters = useMemo(
+  () => <ArtSelect label="Type" options={TYPE_OPTIONS} selected={selectedType} onChange={...} clearable />,
+  [selectedType, setFilter],
+);
+```
+
+---
+
+## ==== Section dividers — ArtDivider, not FormSection ====
+
+Use `ArtDivider` with a `label` to break a form into labeled sections. Do not reach for a
+one-off wrapper component for this — `ArtDivider` already covers it.
+
+```tsx
+<ArtDivider label="Odoo" />
+```
+
+---
+
+## ==== Required fields — prop only, never spell it out in the label ====
+
+Mark a required field with `required` on the field component (`ArtFormInput`, `ArtFormSelect`,
+etc.) — it renders the `*` indicator via `ArtLabel`. Every field without `required` is
+optional by default; don't also write "(optional)" into the label text.
+
+```tsx
+// bad
+<ArtFormInput name="name" label="Display name (optional)" />
+
+// good
+<ArtFormInput name="name" label="Display name" />
+
+// good — required field
+<ArtFormInput name="email" label="Email" required />
+```

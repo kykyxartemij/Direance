@@ -33,7 +33,7 @@ export const DataRow = React.memo(function DataRow({
         <ArtCut
           width={col._cutWidth}
           height={rowHeight}
-          text={!col.render && !!col._cutWidth}
+          text={!!col._cutWidth}
           style={col._isLast ? { justifyContent: 'flex-end' } : undefined}
         >
           {raw}

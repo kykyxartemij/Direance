@@ -23,7 +23,7 @@ import ArtInput from '@/components/ui/ArtInput';
 import ArtButton from '@/components/ui/ArtButton';
 import ArtUpload from '@/components/ui/ArtUpload';
 import ArtImage from '@/components/ui/ArtImage';
-import FormSection from '@/components/FormSection';
+import ArtDivider from '@/components/ui/ArtDivider';
 import PageLoader from '@/components/PageLoader';
 import ColorSelect from '@/page/mapping/ColorSelect';
 import type { ArtColor } from '@/components/ui/art.types';
@@ -374,108 +374,103 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess }: ExportSettingFor
           { label: isEdit ? 'Save' : 'Create', color: 'primary', type: 'submit', loading: isPending },
         ]}
       >
-        <FormSection title="Name">
-          <ArtFormInput name="name" label="Name" required />
-        </FormSection>
+        <ArtDivider label="Name" />
+        <ArtFormInput name="name" label="Name" required />
 
-        <FormSection title="Logo">
-          <ArtFormInput name="headerLogoCell" label="Logo cell" placeholder="A1" />
-          <LogoSection
-            existingLogoId={existing?.logo?.id ?? null}
-            existingLogoName={existing?.logo?.name ?? null}
-            staged={logoStaged}
-            onChange={setLogoStaged}
-          />
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            Scaled to max 64×180 px. Consider leaving ~4 empty rows below logo.
-          </p>
-        </FormSection>
+        <ArtDivider label="Logo" />
+        <ArtFormInput name="headerLogoCell" label="Logo cell" placeholder="A1" />
+        <LogoSection
+          existingLogoId={existing?.logo?.id ?? null}
+          existingLogoName={existing?.logo?.name ?? null}
+          staged={logoStaged}
+          onChange={setLogoStaged}
+        />
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          Scaled to max 64×180 px. Consider leaving ~4 empty rows below logo.
+        </p>
 
-        <FormSection title="Header layout">
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            Use <span style={{ fontFamily: 'monospace' }}>&lt;Tag&gt;</span> in content for values filled at export time.
-          </p>
+        <ArtDivider label="Header layout" />
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          Use <span style={{ fontFamily: 'monospace' }}>&lt;Tag&gt;</span> in content for values filled at export time.
+        </p>
 
-          {items.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <div className="grid gap-2 items-center text-xs font-medium" style={{ gridTemplateColumns: '80px 1fr 32px', color: 'var(--text-muted)' }}>
-                <span>Cell</span>
-                <span>Content</span>
-                <span />
-              </div>
-              {items.map((item, i) => (
-                <HeaderItemRow
-                  key={item._id}
-                  ref={(el) => { itemRefs.current[i] = el; }}
-                  item={item}
-                  onRemove={() => {
-                    setItems((prev) => prev.filter((_, idx) => idx !== i));
-                    itemRefs.current.splice(i, 1);
-                  }}
-                />
-              ))}
+        {items.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <div className="grid gap-2 items-center text-xs font-medium" style={{ gridTemplateColumns: '80px 1fr 32px', color: 'var(--text-muted)' }}>
+              <span>Cell</span>
+              <span>Content</span>
+              <span />
             </div>
-          )}
+            {items.map((item, i) => (
+              <HeaderItemRow
+                key={item._id}
+                ref={(el) => { itemRefs.current[i] = el; }}
+                item={item}
+                onRemove={() => {
+                  setItems((prev) => prev.filter((_, idx) => idx !== i));
+                  itemRefs.current.splice(i, 1);
+                }}
+              />
+            ))}
+          </div>
+        )}
 
-          <ArtButton
-            type="button"
-            variant="outlined"
-            size="sm"
-            onClick={() => setItems((prev) => [...prev, { cell: '', content: '', _id: Math.max(-1, ...prev.map((e) => e._id)) + 1 }])}
-            style={{ alignSelf: 'flex-start' }}
-          >
-            + Add header cell
-          </ArtButton>
+        <ArtButton
+          type="button"
+          variant="outlined"
+          size="sm"
+          onClick={() => setItems((prev) => [...prev, { cell: '', content: '', _id: Math.max(-1, ...prev.map((e) => e._id)) + 1 }])}
+          style={{ alignSelf: 'flex-start' }}
+        >
+          + Add header cell
+        </ArtButton>
 
-          <ArtFormInput name="headerDataStartCell" label="Data start cell" placeholder="A4" />
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            Cell where data table begins. Account for logo and header rows above.
-          </p>
-        </FormSection>
+        <ArtFormInput name="headerDataStartCell" label="Data start cell" placeholder="A4" />
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          Cell where data table begins. Account for logo and header rows above.
+        </p>
 
-        <FormSection title="Value categories">
-          {categories.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <div className="grid gap-2 items-center text-xs font-medium" style={{ gridTemplateColumns: '1fr 160px 32px', color: 'var(--text-muted)' }}>
-                <span>Name</span>
-                <span>Color</span>
-                <span />
-              </div>
-              {categories.map((item, i) => (
-                <MappedValueRow
-                  key={item._id}
-                  ref={(el) => { categoryRefs.current[i] = el; }}
-                  item={item}
-                  color={item.color}
-                  onColorChange={(c) => setCategories((prev) => prev.map((cat, idx) => idx === i ? { ...cat, color: c } : cat))}
-                  onRemove={() => {
-                    setCategories((prev) => prev.filter((_, idx) => idx !== i));
-                    categoryRefs.current.splice(i, 1);
-                  }}
-                />
-              ))}
+        <ArtDivider label="Value categories" />
+        {categories.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <div className="grid gap-2 items-center text-xs font-medium" style={{ gridTemplateColumns: '1fr 160px 32px', color: 'var(--text-muted)' }}>
+              <span>Name</span>
+              <span>Color</span>
+              <span />
             </div>
-          )}
+            {categories.map((item, i) => (
+              <MappedValueRow
+                key={item._id}
+                ref={(el) => { categoryRefs.current[i] = el; }}
+                item={item}
+                color={item.color}
+                onColorChange={(c) => setCategories((prev) => prev.map((cat, idx) => idx === i ? { ...cat, color: c } : cat))}
+                onRemove={() => {
+                  setCategories((prev) => prev.filter((_, idx) => idx !== i));
+                  categoryRefs.current.splice(i, 1);
+                }}
+              />
+            ))}
+          </div>
+        )}
 
-          <ArtButton
-            type="button"
-            variant="outlined"
-            size="sm"
-            onClick={() => setCategories((prev) => [...prev, { name: '', color: 'neutral', _id: Math.max(-1, ...prev.map((e) => e._id)) + 1 }])}
-            style={{ alignSelf: 'flex-start' }}
-          >
-            + Add category
-          </ArtButton>
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            Shown as Display Name options in Row Mappings. Color is applied to matching rows in the Dashboard and export.
-          </p>
-        </FormSection>
+        <ArtButton
+          type="button"
+          variant="outlined"
+          size="sm"
+          onClick={() => setCategories((prev) => [...prev, { name: '', color: 'neutral', _id: Math.max(-1, ...prev.map((e) => e._id)) + 1 }])}
+          style={{ alignSelf: 'flex-start' }}
+        >
+          + Add category
+        </ArtButton>
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          Shown as Display Name options in Row Mappings. Color is applied to matching rows in the Dashboard and export.
+        </p>
 
-        <FormSection title="Options">
-          <ArtFormCheckbox name="hasTotalColumn" label="Add Σ Total column" />
-          <ArtFormCheckbox name="applyHeaderToAllSheets" label="Apply header to all sheets" />
-          <ArtFormCheckbox name="includeOriginalSheets" label="Include original sheets" />
-        </FormSection>
+        <ArtDivider label="Options" />
+        <ArtFormCheckbox name="hasTotalColumn" label="Add Σ Total column" />
+        <ArtFormCheckbox name="applyHeaderToAllSheets" label="Apply header to all sheets" />
+        <ArtFormCheckbox name="includeOriginalSheets" label="Include original sheets" />
       </ArtForm>
   );
 }

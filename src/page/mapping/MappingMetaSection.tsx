@@ -2,7 +2,7 @@
 
 import { useFormContext } from 'react-hook-form';
 import { useCurrencyOptions } from '@/hooks/currencies.hooks';
-import FormSection from '@/components/FormSection';
+import ArtDivider from '@/components/ui/ArtDivider';
 import { ArtFormComboBox } from '@/components/form';
 
 // ==== Section ====
@@ -16,7 +16,8 @@ export default function MappingMetaSection() {
   const currencyOptions = useCurrencyOptions();
 
   return (
-    <FormSection title="Mapping">
+    <>
+      <ArtDivider label="Mapping" />
       <div className="grid grid-cols-2 gap-4">
         <ArtFormComboBox
           name="fromCurrency"
@@ -36,6 +37,6 @@ export default function MappingMetaSection() {
           onSubmit={(text) => { if (text) setValue('toCurrency', text.toUpperCase()); }}
         />
       </div>
-    </FormSection>
+    </>
   );
 }

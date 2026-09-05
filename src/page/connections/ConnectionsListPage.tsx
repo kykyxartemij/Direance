@@ -39,7 +39,6 @@ export default function ConnectionsListPage() {
   const selectedType = CONNECTION_TYPE_OPTIONS.find((o) => o.value === filters.type) ?? null;
   const selectedReportType = REPORT_TYPE_OPTIONS.find((o) => o.value === filters.reportType) ?? null;
 
-  // Stable reference required — a fresh element every render trips react-doctor/jsx-no-jsx-as-prop.
   const advancedFilters = useMemo(
     () => (
       <>

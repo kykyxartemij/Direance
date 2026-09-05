@@ -39,7 +39,6 @@ export default function PnlPage() {
     ...connectionReports,
   ];
 
-  // Stable reference required — a fresh element every render trips react-doctor/jsx-no-jsx-as-prop.
   const advancedFilters = useMemo(
     () => <PnlFilterForm values={{ dateTo, dateFrom, periods }} onChange={(key, value) => setFilter(key, value)} />,
     [dateTo, dateFrom, periods, setFilter],

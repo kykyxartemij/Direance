@@ -287,6 +287,8 @@ function ArtComboBox(props: ArtComboBoxProps) {
           placeholder={placeholder}
           toggle={toggle}
           handleTriggerKeyDown={handleTriggerKeyDown}
+          clearable={clearable}
+          onClear={handleClear}
         />
       )}
 
