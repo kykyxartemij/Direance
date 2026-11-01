@@ -14,6 +14,8 @@ import ArtSelect from '@/components/ui/ArtSelect';
 import { ArtConfirmDialog } from '@/components/ui/ArtDialog';
 import { FSLink } from '@/components/FSLink';
 import { HREF } from '@/lib/hrefUrl';
+import { useAuth } from '@/providers/AuthProvider';
+import { Permission } from '@/lib/permissions';
 
 // ==== Constants ====
 
@@ -27,6 +29,8 @@ export default function MappingsPage() {
     reportType: (filters.reportType as ReportType | null) ?? undefined,
   });
   const deleteMutation = useDeleteMapping();
+  const { hasPermission } = useAuth();
+  const canModifyGlobal = hasPermission(Permission.CAN_MODIFY_GLOBAL);
 
   const selectedReportType = REPORT_TYPE_OPTIONS.find((o) => o.value === filters.reportType) ?? null;
 
@@ -73,14 +77,18 @@ export default function MappingsPage() {
       label: '',
       sizing: { renderLoading: true },
       render: (row) =>
-        row.isGlobal ? null : (
+        row.isGlobal && !canModifyGlobal ? null : (
           <div className="flex gap-2">
             <FSLink href={HREF.mappingById(row.id)}>
               <ArtButton variant="ghost">Edit</ArtButton>
             </FSLink>
             <ArtConfirmDialog
               title="Delete mapping"
-              description={`Are you sure you want to delete "${row.name}"?`}
+              description={
+                row.isGlobal
+                  ? `"${row.name}" is a global mapping. Deleting it removes it for every user. Continue?`
+                  : `Are you sure you want to delete "${row.name}"?`
+              }
               onConfirm={() => deleteMutation.mutate(row.id)}
               confirmLabel="Delete"
             >

@@ -195,7 +195,7 @@ export default function ReportView({ reports, loading }: ReportViewProps) {
   }
 
   const combined = combineReports(reports);
-  const { headers, rows, rowIndents, rowColors: baseRowColors, valueColorByHeader } = combined;
+  const { headers, rows, rowIndents, rowColors: baseRowColors, valueColorByHeader, totalColumns } = combined;
   const [descHeader, ...valueHeaders] = headers;
 
   const categories: MappedValueModel[] = selectedExportSetting?.mappedValues ?? [];
@@ -224,9 +224,30 @@ export default function ReportView({ reports, loading }: ReportViewProps) {
     placeholders?: Record<string, string>,
     fileName?: string,
   ) {
+    // The Σ Total column is derived at render time, so it exists only in `headers`/`rows`
+    // here — appended for export as a SUM over every value column, matching the table.
+    const derivedTotal = setting?.hasTotalColumn ?? false;
+    const exportHeaders = derivedTotal ? [...headers, TOTAL_COL_LABEL] : headers;
+    const exportRows = derivedTotal
+      ? rows.map((row) => ({ ...row, [TOTAL_COL_LABEL]: computeRowTotal(row, valueHeaders) }))
+      : rows;
+    const exportTotalColumns = derivedTotal
+      ? [
+          ...(totalColumns ?? []),
+          {
+            headerIndex: headers.length,
+            // Skip mapping-defined total columns — summing them would double-count.
+            sourceHeaderIndices: valueHeaders.flatMap((_, i) =>
+              (totalColumns ?? []).some((tc) => tc.headerIndex === i + 1) ? [] : [i + 1],
+            ),
+          },
+        ]
+      : totalColumns;
+
     await exportExcel({
-      headers, rows, rowIndents, rowColors, valueColorByHeader,
+      headers: exportHeaders, rows: exportRows, rowIndents, rowColors, valueColorByHeader,
       exportSettings: setting, originalWorkbooks, placeholders, fileName,
+      totalColumns: exportTotalColumns,
     });
   }
 

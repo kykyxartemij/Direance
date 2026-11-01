@@ -6,8 +6,6 @@ import * as yup from 'yup';
 import { signIn } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
 import { ArtForm, ArtFormInput } from '@/components/form';
-import ArtButton from '@/components/ui/ArtButton';
-import ArtDivider from '@/components/ui/ArtDivider';
 import ArtTitle from '@/components/ui/ArtTitle';
 import { AuthFormLayout } from '../AuthFormLayout';
 
@@ -64,18 +62,6 @@ export default function SignInPage() {
         <ArtFormInput name="email" type="email" label="Email" placeholder="you@company.com" autoComplete="email" />
         <ArtFormInput name="password" type="password" label="Password" placeholder="••••••••" autoComplete="current-password" />
       </ArtForm>
-
-      <div className="mt-4 flex flex-col gap-2">
-        <ArtDivider label="or" />
-
-        <ArtButton type="button" variant="outlined" size="md" onClick={() => signIn('google', { callbackUrl: '/' })}>
-          Continue with Google
-        </ArtButton>
-
-        <ArtButton type="button" variant="outlined" size="md" onClick={() => signIn('github', { callbackUrl: '/' })}>
-          Continue with GitHub
-        </ArtButton>
-      </div>
     </AuthFormLayout>
   );
 }

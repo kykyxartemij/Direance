@@ -180,16 +180,10 @@ function applyMapping(
         for (const h of removedHeaders) delete row[h];
       }
 
-      // Rebuild outHeaders and fix totalColumnInfos
       outHeaders.length = 0;
       outHeaders.push(keptHeaders[0]);
-      for (let i = 0; i < totalLabels.length; i++) {
-        outHeaders.push(totalLabels[i]);
-        totalColumnInfos[i] = {
-          headerIndex: i + 1,
-          sourceHeaderIndices: totalColumnInfos[i].sourceHeaderIndices,
-        };
-      }
+      for (const label of totalLabels) outHeaders.push(label);
+      totalColumnInfos.length = 0;
     }
   }
 

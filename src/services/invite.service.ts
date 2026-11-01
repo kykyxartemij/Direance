@@ -8,7 +8,7 @@ import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { withHandler, withPublicHandler } from '@/lib/withHandler';
 import { getAuth, getClientIp } from '@/lib/requestContext';
 import { ApiError } from '@/models/api-error';
-import { sendInviteEmail, fetchInviteLimits } from '@/lib/email';
+import { sendInviteEmail } from '@/lib/email';
 import { Permission } from '@/lib/permissions';
 import { checkUserRequestLimit, checkPublicRequestLimit } from '@/lib/rateLimiter';
 import { buildSendInviteValidator, AcceptInviteValidator, INVITE_SELECT } from '@/models/invite.models';
@@ -22,19 +22,6 @@ import { buildSendInviteValidator, AcceptInviteValidator, INVITE_SELECT } from '
 const INVITE_CACHE_TTL = 300;
 
 // ==== HTTP handlers ====
-
-export const getInviteLimits = withHandler(
-  async () => {
-    const limits = await cached(
-      fetchInviteLimits,
-      CACHE_KEYS.invite.limits(),
-      60 * 60,
-    );
-    if (!limits) throw new ApiError('Invite limits unavailable — RESEND_API_KEY not configured', 503);
-    return NextResponse.json(limits);
-  },
-  { permission: Permission.CAN_ACCESS_STATS },
-);
 
 export const sendInvite = withHandler(
   async (req) => {

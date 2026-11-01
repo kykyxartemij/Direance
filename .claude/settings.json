@@ -9,6 +9,12 @@
       "WebFetch(domain:api-docs.neon.tech)",
       "WebFetch(domain:neon.com)",
       "Bash(npx tsc *)"
+    ],
+    "deny": [
+      "Read(.env)", 
+      "Read(**/.env)", 
+      "Bash(cat .env)", 
+      "Bash(cat **/.env)"
     ]
   }
 }

@@ -142,8 +142,13 @@ export const updateMapping = withHandler<{ id: string }>(async (req, { params })
   const where = canModifyGlobal
     ? { id, OR: [{ userId }, { isGlobal: true }] }
     : { id, userId, isGlobal: false };
+  const claimOwnership = data.isGlobal === false ? { userId } : {};
 
-  const mapping = await prisma.fieldMapping.update({ where, data, select: MAPPING_SELECT });
+  const mapping = await prisma.fieldMapping.update({
+    where,
+    data: { ...data, ...claimOwnership },
+    select: MAPPING_SELECT,
+  });
 
   invalidateCache(mapping.isGlobal
     ? CACHE_KEYS.mapping.invalidateAll()

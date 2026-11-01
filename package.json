@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack -p 3317",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start -p 3317",
     "lint": "eslint src",
     "format": "prettier --write .",
@@ -14,11 +14,10 @@
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
-    "@auth/prisma-adapter": "^2.7.2",
-    "@getbrevo/brevo": "^6.0.2",
+    "@auth/prisma-adapter": "^2.11.3",
     "@hookform/resolvers": "^5.2.2",
-    "@prisma/adapter-pg": "^7.5.0",
-    "@prisma/client": "^7.4.2",
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
     "@tanstack/react-query": "^5.90.21",
     "@tanstack/react-query-devtools": "^5.91.3",
     "bcryptjs": "^2.4.3",
@@ -26,17 +25,17 @@
     "exceljs": "^4.4.0",
     "js.foresight": "^3.5.0",
     "lodash.debounce": "^4.0.8",
-    "next": "^15.5.18",
-    "next-auth": "beta",
-    "nodemailer": "^7.0.13",
+    "next": "^15.5.28",
+    "next-auth": "5.0.0-beta.32",
+    "nodemailer": "^10.3.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.71.2",
     "react-syntax-highlighter": "^16.1.1",
     "server-only": "^0.0.1",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.5",
     "tailwind-merge": "^3.5.0",
-    "xlsx": "^0.18.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "yup": "^1.7.1"
   },
   "devDependencies": {
@@ -54,11 +53,16 @@
     "eslint-config-next": "^16.1.6",
     "eslint-plugin-react-doctor": "^0.4.0",
     "postcss": "^8.5.8",
-    "prisma": "^7.4.2",
+    "prisma": "^7.10.1",
     "prisma-json-types-generator": "^4.1.1",
     "react-doctor": "^0.4.0",
     "tailwindcss": "^4.2.1",
     "tsx": "^4.19.0",
     "typescript": "^5.8.0"
+  },
+  "overrides": {
+    "next-auth": {
+      "nodemailer": "$nodemailer"
+    }
   }
 }

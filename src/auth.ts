@@ -1,7 +1,5 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
-import Google from 'next-auth/providers/google';
-import GitHub from 'next-auth/providers/github';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
@@ -15,14 +13,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: { strategy: 'jwt' },
   providers: [
-    Google({
-      clientId: process.env.AUTH_GOOGLE_ID,
-      clientSecret: process.env.AUTH_GOOGLE_SECRET,
-    }),
-    GitHub({
-      clientId: process.env.AUTH_GITHUB_ID,
-      clientSecret: process.env.AUTH_GITHUB_SECRET,
-    }),
     Credentials({
       credentials: {
         email: { label: 'Email', type: 'email' },
@@ -47,25 +37,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async signIn({ user, account }) {
-      // OAuth: set emailVerified on existing users (may fail for brand-new OAuth users
-      // because PrismaAdapter creates the record after this callback — safe to ignore)
-      if (account?.provider !== 'credentials' && user.email && !('emailVerified' in user && user.emailVerified)) {
-        // user.emailVerified comes from PrismaAdapter — if already set, skip network entirely
-        // If null (first OAuth sign-in), write once; catch handles brand-new users
-        // where adapter hasn't created the record yet
-        await prisma.user.updateMany({
-          where: { email: user.email, emailVerified: null },
-          data: { emailVerified: new Date() },
-        }).catch(() => undefined);
-      }
-      return true;
-    },
     async jwt({ token, user }) {
       if (user?.id) {
         token.id = user.id;
         // Embed permissions + name in JWT on sign-in — no DB call on subsequent requests.
-        // name comes from the DB (not the OAuth/credentials `user` object) so it reflects
+        // name comes from the DB (not the credentials `user` object) so it reflects
         // whatever's actually stored, not a stale provider-side value.
         const dbUser = await prisma.user.findUnique({
           where: { id: user.id },

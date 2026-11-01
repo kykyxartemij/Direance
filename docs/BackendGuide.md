@@ -211,8 +211,9 @@ const data = await UpdateMappingValidator.validate(await req.json(), { abortEarl
 ```ts
 // src/models/report.models.ts
 export const ExcelUploadValidator = yup.object({
-  file: yup.mixed<File>().required().test('type', 'Only .xlsx/.xls', (v) =>
-    v instanceof File && EXCEL_MIME_TYPES.includes(v.type)),
+  file: yup.mixed<File>().required()
+    .test('type', 'Only .xlsx/.xls', (v) => v instanceof File && EXCEL_MIME_TYPES.includes(v.type))
+    .test('size', 'Max 4 MB', (v) => v instanceof File && v.size <= MAX_EXCEL_BYTES),
 });
 
 // BE — formData.get() returns File directly
@@ -237,6 +238,9 @@ const { file } = await ExcelUploadValidator.validate(
 ```
 
 For image/binary uploads stored as `Bytes` in DB — see `ImagesGuide.md`.
+
+`xlsx` installs from the SheetJS CDN tarball, not the npm registry: npm stops at 0.18.5, which
+has unpatched advisories. To upgrade, change the version in the `package.json` URL.
 
 ### Route/query parsing — same tier as validators, still free
 

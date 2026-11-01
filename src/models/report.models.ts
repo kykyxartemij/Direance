@@ -7,6 +7,9 @@ const EXCEL_MIME_TYPES = [
   'application/vnd.ms-excel', // .xls
 ];
 
+// Below Vercel's 4.5 MB request cap, so users get this error instead of its bare 413.
+const MAX_EXCEL_BYTES = 4 * 1024 * 1024;
+
 // ==== Validators ====
 
 export const ExcelUploadValidator = yup.object({
@@ -17,6 +20,11 @@ export const ExcelUploadValidator = yup.object({
       'fileType',
       'Only Excel files are accepted (.xlsx, .xls)',
       (value) => value instanceof File && EXCEL_MIME_TYPES.includes(value.type)
+    )
+    .test(
+      'fileSize',
+      'File must be 4 MB or smaller',
+      (value) => value instanceof File && value.size <= MAX_EXCEL_BYTES
     ),
 });
 

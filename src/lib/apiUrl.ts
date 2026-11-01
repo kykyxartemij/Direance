@@ -15,7 +15,6 @@ export const API = {
     send: () => '/api/invites',
     accept: () => '/api/invites/accept',
     lookup: (token: string) => `/api/invites/lookup?token=${encodeURIComponent(token)}`,
-    limits: () => '/api/invites/limits' as const,
   },
   report: {
     list: () => '/api/report',

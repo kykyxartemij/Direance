@@ -201,6 +201,41 @@ order: secondary left, primary right.
 
 ---
 
+## ==== Permission-gated pages — PermissionPage, 404 never 403 ====
+
+A page not meant for everyone wraps its `<ArtPage>` in `<PermissionPage permission={...}>`.
+It checks the session on the server and calls `notFound()` when the check fails — a 403 would
+confirm the page exists to someone who shouldn't know it does.
+
+```tsx
+export default function Page() {
+  return (
+    <PermissionPage permission={Permission.CAN_INVITE_USERS}>
+      <ArtPage title="Invite User" maxWidth="2xl">
+        <InvitePage />
+      </ArtPage>
+    </PermissionPage>
+  );
+}
+```
+
+Takes the same `PermissionCheck` as `hasPermission` — a bare `Permission`, or `{ anyOf }` /
+`{ allOf }`. Gate a whole route subtree from its `layout.tsx` instead of per-page.
+
+**Not a prop on `ArtPage`.** `ArtPage` is `'use client'`, so a check inside it runs in the
+browser after session load: the page's JS and its data fetches still reach a user who fails
+the check, and `notFound()` lands only after a blank frame. `PermissionPage` is a server
+component, so gated content never reaches the client at all.
+
+`PermissionGuard` is the client-side sibling for hiding *part* of a page (a button, a form
+field) from a user who is otherwise allowed to be there. Pages use `PermissionPage`; pieces
+inside a page use `PermissionGuard`.
+
+Gating the page is never the only check — the API handler still enforces its own
+`permission`, since the route is reachable without the page.
+
+---
+
 ## ==== Memoize JSX passed as a prop ====
 
 Any element built inline and passed as a prop (e.g. `advancedFilters` on `ArtData`) is a new

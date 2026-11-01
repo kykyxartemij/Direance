@@ -74,11 +74,3 @@ export type InviteModel = Omit<
   Prisma.InviteGetPayload<{ select: typeof INVITE_SELECT }>,
   'permissions'
 > & { permissions: Permission[] };
-
-// Invite send limits. Stats backed by Resend emails.list (page 1 of 100).
-// capped = true when fetched 100 items had_more — real volume ≥ shown.
-export type InviteLimitsModel = {
-  daily:   { sent: number; limit: number };
-  monthly: { sent: number; limit: number };
-  capped: boolean;
-};

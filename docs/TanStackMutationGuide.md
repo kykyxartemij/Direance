@@ -52,18 +52,20 @@ useCreateConnection({
   call site instead — `meta` only fits messages known when the hook is called.
 
 ```ts
-// src/hooks/invite.hooks.ts
-export function useSendInvite(
-  options?: Omit<UseMutationOptions<void, ApiError, SendInviteModel>, 'mutationFn'>
+// src/hooks/mapping.hooks.ts
+export function useCreateMapping(
+  options?: Omit<UseMutationOptions<MappingModel, ApiError, CreateMappingModel>, 'mutationFn'>
 ) {
   const queryClient = useQueryClient();
-  return useMutation<void, ApiError, SendInviteModel>({
+  return useMutation<MappingModel, ApiError, CreateMappingModel>({
     ...options,
     mutationFn: async (body) => {
-      await fetchClient.post(API.invite.send(), body);
+      const { data } = await fetchClient.post<MappingModel>(API.mapping.list(), body);
+      return data;
     },
     onSuccess: (data, ...rest) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.invite.limits() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.mapping.invalidate.lists() });
+      queryClient.setQueryData<MappingModel>(queryKeys.mapping.byId(data.id), data);
       options?.onSuccess?.(data, ...rest);
     },
   });

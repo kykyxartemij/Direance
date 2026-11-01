@@ -75,7 +75,6 @@ export const queryKeys = {
   },
   invite: {
     lookup: (token: string) => ['invite', 'single', 'lookup', token] as const,
-    limits: () => ['invite', 'limits'] as const,
   },
   users: {
     paged: (page: number, pageSize: number, freeText?: string) =>
