@@ -28,6 +28,7 @@ interface ArtPaginationProps {
 
 // ==== Component ====
 
+// TODO: A lot of stuff not used, such as keyboard page change, the titles
 const ArtPagination = ({
   page,
   pageSize,

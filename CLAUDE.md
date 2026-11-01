@@ -90,6 +90,20 @@ function) — don't write more prose. Never stack 4+ line blocks: no API-spec tr
 restating a pattern already established elsewhere in the file, no justifying a choice nobody
 questioned.
 
+```ts
+// bad — 4 lines, walks through what each line does; the code already reads top to bottom
+// Switching triggers with no gap between them (mouseout never fires) would otherwise
+// skip the fade-in — opacity is already 1. Force a reflow so the browser always replays it.
+el.style.opacity = '0';
+void el.offsetWidth;
+el.style.opacity = '1';
+
+// good — no comment; three lines of DOM manipulation don't need a play-by-play
+el.style.opacity = '0';
+void el.offsetWidth;
+el.style.opacity = '1';
+```
+
 **Don't comment a field's behavior — that's what the code that uses it is for.** A prop or
 form field earns a comment only for things you truly can't get by reading the file (unit,
 external-system quirk, non-obvious default). "What happens when this is true/false" is not
@@ -117,8 +131,13 @@ that changes" either; redundant, just noise for future readers. Write one only i
 or the bar above is met (non-obvious default, cross-file contract, quirk). Anything else
 worth flagging — tradeoff, assumption, thing to double check — say in chat, not in code.
 
-**Bug fixes don't get a comment explaining the old mistake.** Fixed code just is correct code.
-Nobody reads the diff to relive the bug. Say what broke and why in chat/commit, not in code.
+**Bug fixes don't get a comment - not the old mistake, not the mechanism of the fix either.**
+Fixed code just is correct code. A comment justifying *how* the fix works ("forces a reflow
+so...", "otherwise stale closure") is the same violation as narrating the old bug — both explain
+the diff instead of trusting the reader to see working code and move on. Say what broke, why,
+and how the fix works in chat/commit, not in code. Default to zero comments on a bug fix,
+full stop — same bar as any other touch (non-obvious default, cross-file contract, quirk) has
+to be met before one earns a place, and "I just spent effort understanding this" doesn't meet it.
 
 ```ts
 // bad — narrates the fix instead of just being the fix

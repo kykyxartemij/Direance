@@ -24,6 +24,11 @@ function show(trigger: HTMLElement, label: string) {
   el.style.top = `${rect.top - 6}px`;
   el.style.left = `${rect.left + rect.width / 2}px`;
   el.style.transform = 'translate(-50%, -100%)';
+
+  el.style.transition = 'none';
+  el.style.opacity = '0';
+  void el.offsetWidth;
+  el.style.transition = '';
   el.style.opacity = '1';
 }
 
@@ -33,16 +38,27 @@ function hide() {
 }
 
 function onMouseOver(e: MouseEvent) {
-  const trigger = (e.target as HTMLElement).closest<HTMLElement>('[data-tooltip]');
+  const target = e.target as HTMLElement;
+  if (target === tooltipEl) return;
+  const trigger = target.closest<HTMLElement>('[data-tooltip]');
   if (!trigger) return;
   const label = trigger.dataset.tooltip;
   if (label) show(trigger, label);
 }
 
 function onMouseOut(e: MouseEvent) {
-  const trigger = (e.target as HTMLElement).closest<HTMLElement>('[data-tooltip]');
-  if (!trigger) return;
+  const target = e.target as HTMLElement;
   const related = e.relatedTarget as HTMLElement | null;
+  if (related === tooltipEl) return;
+
+  if (target === tooltipEl) {
+    if (related && tooltipEl?.contains(related)) return;
+    hide();
+    return;
+  }
+
+  const trigger = target.closest<HTMLElement>('[data-tooltip]');
+  if (!trigger) return;
   if (related && trigger.contains(related)) return;
   hide();
 }

@@ -375,6 +375,7 @@
 
   /* ---- Tooltip — singleton, appended to body once, position: fixed via inline style ---- */
   .art-tooltip {
+    position: relative; /* anchors the ::after gap-bridge below */
     white-space: nowrap;
     padding: 4px 8px;
     border-radius: 4px;
@@ -382,10 +383,22 @@
     background: var(--surface-2, #2a2a2a);
     color: var(--text);
     border: 1px solid var(--border);
-    pointer-events: none;
+    /* auto, not none — lets the user hover onto the tooltip itself to select/copy its text */
+    pointer-events: auto;
+    user-select: text;
     z-index: var(--z-tooltip);
     will-change: opacity;
-    transition: opacity 1000ms ease;
+    transition: opacity 120ms ease;
+  }
+  /* Invisible hit-area bridging the offset (trigger sits `top: rect.top - 6px` above the
+     tooltip) — without this, mouse crossing that dead space fires mouseout on the trigger
+     before ever reaching the tooltip, closing it before the user can select its text. */
+  .art-tooltip::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0;
+    bottom: -10px;
+    height: 10px;
   }
 
   /* ---- IconButton — size only, btn-ghost handles the rest ---- */
