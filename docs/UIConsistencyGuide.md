@@ -11,9 +11,9 @@ tokens.
 
 If no Art component fits, that's a signal to add one to `src/components/ui/` (simple,
 generic, reusable) — not to one-off it inside a feature file. See `ArtDatePicker.tsx` for
-the shape of a minimal wrapper: it doesn't reinvent date input, it wraps `ArtInput` and
-narrows the API to what callers actually need (`value: string`, `onChange: (value: string)
-=> void`).
+the shape: it builds on `ArtInput` and `useAnchoredPanel`, and narrows the API to what
+callers need (`value: string`, `onChange: (value: string) => void`). Its `onChange` fires only
+for a chosen date, never while browsing months, so a filter can fetch on every `onChange`.
 
 ## ==== Never gate a component on "does it have data" ====
 

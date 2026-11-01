@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: 'New Connection' };
 
 export default function Page() {
   return (
-    <ArtPage title="New Connection">
+    <ArtPage title="New Connection" description="Add an accounting system to load reports from.">
       <ConnectionFormPage />
     </ArtPage>
   );

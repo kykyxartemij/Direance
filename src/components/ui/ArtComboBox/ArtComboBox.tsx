@@ -79,6 +79,7 @@ function ArtComboBox(props: ArtComboBoxProps) {
     triggerRef: wrapperRef,
     panelRef: portalRef,
     open,
+    portalTarget,
     show,
     hide,
     toggle,
@@ -292,9 +293,9 @@ function ArtComboBox(props: ArtComboBoxProps) {
         />
       )}
 
-      {/* ── Dropdown list — rendered into document.body so it escapes any
-           overflow:hidden / overflow:auto ancestor (table wrappers, collapse panels, etc.) */}
-      {open && (visibleOptions.length > 0 || isLoading || hasMore || (noOptionsMessage !== false && searchable && (userSearch?.trim().length ?? 0) > 0)) && typeof document !== 'undefined' && createPortal(
+      {/* ── Dropdown list — portaled so it escapes any overflow:hidden / overflow:auto
+           ancestor (table wrappers, collapse panels, etc.) */}
+      {open && portalTarget && (visibleOptions.length > 0 || isLoading || hasMore || noOptionsMessage !== false) && createPortal(
         <div
           ref={portalRef}
           className="art-combobox-portal"
@@ -306,13 +307,13 @@ function ArtComboBox(props: ArtComboBoxProps) {
             options={visibleOptions}
             selectedValues={multiple ? selectedMulti.map((o) => o.value) : selectedSingle ? [selectedSingle.value] : []}
             onSelect={select}
-            noOptionsMessage={isLoading ? 'Loading…' : (noOptionsMessage ?? true)}
+            noOptionsMessage={isLoading ? 'Loading…' : (noOptionsMessage ?? 'No options')}
             isLoading={isLoading}
             onEndReached={onEndReached}
             hasMore={hasMore}
           />
         </div>,
-        document.body,
+        portalTarget,
       )}
       </div>
       <ArtHelperText errorText={errorText} helperText={helperText} />

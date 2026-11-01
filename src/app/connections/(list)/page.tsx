@@ -11,6 +11,7 @@ export default function Page() {
   return (
     <ArtPage
       title="Connections"
+      description="Link your accounting system to load reports automatically."
       actions={
         <Link href={HREF.connectionNew} prefetch>
           <ArtButton color="primary">New Connection</ArtButton>

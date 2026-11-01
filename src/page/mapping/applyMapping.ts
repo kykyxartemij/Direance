@@ -4,12 +4,15 @@
 
 import * as XLSX from 'xlsx';
 import type { ArtColor } from '@/components/ui/art.types';
-import type { MappingConfig, SourceLayout, SheetConfig, TableRegion, TotalColumnMode } from '@/models/mapping.models';
+import type { MappingConfig, SourceLayout, SheetConfig, TableRegion, TotalColumnDef, TotalColumnMode } from '@/models/mapping.models';
 
 // ==== Types ====
 
 type Row = Record<string, unknown>;
 type RawCell = string | number | boolean | null | undefined;
+
+// Empty sourceValueIndices = sum every value column.
+const DEFAULT_TOTAL_COLUMNS: TotalColumnDef[] = [{ label: 'Total', sourceValueIndices: [] }];
 
 /** Metadata about a computed total column in the output */
 export type TotalColumnInfo = {
@@ -141,7 +144,7 @@ function applyMapping(
   // ==== Total columns ====
 
   const totalColumnMode: TotalColumnMode = config.sheetsConfig?.[sheetName]?.totalColumnMode ?? 'none';
-  const totalColumnDefs = sourceLayout.totalColumns ?? [];
+  const totalColumnDefs = sourceLayout.totalColumns?.length ? sourceLayout.totalColumns : DEFAULT_TOTAL_COLUMNS;
   const totalColumnInfos: TotalColumnInfo[] = [];
 
   if (totalColumnMode !== 'none' && totalColumnDefs.length > 0 && rows.length > 0) {

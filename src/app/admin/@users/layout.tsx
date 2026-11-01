@@ -7,7 +7,7 @@ export default function UsersLayout({ children }: { children: ReactNode }) {
   return (
     <PermissionGuard permission={Permission.CAN_ACCESS_USERS}>
       <div>
-        <ArtTitle title="Users" />
+        <ArtTitle title="Users" description="People who can use Direance." />
         {children}
       </div>
     </PermissionGuard>

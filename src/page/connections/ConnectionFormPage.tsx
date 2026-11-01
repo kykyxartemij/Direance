@@ -236,17 +236,19 @@ function ConnectionForm({ id, existing, isEdit, onSuccess }: ConnectionFormProps
           <ArtFormInput
             name="meritApiKey"
             label="API Key"
-            type="password"
+            className="art-field--secret"
             required={requireSecret}
             disabled={isEdit && usePreviousSecret}
-            autoComplete="new-password"
+            autoComplete="off"
+            data-1p-ignore
+            data-lpignore="true"
           />
           {reportType === 'pnl' && (
             <ArtFormInput
               name="meritDepFilter"
               label="Department filter"
               placeholder="e.g. 10"
-              helperText="Applied to every P&L fetch on this connection. Leave blank for all departments."
+              helperText="Used for every P&L on this connection. Leave blank for all departments."
             />
           )}
         </>
@@ -261,16 +263,18 @@ function ConnectionForm({ id, existing, isEdit, onSuccess }: ConnectionFormProps
           <ArtFormInput
             name="odooPassword"
             label="Password"
-            type="password"
+            className="art-field--secret"
             required={requireSecret}
             disabled={isEdit && usePreviousSecret}
-            autoComplete="new-password"
+            autoComplete="off"
+            data-1p-ignore
+            data-lpignore="true"
           />
           <ArtFormInput
             name="odooJournalIds"
             label="Journal IDs"
             placeholder="1,2,5"
-            helperText="Comma-separated. Applied to every fetch on this connection. Leave blank for all journals."
+            helperText="Separate with commas. Leave blank for all journals."
           />
           <ArtFormInput
             name="odooAccountPrefix"

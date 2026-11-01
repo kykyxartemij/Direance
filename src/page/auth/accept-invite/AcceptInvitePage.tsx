@@ -9,6 +9,7 @@ import { signIn } from 'next-auth/react';
 import { useLookupInvite, useAcceptInvite } from '@/hooks/invite.hooks';
 import PageLoader from '@/components/PageLoader';
 import { ArtForm, ArtFormInput } from '@/components/form';
+import ArtInput from '@/components/ui/ArtInput';
 import ArtTitle from '@/components/ui/ArtTitle';
 import { AuthFormLayout } from '../AuthFormLayout';
 
@@ -86,7 +87,7 @@ export default function AcceptInvitePage() {
 
   return (
     <AuthFormLayout>
-      <ArtTitle title="Create your account" description={`Invited as ${lookup.data.email}`} />
+      <ArtTitle title="Create your account" />
 
       <ArtForm
         methods={methods}
@@ -95,11 +96,12 @@ export default function AcceptInvitePage() {
           { label: 'Create account', color: 'primary', type: 'submit', loading: acceptInvite.isPending },
         ]}
       >
+        <ArtInput name="email" type="email" label="Email" value={lookup.data.email} autoComplete="username" readOnly />
         <ArtFormInput
           name="name"
           label="Display name"
-          placeholder="A nickname, your real name — anything"
-          helperText="Used to identify you in the system. A nickname is fine — your real name isn't required."
+          placeholder="Your name or nickname"
+          helperText="How others see you. A nickname is fine."
           autoComplete="nickname"
         />
         <ArtFormInput name="password" type="password" label="Password" placeholder="••••••••" autoComplete="new-password" />

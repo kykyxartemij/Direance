@@ -47,6 +47,8 @@ export const CACHE_KEYS = {
   },
   connection: {
     invalidate: (userId: string) => ['connection', userId],
+    // Tag = connection id: fetch results embed the linked mapping, so a global mapping's edit clears only its connections.
+    invalidateByIds: (connectionIds: string[]) => connectionIds,
     light: (userId: string) => ['connection', userId, 'light'],
     paged: (userId: string, page: number, pageSize: number, freeText?: string, type?: string, reportType?: string) => ['connection', userId, 'paged', String(page), String(pageSize), freeText ?? '', type ?? '', reportType ?? ''],
     count: (userId: string, freeText?: string, type?: string, reportType?: string) => ['connection', userId, 'count', freeText ?? '', type ?? '', reportType ?? ''],

@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: 'Invite User' };
 export default function Page() {
   return (
     <PermissionPage permission={Permission.CAN_INVITE_USERS}>
-      <ArtPage title="Invite User" description="Send an email invitation to a new user." maxWidth="2xl">
+      <ArtPage title="Invite User" description="Send a new user an email invitation." maxWidth="2xl">
         <InvitePage />
       </ArtPage>
     </PermissionPage>

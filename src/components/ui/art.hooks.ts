@@ -81,6 +81,7 @@ export function useAnchoredPanel<
   const panelRef   = useRef<P>(null);
 
   const [open, setOpen] = useState(false);
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
 
   const frameRef = useRef<number | null>(null);
 
@@ -129,6 +130,8 @@ export function useAnchoredPanel<
   }, [computeAndApply]);
 
   const show = useCallback(() => {
+    // Browser quirk: showModal() makes everything outside the <dialog> inert, z-index can't help.
+    setPortalTarget(triggerRef.current?.closest('dialog') ?? document.body);
     setOpen(true);
     requestAnimationFrame(computeAndApply);
   }, [computeAndApply]);
@@ -174,5 +177,5 @@ export function useAnchoredPanel<
     };
   }, [open, hide, scheduleUpdate]);
 
-  return { triggerRef, panelRef, open, show, hide, toggle };
+  return { triggerRef, panelRef, open, portalTarget, show, hide, toggle };
 }

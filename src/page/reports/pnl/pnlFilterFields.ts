@@ -23,6 +23,6 @@ export function buildPnlFetchFilters(values: PnlFilterValues): { reportType: 'pn
     reportType: 'pnl',
     ...(values.dateTo ? { dateTo: values.dateTo } : {}),
     ...(values.dateFrom ? { dateFrom: values.dateFrom } : {}),
-    ...(values.periods ? { periods: Number(values.periods) } : {}),
+    ...(values.periods && !values.dateFrom ? { periods: Number(values.periods) } : {}),
   };
 }

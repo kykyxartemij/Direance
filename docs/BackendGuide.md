@@ -859,6 +859,9 @@ await cached(() => Promise.resolve(mapping), CACHE_KEYS.mapping.byId(userId, map
 - Invalidate the **narrowest** tag that covers what changed first (`mapping.invalidate(userId)`
   clears that user's lists/paged/count), then the broader one only if the mutation could affect
   other users' views (`isGlobal` toggled → also clear `invalidateAll()`).
+- // TODO: THING ABOUT THIS PART: A cached value embedding another owner's record is cleared by id, never a broad tag: select
+  the dependents in the write itself and pass them to `connection.invalidateByIds(...)`. A global
+  mapping's update/delete does this, because every linked connection's fetch embeds that mapping.
 - The reseed always uses the value already returned by `update()` / `create()` — never a fresh
   `findFirst` just to populate cache.
 - Delete has no reseed step — there's nothing to cache, only the invalidate calls.

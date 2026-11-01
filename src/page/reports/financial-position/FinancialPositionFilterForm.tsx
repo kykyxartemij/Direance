@@ -20,9 +20,10 @@ export default function FinancialPositionFilterForm({ values, onChange }: Props)
     <>
       <ArtDatePicker
         label="Balance date"
+        clearable={false}
         value={values.dateTo}
         onChange={(v) => onChange('dateTo', v)}
-        helperText="Snapshot date each period's balance is taken as of. Defaults to today."
+        helperText="Balances on this date. Today by default."
       />
       <ArtInput
         label="Periods"
@@ -30,7 +31,7 @@ export default function FinancialPositionFilterForm({ values, onChange }: Props)
         placeholder="1"
         value={values.periods}
         onChange={(e) => onChange('periods', e.target.value)}
-        helperText="Number of periods (months) to include, counted back from the balance date."
+        helperText="Balance date, plus the end of each earlier month."
       />
     </>
   );

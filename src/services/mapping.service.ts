@@ -144,14 +144,14 @@ export const updateMapping = withHandler<{ id: string }>(async (req, { params })
     : { id, userId, isGlobal: false };
   const claimOwnership = data.isGlobal === false ? { userId } : {};
 
-  const mapping = await prisma.fieldMapping.update({
+  const { connections, ...mapping } = await prisma.fieldMapping.update({
     where,
     data: { ...data, ...claimOwnership },
-    select: MAPPING_SELECT,
+    select: { ...MAPPING_SELECT, connections: { select: { id: true } } },
   });
 
   invalidateCache(mapping.isGlobal
-    ? CACHE_KEYS.mapping.invalidateAll()
+    ? [...CACHE_KEYS.mapping.invalidateAll(), ...CACHE_KEYS.connection.invalidateByIds(connections.map((c) => c.id))]
     : CACHE_KEYS.mapping.invalidate(userId)
   );
   await setCache(mapping, CACHE_KEYS.mapping.byId(userId, id));
@@ -172,10 +172,13 @@ export const deleteMapping = withHandler<{ id: string }>(async (req, { params })
     ? { id, OR: [{ userId }, { isGlobal: true }] }
     : { id, userId, isGlobal: false };
 
-  const deleted = await prisma.fieldMapping.delete({ where, select: { isGlobal: true } });
+  const deleted = await prisma.fieldMapping.delete({
+    where,
+    select: { isGlobal: true, connections: { select: { id: true } } },
+  });
 
   invalidateCache(deleted.isGlobal
-    ? CACHE_KEYS.mapping.invalidateAll()
+    ? [...CACHE_KEYS.mapping.invalidateAll(), ...CACHE_KEYS.connection.invalidateByIds(deleted.connections.map((c) => c.id))]
     : CACHE_KEYS.mapping.invalidate(userId)
   );
   return new NextResponse(null, { status: 204 });

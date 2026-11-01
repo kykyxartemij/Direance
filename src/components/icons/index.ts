@@ -15,6 +15,7 @@ export { default as ExitFullscreen } from './ExitFullscreen';
 export { default as Theater } from './Theater';
 export { default as Volume } from './Volume';
 export { default as VolumeMuted } from './VolumeMuted';
+export { default as Calendar } from './Calendar';
 export { default as Check } from './Check';
 export { default as Copy } from './Copy';
 export { default as Loading } from './Loading';

@@ -59,7 +59,7 @@ const DEFAULT_VALUES: FormValues = {
 // ==== Component ====
 
 export default function ExportDialog({ onExport }: ExportDialogProps) {
-  const { data: lightSettings = [] } = useGetLightExportSettings();
+  const { data: lightSettings = [], isLoading: isLoadingSettings } = useGetLightExportSettings();
 
   const [exporting, setExporting] = useState(false);
   const [open, setOpen] = useState(false);
@@ -159,6 +159,7 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
               options={options}
               placeholder="None (plain export)"
               clearable
+              isLoading={isLoadingSettings}
             />
 
             {settingId && fullSetting && (

@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import { applyMappingMultiSheet } from '@/page/mapping/applyMapping';
-import type { MappingModel } from '@/models/mapping.models';
+import type { MappingModel, SourceLayout } from '@/models/mapping.models';
 import type { ConnectionLightModel, ConnectionSheet, ConnectionFetchResult } from '@/models/connection.models';
 import type { UploadedReport, MappedReport } from '@/providers/ReportProvider/types';
 
@@ -44,6 +44,25 @@ export function buildMappedReport(report: Pick<UploadedReport, 'workbook'>, mapp
   };
 }
 
+function withAllValueColumns(layout: SourceLayout): SourceLayout {
+  return { ...layout, regions: layout.regions.map((r) => ({ ...r, valueColumns: [] })) };
+}
+
+// Period count comes from fetch filters, so a layout saved from a shorter sample must not cap columns.
+function forConnectionFetch(mapping: MappingModel): MappingModel {
+  const { sourceLayout, sheetLayouts } = mapping.config;
+  return {
+    ...mapping,
+    config: {
+      ...mapping.config,
+      sourceLayout: withAllValueColumns(sourceLayout),
+      sheetLayouts: sheetLayouts && Object.fromEntries(
+        Object.entries(sheetLayouts).map(([name, layout]) => [name, withAllValueColumns(layout)]),
+      ),
+    },
+  };
+}
+
 // One connection fetch result → a fully-derived UploadedReport (workbook + mapped view).
 // Runs once per fetch inside the react-query queryFn (cached by query key), so the heavy
 // XLSX work never repeats on re-render. `id` is stable per connection so React keys hold.
@@ -62,6 +81,6 @@ export function buildConnectionReport(connection: ConnectionLightModel, data: Co
     rowIndents,
     mapping: data.mapping ?? undefined,
   };
-  if (data.mapping) report.mapped = buildMappedReport(report, data.mapping);
+  if (data.mapping) report.mapped = buildMappedReport(report, forConnectionFetch(data.mapping));
   return report;
 }

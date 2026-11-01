@@ -157,6 +157,8 @@
   /* Field size modifiers — art-field--md is the default, no overrides needed */
   .art-field--sm { @apply min-h-7 text-xs px-2 py-1; }
   .art-field--lg { @apply min-h-11 text-base px-4 py-3; }
+  /* Masks a secret on type="text": browsers offer saved logins on any type="password". */
+  .art-field--secret { -webkit-text-security: disc; }
 
   .art-field:disabled {
     cursor: not-allowed;
@@ -781,6 +783,27 @@
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
     overflow: hidden;
   }
+
+  /* ===== ArtDatePicker ===== */
+  .art-datepicker { width: 18rem; padding: 0.5rem; }
+  .art-datepicker-header { @apply flex items-center justify-between gap-2; margin-bottom: 0.5rem; }
+  .art-datepicker-step { @apply flex items-center gap-1; }
+  .art-datepicker-title { @apply text-sm font-semibold text-center; min-width: 2.75rem; color: var(--text); }
+  .art-datepicker-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .art-datepicker-weekday { @apply text-xs text-center; padding: 0.25rem 0; color: var(--text-muted); }
+  .art-datepicker-day {
+    @apply text-sm rounded-md cursor-pointer transition-colors;
+    height: 2.25rem; border: 1px solid transparent; background: transparent;
+    font-family: inherit; color: var(--text);
+  }
+  .art-datepicker-day--outside { color: var(--text-muted); opacity: 0.5; }
+  .art-datepicker-day--today { border-color: var(--border); }
+  .art-datepicker-day:hover { background: var(--border); }
+  .art-datepicker-day:active { background: color-mix(in srgb, white 18%, var(--border)); }
+  .art-datepicker-day--selected,
+  .art-datepicker-day--selected:hover { background: color-mix(in srgb, var(--art-primary) 14%, transparent); color: var(--art-primary); opacity: 1; }
+  .art-datepicker-day--selected:active { background: color-mix(in srgb, var(--art-primary) 22%, transparent); }
+  .art-datepicker-footer { @apply flex justify-between; margin-top: 0.5rem; }
 
   /* Rows-per-page option list — same width as trigger button */
   .art-pagination-size-list { display: flex; flex-direction: column; padding: 4px; width: 64px; }

@@ -11,6 +11,7 @@ export default function Page() {
   return (
     <ArtPage
       title="Export Settings"
+      description="Layout, logo and header for your Excel exports."
       actions={
         <Link href={HREF.exportSettingNew} prefetch>
           <ArtButton color="primary">New Config</ArtButton>

@@ -35,12 +35,12 @@ function defaultEndDate(): string {
   return toMeritDate(new Date().toISOString().slice(0, 10));
 }
 
-// Whole calendar months between two ISO dates, minimum 1.
+// Calendar months covered by two ISO dates, both ends included.
 function monthsBetween(fromIso: string, toIso: string): number {
   const from = new Date(fromIso);
   const to   = new Date(toIso);
   const months = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
-  return Math.max(1, months);
+  return Math.max(1, months + 1);
 }
 
 function resolvePeriod(filters: { dateTo?: string; dateFrom?: string; periods?: number }): { endDate: string; perCount: number } {
@@ -78,41 +78,48 @@ async function meritPost(
 }
 
 type MeritRow = {
-  No: number;
   Description: string;
   RowType: number;
   Balance: (number | null)[] | null;
 };
 
-// Flatten Merit report rows into a simple table:
-//   No | Description | Period 1 | Period 2 | ...
+// ==== Period column labels ====
+// Merit quirk: responses carry no period dates, so labels are derived from EndDate and PerCount.
+
+function monthStart(endDate: string, monthsBack: number): Date {
+  return new Date(Date.UTC(Number(endDate.slice(0, 4)), Number(endDate.slice(4, 6)) - 1 - monthsBack, 1));
+}
+
+// Merit quirk: Balance[0] is EndDate itself, every later value is an earlier month's last day.
+function balancePeriodLabels(endDate: string, perCount: number): string[] {
+  return Array.from({ length: perCount }, (_, i) => {
+    const start = monthStart(endDate, i);
+    const day = i === 0 ? endDate.slice(6, 8) : new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0)).getUTCDate();
+    return `${day}.${String(start.getUTCMonth() + 1).padStart(2, '0')}.${start.getUTCFullYear()}`;
+  });
+}
+
+function pnlPeriodLabels(endDate: string, perCount: number): string[] {
+  return Array.from({ length: perCount }, (_, i) =>
+    monthStart(endDate, i).toLocaleString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }),
+  );
+}
+
+// Flatten Merit report rows into a simple table: Description | one column per label.
 // RowType 1 = section header (no balance), 2/3 = account, 4 = subtotal/formula.
-function flattenMeritRows(data: unknown): Record<string, unknown>[] {
+// Merit quirk: getprofitrep appends a total to Balance. Only labeled periods are kept.
+function flattenMeritRows(data: unknown, periodLabels: string[]): Record<string, unknown>[] {
   if (!data || typeof data !== 'object') return [];
   const d = data as Record<string, unknown>;
   if (d.ErrorMsg) throw new ApiError(`Merit error: ${d.ErrorMsg}`, 502);
   const raw = d.Data;
   if (!Array.isArray(raw)) return [];
 
-  const rows = raw as MeritRow[];
-
-  // Determine how many period columns exist (from first row that has Balance).
-  const sample = rows.find((r) => Array.isArray(r.Balance));
-  const periodCount = sample ? (sample.Balance?.length ?? 1) : 1;
-
-  return rows.map((r) => {
-    const out: Record<string, unknown> = {
-      No:          r.No,
-      Description: r.Description,
-    };
-    if (Array.isArray(r.Balance)) {
-      r.Balance.forEach((val, i) => {
-        out[`Period ${i + 1}`] = val ?? '';
-      });
-    } else {
-      // Header row — leave period columns empty
-      for (let i = 0; i < periodCount; i++) out[`Period ${i + 1}`] = '';
-    }
+  return (raw as MeritRow[]).map((r) => {
+    const out: Record<string, unknown> = { Description: r.Description };
+    periodLabels.forEach((label, i) => {
+      out[label] = r.Balance?.[i] ?? '';
+    });
     return out;
   });
 }
@@ -130,7 +137,7 @@ export async function runMeritPnlDriver({ type, config, secret, filters }: Merit
   });
 
   return {
-    sheets: [{ name: 'pnl', rows: flattenMeritRows(data) }],
+    sheets: [{ name: 'pnl', rows: flattenMeritRows(data, pnlPeriodLabels(endDate, perCount)) }],
     fetchedAt: new Date().toISOString(),
   };
 }
@@ -143,7 +150,7 @@ export async function runMeritFinancialPositionDriver({ type, secret, filters }:
   const data = await meritPost(baseUrl, 'getbalancerep', apiId, apiKey, { EndDate: endDate, PerCount: perCount });
 
   return {
-    sheets: [{ name: 'financial_position', rows: flattenMeritRows(data) }],
+    sheets: [{ name: 'financial_position', rows: flattenMeritRows(data, balancePeriodLabels(endDate, perCount)) }],
     fetchedAt: new Date().toISOString(),
   };
 }

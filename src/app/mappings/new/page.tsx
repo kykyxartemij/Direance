@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: 'New Mapping' };
 
 export default function Page() {
   return (
-    <ArtPage title="New Mapping">
+    <ArtPage title="New Mapping" description="Set how a report is read and shown.">
       <MappingFormCreate />
     </ArtPage>
   );

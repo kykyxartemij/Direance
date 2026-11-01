@@ -19,23 +19,25 @@ export default function PnlFilterForm({ values, onChange }: Props) {
     <>
       <ArtDatePicker
         label="Period end date"
+        clearable={false}
         value={values.dateTo}
         onChange={(v) => onChange('dateTo', v)}
-        helperText="Last day of the period range. Defaults to today."
+        helperText="Last day of the report. Today by default."
       />
       <ArtInput
         label="Periods"
         type="number"
         placeholder="1"
         value={values.periods}
+        disabled={!!values.dateFrom}
         onChange={(e) => onChange('periods', e.target.value)}
-        helperText="Number of periods (months) to include, counted back from the end date."
+        helperText="Months to show, going back from the end date."
       />
       <ArtDatePicker
         label="Date from"
         value={values.dateFrom}
         onChange={(v) => onChange('dateFrom', v)}
-        helperText="Explicit range start — overrides periods when set. Leave blank to use periods instead."
+        helperText="First day of the report. When set, Periods is not used."
       />
     </>
   );

@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: 'New Export Settings' };
 
 export default function Page() {
   return (
-    <ArtPage title="New Export Setting">
+    <ArtPage title="New Export Setting" description="Create a layout for your Excel exports.">
       <ExportSettingsFormPage />
     </ArtPage>
   );

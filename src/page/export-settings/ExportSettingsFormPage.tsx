@@ -386,7 +386,7 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess }: ExportSettingFor
           onChange={setLogoStaged}
         />
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          Scaled to max 64×180 px. Consider leaving ~4 empty rows below logo.
+          Logo size is up to 64×180 px. Leave about 4 empty rows below it.
         </p>
 
         <ArtDivider label="Header layout" />
@@ -427,7 +427,7 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess }: ExportSettingFor
 
         <ArtFormInput name="headerDataStartCell" label="Data start cell" placeholder="A4" />
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          Cell where data table begins. Account for logo and header rows above.
+          Cell where the table starts. Leave room for the logo and header above it.
         </p>
 
         <ArtDivider label="Value categories" />
@@ -464,7 +464,7 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess }: ExportSettingFor
           + Add category
         </ArtButton>
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          Shown as Display Name options in Row Mappings. Color is applied to matching rows in the Dashboard and export.
+          These names become Display Name options in Row Mappings. Their color is used in reports and exports.
         </p>
 
         <ArtDivider label="Options" />

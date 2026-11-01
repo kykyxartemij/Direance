@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: 'Edit Export Settings' };
 
 export default function Page() {
   return (
-    <ArtPage title="Edit Export Setting">
+    <ArtPage title="Edit Export Setting" description="Change this Excel export layout.">
       <ExportSettingsFormEdit />
     </ArtPage>
   );

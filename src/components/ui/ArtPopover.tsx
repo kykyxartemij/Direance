@@ -22,7 +22,7 @@ interface ArtPopoverProps {
 // ==== Component ====
 
 function ArtPopover({ trigger, children, placement = 'bottom', trackWidth = false, className }: ArtPopoverProps) {
-  const { triggerRef, panelRef, open, hide, toggle } =
+  const { triggerRef, panelRef, open, portalTarget, hide, toggle } =
     useAnchoredPanel<HTMLSpanElement, HTMLDivElement>({ placement, trackWidth });
 
   useEffect(() => {
@@ -44,7 +44,7 @@ function ArtPopover({ trigger, children, placement = 'bottom', trackWidth = fals
         {triggerEl}
       </span>
 
-      {open && typeof document !== 'undefined' && createPortal(
+      {open && portalTarget && createPortal(
         <div
           ref={panelRef}
           className={cn('art-popover', className)}
@@ -52,7 +52,7 @@ function ArtPopover({ trigger, children, placement = 'bottom', trackWidth = fals
         >
           {children}
         </div>,
-        document.body,
+        portalTarget,
       )}
     </>
   );

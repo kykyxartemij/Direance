@@ -11,6 +11,7 @@ export default function Page() {
   return (
     <ArtPage
       title="Mappings"
+      description="Rules for how report rows are named, colored and shown."
       actions={
         <Link href={HREF.mappingNew} prefetch>
           <ArtButton color="primary">New Mapping</ArtButton>

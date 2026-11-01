@@ -35,7 +35,7 @@ interface ArtMenuProps {
 // for position calculations without interfering with the child's layout.
 
 function ArtMenu({ children, items, onSelect, placement = 'bottom', className }: ArtMenuProps) {
-  const { triggerRef, panelRef, open, hide, toggle } =
+  const { triggerRef, panelRef, open, portalTarget, hide, toggle } =
     useAnchoredPanel<HTMLElement, HTMLDivElement>({ placement });
 
   useEffect(() => {
@@ -58,7 +58,7 @@ function ArtMenu({ children, items, onSelect, placement = 'bottom', className }:
         {trigger}
       </span>
 
-      {open && typeof document !== 'undefined' && createPortal(
+      {open && portalTarget && createPortal(
         <div
           ref={panelRef}
           className={cn('art-popover', className)}
@@ -89,7 +89,7 @@ function ArtMenu({ children, items, onSelect, placement = 'bottom', className }:
             ))}
           </ul>
         </div>,
-        document.body,
+        portalTarget,
       )}
     </>
   );

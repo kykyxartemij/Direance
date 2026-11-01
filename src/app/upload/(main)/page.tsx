@@ -8,7 +8,7 @@ export default function Page() {
   return (
     <ArtPage
       title="Upload"
-      description="Upload an Excel file exported from Merit.ee or any other source. The file is parsed locally — it never leaves your browser."
+      description="Add an Excel report from any source. The file stays in your browser."
     >
       <UploadPage />
     </ArtPage>

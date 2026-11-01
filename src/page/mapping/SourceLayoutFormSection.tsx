@@ -78,7 +78,7 @@ function ReadonlySummary({
   return (
     <div className="flex flex-col gap-3 rounded p-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
       <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-        Below is the stored layout. To edit regions or columns, load a real file first.
+        This is the saved layout. Load a file or connection to edit it.
       </p>
 
       {sheets.length === 0 ? (
@@ -233,7 +233,7 @@ function SourceLayoutFormSection({
               <div style={{ flex: 1 }}>
                 <ArtSelect
                   label="Connection"
-                  helperText="Pulls latest data with default filters, only to populate Source Layout — not stored."
+                  helperText="Loads latest data to fill in the layout. The data is not saved."
                   options={connectionOptions}
                   selected={connectionOptions.find((o) => o.value === connectionId) ?? null}
                   onChange={(opt) => setConnectionId((opt?.value as string) ?? null)}

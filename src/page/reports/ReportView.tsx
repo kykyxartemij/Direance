@@ -188,7 +188,7 @@ export default function ReportView({ reports, loading }: ReportViewProps) {
           Nothing here yet
         </p>
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          Load a connection or upload a file from the sidebar.
+          Turn on a connection or upload a file from the sidebar.
         </p>
       </div>
     );

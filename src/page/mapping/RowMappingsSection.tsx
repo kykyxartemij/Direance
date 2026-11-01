@@ -65,6 +65,7 @@ function findCategory(name: string | undefined, categories: MappedValueModel[]):
 function RowMappingRowItem({ row, mappedValueOptions, mappedValues, editable, onChange, onRemove }: RowMappingRowItemProps) {
     const matchedCategory = findCategory(row.displayName, mappedValues);
     const lockedNameColor = matchedCategory?.color;
+    const isHidden = row.hidden ?? false;
 
     // When displayName is a free-text value that doesn't match any option, synthesise a
     // temporary option so the controlled ArtComboBox keeps showing the typed text instead
@@ -83,10 +84,11 @@ function RowMappingRowItem({ row, mappedValueOptions, mappedValues, editable, on
             <ArtInput
               value={row.sourceName}
               placeholder="Source name"
+              disabled={isHidden}
               onChange={(e) => onChange({ sourceName: e.target.value })}
             />
           ) : (
-            <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{row.sourceName}</span>
+            <span className="text-sm" style={{ color: 'var(--text-muted)', opacity: isHidden ? 0.38 : undefined }}>{row.sourceName}</span>
           )}
         </ArtDataTd>
         <ArtDataTd>
@@ -96,6 +98,7 @@ function RowMappingRowItem({ row, mappedValueOptions, mappedValues, editable, on
             placeholder={row.sourceName || 'Display name'}
             clearable
             noOptionsMessage={false}
+            disabled={isHidden}
             onChange={(opt) => onChange({ displayName: opt?.value || undefined })}
             onSubmit={(text) => onChange({ displayName: text || undefined })}
             selectFirstOnEnter={mappedValueOptions.length > 0}
@@ -107,11 +110,11 @@ function RowMappingRowItem({ row, mappedValueOptions, mappedValues, editable, on
               <ColorSelect value={lockedNameColor} onChange={() => {}} disabled />
             </ArtTooltip>
           ) : (
-            <ColorSelect value={row.nameColor} onChange={(c) => onChange({ nameColor: c })} />
+            <ColorSelect value={row.nameColor} onChange={(c) => onChange({ nameColor: c })} disabled={isHidden} />
           )}
         </ArtDataTd>
         <ArtDataTd>
-          <ColorSelect value={row.valueColor} onChange={(c) => onChange({ valueColor: c })} />
+          <ColorSelect value={row.valueColor} onChange={(c) => onChange({ valueColor: c })} disabled={isHidden} />
         </ArtDataTd>
         <ArtDataTd>
           <ArtCheckbox
@@ -221,7 +224,7 @@ function RowMappingsSection({ rowMappings = EMPTY_ROWS, onRowsChange, initialExp
             />
             {mappedValueOptions.length > 0 && (
               <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-                Display name options come from this export setting&apos;s mapped value names.
+                Display name options come from this export setting.
               </p>
             )}
           </div>
@@ -239,6 +242,7 @@ function RowMappingsSection({ rowMappings = EMPTY_ROWS, onRowsChange, initialExp
           columns={editable ? EDITABLE_COLUMNS : BASE_COLUMNS}
           data={rows}
           rowKey={(row) => row._index}
+          lastColRightAlign={false}
           emptyMessage={editable ? 'No rows yet — click "Add row" below.' : 'No rows found in the uploaded file'}
           renderRow={(row) => (
             <RowMappingRowItem

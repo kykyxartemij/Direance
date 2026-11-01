@@ -62,7 +62,7 @@ function LogoRow({
       <span className="flex-1 text-sm" style={{ color: 'var(--text)' }}>{name ?? '(unnamed)'}</span>
       <ArtConfirmDialog
         title="Delete logo"
-        description={`Delete "${name ?? 'this logo'}"? Any ExportSetting using it will lose the logo reference.`}
+        description={`Delete "${name ?? 'this logo'}"? Export settings using it will have no logo.`}
         onConfirm={onDelete}
         confirmLabel="Delete"
       >
@@ -125,7 +125,7 @@ function LogosSection() {
       )}
 
       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-        Uploaded logos can be linked from any Export Setting.
+        Use these logos in any export setting.
       </p>
     </div>
   );

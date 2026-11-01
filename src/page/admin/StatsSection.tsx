@@ -70,7 +70,7 @@ export default function StatsSection() {
         limit={formatBytes(data?.storage.limitBytes ?? 0)}
         usedRaw={data?.storage.usedBytes ?? 0}
         limitRaw={data?.storage.limitBytes ?? 1}
-        description="Space taken by all data — Mappings, Export Settings, Logos. Grows as records are added. If full, no new data can be saved until something is deleted. Does not reset."
+        description="Space used by all saved data. If full, nothing new can be saved until something is deleted. Does not reset."
       />
       <StatBar
         label="Network Transfer"
@@ -78,7 +78,7 @@ export default function StatsSection() {
         limit={formatBytes(data?.transfer.limitBytes ?? 0)}
         usedRaw={data?.transfer.usedBytes ?? 0}
         limitRaw={data?.transfer.limitBytes ?? 1}
-        description="Amount of data that got requested from Storage. The more active the site, the faster it grows. If full, the site goes down. Resets monthly."
+        description="Data read from storage. Grows with site use. If full, the site stops working. Resets monthly."
       />
       <StatBar
         label="Compute"
@@ -86,7 +86,7 @@ export default function StatsSection() {
         limit={`${data?.compute.limitCuHours ?? 0} CU-hrs`}
         usedRaw={data?.compute.usedCuHours ?? 0}
         limitRaw={data?.compute.limitCuHours ?? 1}
-        description="Time the database spends processing requests each month. Almost always near zero — nothing to worry about. In rare cases, like uploading and processing a large file, it may tick up briefly. Resets monthly."
+        description="Time the database spends working. Usually near zero. Resets monthly."
       />
       <StatBar
         label="Your Personal Storage Usage"
@@ -96,8 +96,8 @@ export default function StatsSection() {
         limitRaw={personalLimitRaw || 1}
         description={
           hasNoSizeLimit
-            ? 'Storage used by your own Mappings, Export Settings, and uploads. You have the "No DB Size Limits" permission — no personal cap. Does not reset.'
-            : 'Storage used by your own Mappings, Export Settings, and uploads. Delete old records to free space. Does not reset.'
+            ? 'Space used by your own data. You have no personal limit. Does not reset.'
+            : 'Space used by your own data. Delete old records to free space. Does not reset.'
         }
       />
     </div>

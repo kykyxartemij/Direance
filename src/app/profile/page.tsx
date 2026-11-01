@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: 'Profile' };
 
 export default function Page() {
   return (
-    <ArtPage title="Profile" description="Your account info and uploaded logos." maxWidth="2xl">
+    <ArtPage title="Profile" description="Your account and logos." maxWidth="2xl">
       <ProfilePage />
     </ArtPage>
   );
