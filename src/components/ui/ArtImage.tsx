@@ -10,9 +10,6 @@ interface ArtImageProps extends Omit<ImageProps, 'src' | 'placeholder'> {
   src: string | null | undefined;
   /** External fetch/decode state (e.g. bytesClient query) — shows shimmer instead of empty state */
   isLoading?: boolean;
-  fit?: 'contain' | 'cover';
-  rounded?: boolean;
-  emptyLabel?: string;
   /** Bytes-on-demand fetch (see docs/ImagesGuide.md) — empty box becomes the click-to-load trigger, no separate button needed */
   onRequestLoad?: () => void;
 }
@@ -25,9 +22,6 @@ function ArtImage({
   width,
   height,
   isLoading = false,
-  fit = 'contain',
-  rounded = true,
-  emptyLabel,
   onRequestLoad,
   className,
   unoptimized = true,
@@ -37,7 +31,7 @@ function ArtImage({
   const boxStyle = { width, height };
 
   if (isLoading) {
-    return <ArtSkeleton className={cn('art-image-box', rounded && 'art-image--rounded', className)} style={boxStyle} />;
+    return <ArtSkeleton className={cn('art-image-box art-image--rounded', className)} style={boxStyle} />;
   }
 
   if (!src) {
@@ -46,18 +40,18 @@ function ArtImage({
         <button
           type="button"
           onClick={onRequestLoad}
-          aria-label={emptyLabel ?? 'Load image'}
-          className={cn('art-image-box art-image-empty art-image-empty--clickable', rounded && 'art-image--rounded', className)}
+          aria-label="Load image"
+          className={cn('art-image-box art-image-empty art-image-empty--clickable art-image--rounded', className)}
           style={boxStyle}
         >
-          <ArtEmptyState variant="no-data" icon="Refresh" title={emptyLabel ?? 'Click to load'} compact />
+          <ArtEmptyState variant="no-data" icon="Refresh" title="Click to load" compact />
         </button>
       );
     }
 
     return (
-      <div className={cn('art-image-box art-image-empty', rounded && 'art-image--rounded', className)} style={boxStyle}>
-        <ArtEmptyState variant="no-data" icon="Upload" title={emptyLabel ?? 'No image'} compact />
+      <div className={cn('art-image-box art-image-empty art-image--rounded', className)} style={boxStyle}>
+        <ArtEmptyState variant="no-data" icon="Upload" title="No image" compact />
       </div>
     );
   }
@@ -65,14 +59,14 @@ function ArtImage({
   // fill (not width/height attrs) — CSS-sized box stays fixed regardless of the image's
   // intrinsic aspect ratio, so it never flashes larger than the skeleton/empty state.
   return (
-    <div className={cn('art-image-frame', rounded && 'art-image--rounded', className)} style={boxStyle}>
+    <div className={cn('art-image-frame art-image--rounded', className)} style={boxStyle}>
       <Image
         src={src}
         alt={alt}
         fill
         unoptimized={unoptimized}
         sizes={sizes ?? `${width}px`}
-        className={fit === 'cover' ? 'art-image--cover' : 'art-image--contain'}
+        className="art-image--contain"
         {...rest}
       />
     </div>

@@ -13,8 +13,6 @@ interface ArtUploadProps extends Omit<React.InputHTMLAttributes<HTMLInputElement
   /** Short hint below the icon, e.g. "MP4, WebM · max 500 MB" */
   hint?: string;
   helperText?: string;
-  errorText?: string;
-  readOnly?: boolean;
 }
 
 function formatSize(bytes: number): string {
@@ -23,7 +21,7 @@ function formatSize(bytes: number): string {
 }
 
 function ArtUpload({
-  label, hint, helperText, errorText, onChange, id: idProp, required, className, disabled, readOnly = false, ref, ...rest
+  label, hint, helperText, onChange, id: idProp, required, className, disabled, ref, ...rest
 }: ArtUploadProps) {
   const generatedId = useId();
   const id = idProp ?? generatedId;
@@ -59,7 +57,7 @@ function ArtUpload({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    if (disabled || readOnly) return;
+    if (disabled) return;
     const dropped = e.dataTransfer.files[0];
     if (!dropped || !inputRef.current) return;
     // Transfer dropped file into the input via DataTransfer
@@ -83,10 +81,9 @@ function ArtUpload({
           dragging && 'art-upload--dragging',
           file && 'art-upload--selected',
           disabled && 'art-upload--disabled',
-          readOnly && 'art-upload--readonly',
           className,
         )}
-        onDragOver={(e) => { e.preventDefault(); if (!disabled && !readOnly) setDragging(true); }}
+        onDragOver={(e) => { e.preventDefault(); if (!disabled) setDragging(true); }}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
       >
@@ -98,7 +95,7 @@ function ArtUpload({
           id={id}
           type="file"
           required={required}
-          disabled={disabled || readOnly}
+          disabled={disabled}
           className="sr-only"
           onChange={handleChange}
         />
@@ -108,29 +105,25 @@ function ArtUpload({
             <ArtIcon name="Upload" size={22} className="art-upload-icon" />
             <span className="art-upload-filename">{file.name}</span>
             <span className="art-upload-size">{formatSize(file.size)}</span>
-            {!readOnly && (
-              <ArtIconButton
-                icon={{ name: 'Close', size: 12 }}
-                size="sm"
-                className="art-upload-clear"
-                aria-label="Remove file"
-                onClick={handleClear}
-              />
-            )}
+            <ArtIconButton
+              icon={{ name: 'Close', size: 12 }}
+              size="sm"
+              className="art-upload-clear"
+              aria-label="Remove file"
+              onClick={handleClear}
+            />
           </>
         ) : (
           /* Empty state */
           <>
             <ArtIcon name="Upload" size={24} className="art-upload-icon" />
-            <span className="art-upload-label">
-              {readOnly ? 'No file' : 'Drop file here or click to browse'}
-            </span>
-            {!readOnly && hint && <span className="art-upload-hint">{hint}</span>}
+            <span className="art-upload-label">Drop file here or click to browse</span>
+            {hint && <span className="art-upload-hint">{hint}</span>}
           </>
         )}
       </label>
 
-      <ArtHelperText errorText={errorText} helperText={helperText} />
+      <ArtHelperText helperText={helperText} />
     </div>
   );
 }

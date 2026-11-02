@@ -23,8 +23,6 @@ interface ArtCollapseProps {
   title?: string;
   /** Leading icon in the trigger button */
   icon?: ArtIconName;
-  /** Fully custom trigger content — replaces title + icon */
-  trigger?: ReactNode;
   /** Visual style of the trigger button and its content container */
   variant?: 'default' | 'outlined' | 'ghost';
   color?: ArtColor;
@@ -34,14 +32,12 @@ interface ArtCollapseProps {
   open?: boolean;
   defaultOpen?: boolean;
   onChange?: (open: boolean) => void;
-
-  className?: string;
 }
 
 // ==== Component ====
 
 function ArtCollapse({
-  children, title, icon, trigger, variant = 'outlined', color, open, defaultOpen = false, onChange, className, ref,
+  children, title, icon, variant = 'outlined', color, open, defaultOpen = false, onChange, ref,
 }: ArtCollapseProps) {
   // ==== Controlled / uncontrolled ====
 
@@ -64,7 +60,7 @@ function ArtCollapse({
 
   // ==== Trigger variant CSS ====
 
-  const hasTrigger = title !== undefined || trigger !== undefined;
+  const hasTrigger = title !== undefined;
   const triggerBase =
     variant === 'default' ? 'btn-primary' :
     variant === 'ghost'   ? 'btn-ghost'   : 'btn';
@@ -77,7 +73,6 @@ function ArtCollapse({
         'art-collapse-root',
         hasTrigger && 'art-collapse-root--has-trigger',
         hasTrigger && `art-collapse-root--${variant}`,
-        className,
       )}
     >
       {hasTrigger && (
@@ -87,17 +82,13 @@ function ArtCollapse({
           onClick={() => setOpen(!isOpen)}
           aria-expanded={isOpen}
         >
-          {trigger ?? (
-            <>
-              {icon && <ArtIcon name={icon} size={16} />}
-              <span className="art-collapse-trigger-label">{title}</span>
-              <ArtIcon
-                name="ChevronDown"
-                size={14}
-                className={cn('art-collapse-chevron', isOpen && 'art-collapse-chevron--open')}
-              />
-            </>
-          )}
+          {icon && <ArtIcon name={icon} size={16} />}
+          <span className="art-collapse-trigger-label">{title}</span>
+          <ArtIcon
+            name="ChevronDown"
+            size={14}
+            className={cn('art-collapse-chevron', isOpen && 'art-collapse-chevron--open')}
+          />
         </button>
       )}
 

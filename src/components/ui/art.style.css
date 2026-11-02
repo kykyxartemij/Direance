@@ -140,7 +140,6 @@
     @apply absolute inset-y-0 left-0 rounded-full pointer-events-none;
     background: var(--art-accent);
   }
-  .art-loading-bar--sm { height: 3px; }
 
   /* ===== Art Field -- shared base for ArtInput & ArtTextarea ===== */
   .art-field-wrapper { @apply flex flex-col w-full; }
@@ -614,8 +613,6 @@
   .art-upload--dragging { border-color: var(--art-accent); background: color-mix(in srgb, var(--art-accent) 5%, var(--surface)); }
   .art-upload--selected { border-style: solid; border-color: color-mix(in srgb, var(--art-accent) 50%, var(--border)); }
   .art-upload--disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
-  .art-upload--readonly { cursor: default; }
-  .art-upload--readonly:hover { border-color: var(--border); background: var(--surface); }
 
   .art-upload-icon   { color: var(--text-muted); }
   .art-upload-label  { font-size: 0.875rem; color: var(--text-muted); }
@@ -1031,7 +1028,6 @@
   /* ===== ArtSnackbar ===== */
   @keyframes snack-progress { from { width: 100%; } to { width: 0%; } }
   @keyframes snack-in      { from { transform: translateX(110%);  opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-  @keyframes snack-in-left { from { transform: translateX(-110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
   .art-snackbar-stack { @apply fixed flex gap-2 pointer-events-none max-w-[400px]; width: calc(100vw - 2.5rem); z-index: var(--z-snackbar); }
   .art-snackbar {
@@ -1041,9 +1037,7 @@
     animation: snack-in 0.35s cubic-bezier(0.34, 1.4, 0.64, 1) both;
     transition: transform 0.25s ease, opacity 0.25s ease;
   }
-  .art-snackbar--from-left { animation-name: snack-in-left; }
   .art-snackbar--out      { transform: translateX(110%);  opacity: 0; animation: none; }
-  .art-snackbar--out-left { transform: translateX(-110%); opacity: 0; animation: none; }
   .art-snackbar--centered { @apply items-center; }
   .art-snackbar--centered .art-snackbar-count { margin-top: 0; }
   .art-snackbar--stacked {
@@ -1153,7 +1147,6 @@ input:focus, textarea:focus { outline: none; border-color: var(--art-field-focus
 
 .art-image-frame { position: relative; display: block; overflow: hidden; }
 .art-image--contain { object-fit: contain; }
-.art-image--cover { object-fit: cover; }
 .art-image--rounded { border-radius: 6px; }
 
 .art-image-box {

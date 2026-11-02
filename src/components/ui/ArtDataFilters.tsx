@@ -7,14 +7,14 @@ import ArtCollapse from './ArtCollapse';
 import ArtInput from './ArtInput';
 import { cn } from './art.utils';
 
+const SEARCH_DEBOUNCE_MS = 300;
+
 // ==== Types ====
 
 interface ArtDataFiltersProps {
   // ==== Search ====
   /** Show the free-text search input. Default: true. Set false for filter-only bars (e.g. report pages with only advanced filters). */
   searchable?: boolean;
-  /** Debounce delay in ms, or true for 300ms default. Default: 300 */
-  searchDebounce?: boolean | number;
   searchPlaceholder?: string;
   /** Called with debounced search string whenever input changes */
   onSearch?: (value: string) => void;
@@ -30,51 +30,30 @@ interface ArtDataFiltersProps {
    * Disabled — but still tooltipped — when activeFilterCount is 0.
    */
   onClearFilters?: () => void;
-  /** Controlled open state for the filters panel */
-  filtersOpen?: boolean;
   defaultFiltersOpen?: boolean;
-  onFiltersOpenChange?: (open: boolean) => void;
-
-  className?: string;
 }
 
 // ==== Component ====
 
 const ArtDataFilters = ({
   searchable = true,
-  searchDebounce = 300,
   searchPlaceholder = 'Search…',
   onSearch,
   advancedFilters,
   activeFilterCount = 0,
   onClearFilters,
-  filtersOpen,
   defaultFiltersOpen = false,
-  onFiltersOpenChange,
-  className,
 }: ArtDataFiltersProps) => {
-  // ==== Panel open state ====
-
-  const isControlled = filtersOpen !== undefined;
-  const [internalOpen, setInternalOpen] = useState(defaultFiltersOpen);
-  const open = isControlled ? filtersOpen : internalOpen;
-
-  const toggleOpen = () => {
-    const next = !open;
-    if (!isControlled) setInternalOpen(next);
-    onFiltersOpenChange?.(next);
-  };
-
-  // ==== Render ====
+  const [open, setOpen] = useState(defaultFiltersOpen);
 
   return (
-    <div className={cn('art-data-filters', className)}>
+    <div className="art-data-filters">
       <div className="art-data-filters-bar">
         {searchable && (
           <ArtInput
             icon={{ name: 'Search', size: 16 }}
             placeholder={searchPlaceholder}
-            debounce={searchDebounce}
+            debounce={SEARCH_DEBOUNCE_MS}
             onDebouncedChange={onSearch}
             clearable
           />
@@ -84,7 +63,7 @@ const ArtDataFilters = ({
           <ArtButton
             variant="outlined"
             icon="ChevronDown"
-            onClick={toggleOpen}
+            onClick={() => setOpen(!open)}
             className={cn('art-data-filters-toggle', open && 'art-data-filters-toggle--open')}
           >
             Filters
