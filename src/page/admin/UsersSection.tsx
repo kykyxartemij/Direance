@@ -1,10 +1,8 @@
 'use client';
 
-import { useState } from 'react';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useGetPagedUsers } from '@/hooks/user.hooks';
 import ArtData from '@/components/ui/ArtData';
-import { createPaginatedProps } from '@/components/ui/artData.utils';
 import ArtBadge from '@/components/ui/ArtBadge';
 import ArtPopover from '@/components/ui/ArtPopover';
 import PermissionBadge from '@/components/PermissionBadge';
@@ -44,22 +42,14 @@ const USER_COLUMNS: ArtColumn<UserModel>[] = [
 // ==== Section ====
 
 export default function UsersSection() {
-  const [pageSize, setPageSize] = useState(10);
-  const { page, search, setPage, dataProps } = useUrlFilters([]);
+  const { page, pageSize, search, dataProps } = useUrlFilters([]);
   const { data: users, isLoading } = useGetPagedUsers(page, pageSize, search);
-
-  function handlePageSizeChange(size: number) {
-    setPageSize(size);
-    setPage(1);
-  }
 
   return (
     <ArtData
       columns={USER_COLUMNS}
-      {...createPaginatedProps(users ?? { data: [], total: 0, page, pageSize })}
-      pageSize={pageSize}
-      pageSizeOptions={[10, 25, 50]}
-      onPageSizeChange={handlePageSizeChange}
+      data={users?.data ?? []}
+      total={users?.total ?? 0}
       searchPlaceholder="Search users..."
       rowKey={(u) => u.id}
       emptyMessage="No users found"

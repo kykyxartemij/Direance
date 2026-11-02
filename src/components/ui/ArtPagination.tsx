@@ -81,7 +81,7 @@ const ArtPagination = ({
                   key={opt}
                   type="button"
                   className={cn('art-pagination-size-opt', opt === pageSize && 'art-pagination-size-opt--active')}
-                  onClick={() => { onPageSizeChange(opt); onChange(1); }}
+                  onClick={() => onPageSizeChange(opt)}
                 >
                   {opt}
                 </button>

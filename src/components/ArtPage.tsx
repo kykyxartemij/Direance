@@ -27,7 +27,8 @@ interface ArtPageProps {
 
 // ==== Error fallback ====
 
-function ArtPageError({ error }: { error: Error }) {
+/** Page-level crash screen. Exported so the /ui showcase renders the real one. */
+export function ArtPageError({ error }: { error: Error }) {
   return (
     <div className="flex flex-col items-start gap-3">
       <div className="flex flex-col gap-2">

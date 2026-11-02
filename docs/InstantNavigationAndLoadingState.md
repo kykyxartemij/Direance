@@ -214,7 +214,7 @@ Never mirror it into `useState`.
 
 ```tsx
 // filter-model form — keys come from the same validator the BE parses with
-const { page, search, filters, setFilter, clearFilters, dataProps } =
+const { page, pageSize, search, filters, setFilter, clearFilters, dataProps } =
   useUrlFilters(MappingFilterValidator);
 
 // explicit-keys form — for pages with no shared filter model
@@ -222,8 +222,9 @@ const { filters, setFilter, clearFilters, activeCount } =
   useUrlFilters(['dateTo', 'periods'] as const);
 ```
 
-`dataProps` spreads straight into `<ArtData {...dataProps} />`. Pair with `parseFiltersFromUrl`
-on the BE so one schema drives both sides.
+`dataProps` spreads straight into `<ArtData {...dataProps} />`, including page size: the hook
+owns `pageSize`, its options and the URL write, so a list page only passes `pageSize` to its
+query hook. Pair with `parseFiltersFromUrl` on the BE so one schema drives both sides.
 
 > `react-doctor/nextjs-no-use-search-params-without-suspense` fires on this hook — a known
 > false positive: every consumer renders under `ArtPage`, which is the Suspense boundary.
