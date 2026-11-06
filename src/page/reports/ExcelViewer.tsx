@@ -108,7 +108,7 @@ export default function ExcelViewer({ workbook, layout, fixedSheet }: ExcelViewe
 
       {/* Region legend */}
       {layout && layout.regions.length > 0 && (
-        <div className="flex flex-wrap gap-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+        <div className="flex flex-wrap gap-3 text-xs art-text-muted">
           {layout.regions.map((r, ri) => {
             const av = regionAccentVar(ri);
             return (

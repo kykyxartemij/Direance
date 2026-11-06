@@ -6,7 +6,7 @@ import { useForm, useWatch, type Resolver } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { useGetMappingById, useCreateMapping, useUpdateMapping } from '@/hooks/mapping.hooks';
-import { DEFAULT_MAPPING_CONFIG, REPORT_TYPES, type MappingModel, type RowMapping, type SourceLayout, type TotalColumnMode } from '@/models/mapping.models';
+import { DEFAULT_MAPPING_CONFIG, REPORT_TYPES, type MappingModel, type RowMapping, type SourceLayout } from '@/models/mapping.models';
 import { ArtForm, ArtFormInput, ArtFormSelect } from '@/components/form';
 import type { ArtSelectOption } from '@/components/ui/ArtSelect';
 import ArtDivider from '@/components/ui/ArtDivider';
@@ -123,13 +123,6 @@ function MappingFormInner({ id, mapping }: { id?: string; mapping?: MappingModel
     });
   }
 
-  function handleSheetTotalColumnModeChange(sheetName: string, mode: TotalColumnMode) {
-    setLoaded((prev) => prev && {
-      ...prev,
-      sheetsConfig: { ...prev.sheetsConfig, [sheetName]: { ...(prev.sheetsConfig[sheetName] ?? { mode: 'combine' }), totalColumnMode: mode } },
-    });
-  }
-
   async function onSave(data: FormValues) {
     const cleanRows: RowMapping[] = rowMappings.flatMap(({ _index, ...rest }) =>
       rest.sourceName.trim().length > 0
@@ -220,7 +213,6 @@ function MappingFormInner({ id, mapping }: { id?: string; mapping?: MappingModel
         onWorkbookLoaded={handleWorkbookLoaded}
         onSheetLayoutChange={handleSheetLayoutChange}
         onSheetModeChange={handleSheetModeChange}
-        onSheetTotalColumnModeChange={handleSheetTotalColumnModeChange}
         reportType={reportType}
       />
       <RowMappingsSection

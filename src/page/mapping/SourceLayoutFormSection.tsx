@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import * as XLSX from 'xlsx';
-import type { SourceLayout, SheetConfig, TotalColumnMode, ReportType } from '@/models/mapping.models';
+import type { SourceLayout, SheetConfig, ReportType } from '@/models/mapping.models';
 import type { ConnectionSheet } from '@/models/connection.models';
 import ArtCollapse from '@/components/ui/ArtCollapse';
 import ArtUpload from '@/components/ui/ArtUpload';
@@ -29,7 +29,6 @@ interface SourceLayoutFormSectionProps {
   onWorkbookLoaded: (state: LoadedWorkbookState | null) => void;
   onSheetLayoutChange: (sheetName: string, layout: SourceLayout) => void;
   onSheetModeChange: (sheetName: string, mode: 'combine' | 'skip') => void;
-  onSheetTotalColumnModeChange: (sheetName: string, mode: TotalColumnMode) => void;
   /** When set, shows a "fetch sample from connection" picker scoped to this report type. Omit for manual-upload contexts. */
   reportType?: ReportType;
 }
@@ -77,16 +76,16 @@ function ReadonlySummary({
 
   return (
     <div className="flex flex-col gap-3 rounded p-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-      <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+      <p className="text-sm art-text-muted">
         This is the saved layout. Load a file or connection to edit it.
       </p>
 
       {sheets.length === 0 ? (
         <div className="text-sm">
-          <span style={{ color: 'var(--text-muted)' }}>Primary layout: </span>
+          <span className="art-text-muted">Primary layout: </span>
           <span>header row {layout.headerRow + 1}, {layout.regions.length} region{layout.regions.length !== 1 ? 's' : ''}</span>
           {layout.regions.length > 0 && (
-            <ul className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+            <ul className="mt-1 text-xs art-text-muted">
               {layout.regions.map((r, i) => (
                 <li key={r.descriptionColumn}>Region {i + 1}: {describeRegion(r)}</li>
               ))}
@@ -103,13 +102,10 @@ function ReadonlySummary({
                 <div className="flex items-center gap-2">
                   <strong>{name}</strong>
                   {cfg?.mode === 'skip' && (
-                    <span className="text-xs" style={{ color: 'var(--art-danger)' }}>skipped</span>
-                  )}
-                  {cfg?.totalColumnMode && cfg.totalColumnMode !== 'none' && (
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>· {cfg.totalColumnMode}</span>
+                    <span className="text-xs art-text-danger">skipped</span>
                   )}
                 </div>
-                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                <div className="text-xs art-text-muted">
                   header row {sl.headerRow + 1}, {sl.regions.length} region{sl.regions.length !== 1 ? 's' : ''}
                   {sl.regions.length > 0 && ` — ${sl.regions.map(describeRegion).join(' | ')}`}
                 </div>
@@ -132,7 +128,6 @@ function SourceLayoutFormSection({
   onWorkbookLoaded,
   onSheetLayoutChange,
   onSheetModeChange,
-  onSheetTotalColumnModeChange,
   reportType,
 }: SourceLayoutFormSectionProps) {
     const [sourceMode, setSourceMode] = useState<'upload' | 'connection'>('upload');
@@ -256,8 +251,8 @@ function SourceLayoutFormSection({
 
           {loaded && sourceLabel?.startsWith('Connection:') && (
             <div className="flex items-center justify-between rounded px-3 py-2 text-xs" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-              <span style={{ color: 'var(--text-muted)' }}>
-                Loaded: <strong style={{ color: 'var(--text)' }}>{sourceLabel}</strong>
+              <span className="art-text-muted">
+                Loaded: <strong className="art-text-default">{sourceLabel}</strong>
               </span>
               <ArtButton type="button" variant="ghost" size="sm" onClick={clearWorkbook}>
                 Clear loaded source
@@ -266,7 +261,7 @@ function SourceLayoutFormSection({
           )}
 
           {warning && (
-            <p className="text-xs" style={{ color: 'var(--art-warning)' }}>
+            <p className="text-xs art-text-warning">
               {warning}
             </p>
           )}
@@ -280,7 +275,6 @@ function SourceLayoutFormSection({
               sheetsConfig={loaded.sheetsConfig}
               onSheetLayoutChange={onSheetLayoutChange}
               onSheetModeChange={onSheetModeChange}
-              onSheetTotalColumnModeChange={onSheetTotalColumnModeChange}
             />
           )}
         </div>

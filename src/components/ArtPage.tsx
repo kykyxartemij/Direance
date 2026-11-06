@@ -27,12 +27,13 @@ interface ArtPageProps {
 
 // ==== Error fallback ====
 
-function ArtPageError({ error }: { error: Error }) {
+/** Page-level crash screen. Exported so the /ui showcase renders the real one. */
+export function ArtPageError({ error }: { error: Error }) {
   return (
     <div className="flex flex-col items-start gap-3">
       <div className="flex flex-col gap-2">
-        <h2 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>Something went wrong</h2>
-        <p className="text-sm" style={{ color: 'var(--art-danger)' }}>{error.message}</p>
+        <h2 className="text-lg font-semibold">Something went wrong</h2>
+        <p className="text-sm art-text-danger">{error.message}</p>
       </div>
       <ArtButton variant="outlined" onClick={() => window.location.reload()}>Reload</ArtButton>
     </div>

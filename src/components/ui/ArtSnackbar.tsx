@@ -48,11 +48,6 @@ interface TimerEntry {
   handle: ReturnType<typeof setTimeout> | undefined;
 }
 
-export interface AnchorOrigin {
-  vertical: 'top' | 'bottom';
-  horizontal: 'left' | 'center' | 'right';
-}
-
 interface ArtSnackbarContextValue {
   enqueue: (title: string, options?: SnackOptions) => string;
   enqueueError: (err: ApiError | Error | string, title?: string, opts?: Omit<SnackOptions, 'color' | 'description' | 'icon'>) => string;
@@ -65,27 +60,25 @@ function makeGroupKey(title: string, color?: ArtColor, description?: string): st
 }
 
 const EXIT_MS = 260;
+const MAX_SNACKS = 4;
+const DEFAULT_DURATION_MS = 4000;
+const STACK_STYLE: React.CSSProperties = { top: '5rem', right: '1.25rem', flexDirection: 'column-reverse' };
 
 const ArtSnackbarContext = createContext<ArtSnackbarContextValue | null>(null);
 
 function SnackItemUI({
   item,
-  anchorOrigin,
   onClose,
   onPause,
   onResume,
   zIndex,
 }: {
   item: SnackItem;
-  anchorOrigin: AnchorOrigin;
   onClose: (id: string) => void;
   onPause: (id: string) => void;
   onResume: (id: string) => void;
   zIndex: number;
 }) {
-  const outClass = anchorOrigin.horizontal === 'left' ? 'art-snackbar--out-left' : 'art-snackbar--out';
-  const fromLeftClass = anchorOrigin.horizontal === 'left' ? 'art-snackbar--from-left' : undefined;
-
   return (
     <div
       className={cn(
@@ -94,8 +87,7 @@ function SnackItemUI({
         item.count >= 2 && 'art-snackbar--stacked',
         item.count >= 3 && 'art-snackbar--stacked-deep',
         !item.description && 'art-snackbar--centered',
-        fromLeftClass,
-        item.removing && outClass,
+        item.removing && 'art-snackbar--out',
       )}
       style={{
         zIndex,
@@ -124,36 +116,23 @@ function SnackItemUI({
 
 function SnackStack({
   items,
-  anchorOrigin,
   onClose,
   onPause,
   onResume,
 }: {
   items: SnackItem[];
-  anchorOrigin: AnchorOrigin;
   onClose: (id: string) => void;
   onPause: (id: string) => void;
   onResume: (id: string) => void;
 }) {
-  const { vertical, horizontal } = anchorOrigin;
-
-  const style: React.CSSProperties = {
-    [vertical]: vertical === 'top' ? '5rem' : '1.25rem',
-    ...(horizontal === 'left'   && { left: '1.25rem' }),
-    ...(horizontal === 'center' && { left: '50%', transform: 'translateX(-50%)' }),
-    ...(horizontal === 'right'  && { right: '1.25rem' }),
-    flexDirection: vertical === 'bottom' ? 'column' : 'column-reverse',
-  };
-
   if (typeof document === 'undefined') return null;
 
   return createPortal(
-    <div className="art-snackbar-stack" style={style}>
+    <div className="art-snackbar-stack" style={STACK_STYLE}>
       {items.map((item, index) => (
         <SnackItemUI
           key={item.id}
           item={item}
-          anchorOrigin={anchorOrigin}
           onClose={onClose}
           onPause={onPause}
           onResume={onResume}
@@ -165,21 +144,7 @@ function SnackStack({
   );
 }
 
-interface ArtSnackbarProviderProps {
-  children: ReactNode;
-  /** Max unique snacks visible at once. Oldest is evicted when exceeded. Default: 4 */
-  maxSnack?: number;
-  anchorOrigin?: AnchorOrigin;
-  /** Default auto-hide duration in ms. Default: 4000 */
-  defaultDuration?: number;
-}
-
-export function ArtSnackbarProvider({
-  children,
-  maxSnack = 4,
-  anchorOrigin = { vertical: 'top', horizontal: 'right' },
-  defaultDuration = 4000,
-}: ArtSnackbarProviderProps) {
+export function ArtSnackbarProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<SnackItem[]>([]);
 
   const itemsRef = useRef(items);
@@ -227,7 +192,7 @@ export function ArtSnackbarProvider({
   }, [startEntry, initTimer, timers]);
 
   const enqueue = useCallback((title: string, opts: SnackOptions = {}): string => {
-    const { color, duration = defaultDuration, description, icon } = opts;
+    const { color, duration = DEFAULT_DURATION_MS, description, icon } = opts;
     const key = makeGroupKey(title, color, description);
 
     const existing = itemsRef.current.find((s) => !s.removing && s.groupKey === key);
@@ -241,7 +206,7 @@ export function ArtSnackbarProvider({
     }
 
     const active = itemsRef.current.filter((s) => !s.removing);
-    if (active.length >= maxSnack) closeSnack(active[0].id);
+    if (active.length >= MAX_SNACKS) closeSnack(active[0].id);
 
     const id = `snack-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     setItems((prev) => [...prev, {
@@ -250,7 +215,7 @@ export function ArtSnackbarProvider({
     }]);
     initTimer(id, duration);
     return id;
-  }, [defaultDuration, maxSnack, closeSnack, resetTimer, initTimer]);
+  }, [closeSnack, resetTimer, initTimer]);
 
   const enqueueError = useCallback((
     err: ApiError | Error | string,
@@ -284,7 +249,6 @@ export function ArtSnackbarProvider({
       {items.length > 0 && (
         <SnackStack
           items={items}
-          anchorOrigin={anchorOrigin}
           onClose={closeSnack}
           onPause={pauseTimer}
           onResume={resumeTimer}

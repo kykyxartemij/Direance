@@ -6,6 +6,8 @@ export interface ArtColumn<T> {
   /** true / 'left' → pin left edge. 'right' → pin right edge. Pixel string widths required for stacking offsets. */
   sticky?: boolean | 'left' | 'right';
   sortable?: boolean;
+  /** Header alignment; match it to how render() aligns the cell. */
+  align?: 'left' | 'right';
   render?: (row: T, index: number) => ReactNode;
   /**
    * width: number → percentage mode (÷10 = %). width: 300 = 30%.

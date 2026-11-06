@@ -36,12 +36,12 @@ function StatBar({ label, used, limit, usedRaw, limitRaw, description }: {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between text-sm">
-        <span style={{ color: 'var(--text)' }}>{label}</span>
-        <span style={{ color: 'var(--text-muted)' }}>{used} / {limit}</span>
+        <span>{label}</span>
+        <span className="art-text-muted">{used} / {limit}</span>
       </div>
       <ArtProgress value={usedRaw} max={limitRaw} color={barColor(usedRaw, limitRaw)} />
       {description && (
-        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{description}</p>
+        <p className="text-xs art-text-muted">{description}</p>
       )}
     </div>
   );

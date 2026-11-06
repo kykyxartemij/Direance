@@ -2,7 +2,6 @@ import type * as XLSX from 'xlsx';
 import type { ArtColor } from '@/components/ui/art.types';
 import type { MappingModel } from '@/models/mapping.models';
 import type { ConnectionType } from '@/models/connection.models';
-import type { TotalColumnInfo } from '@/page/mapping/applyMapping';
 
 export type Row = Record<string, unknown>;
 
@@ -14,7 +13,6 @@ export type MappedReport = {
   rows: Row[];
   rowColors: (ArtColor | undefined)[];
   valueColors: (ArtColor | undefined)[];
-  totalColumns?: TotalColumnInfo[];
   /** Single-sheet workbook built from headers + rows — fed to ExcelViewer + export. */
   workbook: XLSX.WorkBook;
   /** Sheets from the ORIGINAL workbook that should not surface when includeOriginalSheets is on. */

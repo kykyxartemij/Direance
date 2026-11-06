@@ -1,6 +1,5 @@
 import * as XLSX from 'xlsx';
 import { type UploadedReport } from '@/providers/ReportProvider/types';
-import { type TotalColumnInfo } from '@/page/mapping/applyMapping';
 import type { ArtColor } from '@/components/ui/art.types';
 
 // ==== Types ====
@@ -20,7 +19,6 @@ export type CombinedReports = {
   rowColors: (ArtColor | undefined)[];
   /** Value color per output row + column header. Header keys mirror `headers.slice(1)`. */
   valueColorByHeader: Record<string, ArtColor | undefined>[];
-  totalColumns?: TotalColumnInfo[];
 };
 
 // ==== Combine logic ====
@@ -40,7 +38,6 @@ export function combineReports(reports: UploadedReport[]): CombinedReports {
           rows:        r.mapped.rows,
           rowColors:   r.mapped.rowColors,
           valueColors: r.mapped.valueColors,
-          totalColumns: r.mapped.totalColumns,
         }]
       : []
   );
@@ -61,7 +58,6 @@ export function combineReports(reports: UploadedReport[]): CombinedReports {
       rowIndents: m.rowIndents,
       rowColors: m.rowColors,
       valueColorByHeader,
-      totalColumns: m.totalColumns,
     };
   }
 

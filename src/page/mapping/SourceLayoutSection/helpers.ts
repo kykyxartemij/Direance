@@ -1,6 +1,5 @@
 import type { ArtSelectOption } from '@/components/ui/ArtSelect';
 import type { ArtColor } from '@/components/ui/art.types';
-import type { TotalColumnMode } from '@/models/mapping.models';
 
 export function colLetter(n: number): string {
   let result = '';
@@ -21,9 +20,3 @@ export function columnLetterOptions(totalCols: number): ArtSelectOption[] {
 
 // Region accent palette (matches ExcelViewer)
 export const REGION_ART_COLORS: ArtColor[] = ['primary', 'success', 'warning', 'danger'];
-
-export const TOTAL_COL_MODE_OPTIONS: { value: TotalColumnMode; label: string }[] = [
-  { value: 'none', label: 'Regular' },
-  { value: 'append', label: 'With Total' },
-  { value: 'only', label: 'Only Total' },
-];

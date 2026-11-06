@@ -24,6 +24,7 @@ export function ArtFormDatePicker({ name, helperText, ...props }: ArtFormDatePic
           onChange={field.onChange}
           errorText={fieldState.error?.message}
           helperText={helperText}
+          ref={field.ref}
         />
       )}
     />

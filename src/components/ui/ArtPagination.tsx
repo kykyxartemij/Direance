@@ -28,7 +28,6 @@ interface ArtPaginationProps {
 
 // ==== Component ====
 
-// TODO: A lot of stuff not used, such as keyboard page change, the titles
 const ArtPagination = ({
   page,
   pageSize,
@@ -41,9 +40,9 @@ const ArtPagination = ({
   const totalPages  = total !== undefined && pageSize > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 1;
   const clampedPage = Math.min(Math.max(1, page), totalPages);
 
-  const [draft, setDraft]     = useState('');
-  const [focused, setFocused] = useState(false);
-  const inputRef              = useRef<HTMLInputElement>(null);
+  // null = not editing, the field shows the current page.
+  const [draft, setDraft] = useState<string | null>(null);
+  const cancelRef         = useRef(false);
 
   if (total === undefined) return null;
 
@@ -52,7 +51,14 @@ const ArtPagination = ({
 
   const commit = (raw: string) => {
     const n = parseInt(raw, 10);
-    if (!isNaN(n)) onChange(Math.min(Math.max(1, n), totalPages));
+    const next = Math.min(Math.max(1, n), totalPages);
+    if (!isNaN(n) && next !== clampedPage) onChange(next);
+  };
+
+  const step = (delta: number) => {
+    const next = Math.min(Math.max(1, clampedPage + delta), totalPages);
+    setDraft(String(next));
+    if (next !== clampedPage) onChange(next);
   };
 
   // ==== Render ====
@@ -81,7 +87,7 @@ const ArtPagination = ({
                   key={opt}
                   type="button"
                   className={cn('art-pagination-size-opt', opt === pageSize && 'art-pagination-size-opt--active')}
-                  onClick={() => { onPageSizeChange(opt); onChange(1); }}
+                  onClick={() => onPageSizeChange(opt)}
                 >
                   {opt}
                 </button>
@@ -98,23 +104,24 @@ const ArtPagination = ({
         />
 
         <input
-          ref={inputRef}
           className="art-pagination-field"
           type="text"
           inputMode="numeric"
-          value={focused ? draft : String(clampedPage)}
+          value={draft ?? String(clampedPage)}
           aria-label={`Page ${clampedPage} of ${totalPages}`}
-          title={`Page ${clampedPage} of ${totalPages} — type to jump`}
-          onFocus={() => { setDraft(String(clampedPage)); setFocused(true); inputRef.current?.select(); }}
-          onBlur={() => { setFocused(false); commit(draft); }}
-          onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setDraft(v); }}
+          title={`Page ${clampedPage} of ${totalPages}. Type a page, or use arrow up and down.`}
+          onFocus={(e) => { setDraft(String(clampedPage)); e.currentTarget.select(); }}
+          onBlur={() => {
+            if (draft !== null && !cancelRef.current) commit(draft);
+            cancelRef.current = false;
+            setDraft(null);
+          }}
+          onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ''))}
           onKeyDown={(e) => {
             if (e.key === 'Enter')     { e.currentTarget.blur(); }
-            if (e.key === 'Escape')    { setFocused(false); setDraft(''); inputRef.current?.blur(); }
-            if (e.key === 'ArrowUp')   { e.preventDefault(); onChange(Math.min(clampedPage + 1, totalPages)); }
-            if (e.key === 'ArrowRight')   { e.preventDefault(); onChange(Math.min(clampedPage + 1, totalPages)); }
-            if (e.key === 'ArrowDown') { e.preventDefault(); onChange(Math.max(clampedPage - 1, 1)); }
-            if (e.key === 'ArrowLeft') { e.preventDefault(); onChange(Math.max(clampedPage - 1, 1)); }
+            if (e.key === 'Escape')    { cancelRef.current = true; e.currentTarget.blur(); }
+            if (e.key === 'ArrowUp')   { e.preventDefault(); step(1); }
+            if (e.key === 'ArrowDown') { e.preventDefault(); step(-1); }
           }}
         />
 

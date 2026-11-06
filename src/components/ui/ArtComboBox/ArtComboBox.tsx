@@ -266,6 +266,7 @@ function ArtComboBox(props: ArtComboBoxProps) {
           icon={selectedSingle?.icon ? { name: selectedSingle.icon as ArtIconName } : icon}
           clearable={clearable}
           placeholder={placeholder}
+          autoComplete="off"
           value={inputDisplayValue}
           color={selectedSingle?.color}
           debounce={debounceMs}
@@ -280,6 +281,8 @@ function ArtComboBox(props: ArtComboBoxProps) {
         />
       ) : (
         <ButtonTrigger
+          // react-hook-form only calls focus() on this ref, which a button supports too.
+          triggerRef={ref as unknown as React.Ref<HTMLButtonElement>}
           labelId={labelId}
           disabled={disabled}
           readOnly={readOnly}

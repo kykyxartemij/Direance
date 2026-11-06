@@ -16,8 +16,6 @@ import { FSLink } from '@/components/FSLink';
 
 // ==== Constants ====
 
-const PAGE_SIZE = 20;
-
 const CONNECTION_TYPE_OPTIONS = CONNECTION_TYPES.map((t) => ({ label: CONNECTION_TYPE_LABELS[t], value: t }));
 
 // ==== Helpers ====
@@ -29,8 +27,8 @@ function formatTypeLabel(row: ConnectionModel): string {
 // ==== Page ====
 
 export default function ConnectionsListPage() {
-  const { page, search, filters, setFilter, clearFilters, dataProps } = useUrlFilters(ConnectionFilterValidator);
-  const { data: pagedData, isLoading } = useGetPagedConnections(page, PAGE_SIZE, search, {
+  const { page, pageSize, search, filters, setFilter, clearFilters, dataProps } = useUrlFilters(ConnectionFilterValidator);
+  const { data: pagedData, isLoading } = useGetPagedConnections(page, pageSize, search, {
     type: (filters.type as ConnectionType | null) ?? undefined,
     reportType: (filters.reportType as ReportType | null) ?? undefined,
   });
@@ -83,7 +81,7 @@ export default function ConnectionsListPage() {
     {
       key: 'actions',
       label: '',
-      sizing: { width: 140 },
+      sizing: { renderLoading: true },
       render: (row) => (
         <div className="flex gap-2">
           <FSLink href={HREF.connectionById(row.id)}>
@@ -108,7 +106,6 @@ export default function ConnectionsListPage() {
       data={pagedData?.data ?? []}
       rowKey={(row) => row.id}
       emptyMessage="No connections yet."
-      pageSize={PAGE_SIZE}
       total={pagedData?.total ?? 0}
       searchPlaceholder="Search connections…"
       loading={isLoading}

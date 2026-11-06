@@ -13,6 +13,9 @@ import type * as yup from 'yup';
 export interface ArtDataUrlProps {
   page: number;
   onPageChange: (page: number) => void;
+  pageSize: number;
+  pageSizeOptions: number[];
+  onPageSizeChange: (size: number) => void;
   onSearch: (query: string) => void;
   activeFilterCount: number;
 }
@@ -21,18 +24,23 @@ export interface UseUrlFiltersResult<K extends string> {
   filters: Record<K, string | null>;
   search: string;
   page: number;
+  pageSize: number;
   activeCount: number;
   // Setters reset page to 1 (a filter/search change invalidates the old page).
   setFilter: (key: K, value: string | null) => void;
   setFilters: (updates: Partial<Record<K, string | null>>) => void;
   setSearch: (value: string) => void;
   setPage: (page: number) => void;
+  setPageSize: (size: number) => void;
   clearFilters: () => void;
   dataProps: ArtDataUrlProps; // spread into ArtData server-side mode
 }
 
 const SEARCH_DEFAULT = 'q';
 const PAGE_KEY = 'page';
+const PAGE_SIZE_KEY = 'pageSize';
+const DEFAULT_PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 type FilterSchema = yup.ObjectSchema<yup.AnyObject>;
 type UrlFilterOptions = { searchKey?: string };
@@ -78,6 +86,8 @@ export function useUrlFilters(
 
   const search = searchParams.get(searchKey) ?? '';
   const page = Math.max(1, parseInt(searchParams.get(PAGE_KEY) ?? '1', 10) || 1);
+  const urlPageSize = Number(searchParams.get(PAGE_SIZE_KEY));
+  const pageSize = PAGE_SIZE_OPTIONS.includes(urlPageSize) ? urlPageSize : DEFAULT_PAGE_SIZE;
 
   const activeCount = useMemo(
     () => (keyList ? keyList.split('|') : []).reduce((n: number, key: string) => n + (searchParams.get(key) ? 1 : 0), 0),
@@ -135,6 +145,16 @@ export function useUrlFilters(
     [writeParams],
   );
 
+  const setPageSize = useCallback(
+    (size: number) =>
+      writeParams((p) => {
+        if (size === DEFAULT_PAGE_SIZE) p.delete(PAGE_SIZE_KEY);
+        else p.set(PAGE_SIZE_KEY, String(size));
+        p.delete(PAGE_KEY);
+      }),
+    [writeParams],
+  );
+
   const clearFilters = useCallback(
     () =>
       writeParams((p) => {
@@ -145,9 +165,17 @@ export function useUrlFilters(
   );
 
   const dataProps = useMemo<ArtDataUrlProps>(
-    () => ({ page, onPageChange: setPage, onSearch: setSearch, activeFilterCount: activeCount }),
-    [page, setPage, setSearch, activeCount],
+    () => ({
+      page,
+      onPageChange: setPage,
+      pageSize,
+      pageSizeOptions: PAGE_SIZE_OPTIONS,
+      onPageSizeChange: setPageSize,
+      onSearch: setSearch,
+      activeFilterCount: activeCount,
+    }),
+    [page, setPage, pageSize, setPageSize, setSearch, activeCount],
   );
 
-  return { filters, search, page, activeCount, setFilter, setFilters, setSearch, setPage, clearFilters, dataProps };
+  return { filters, search, page, pageSize, activeCount, setFilter, setFilters, setSearch, setPage, setPageSize, clearFilters, dataProps };
 }

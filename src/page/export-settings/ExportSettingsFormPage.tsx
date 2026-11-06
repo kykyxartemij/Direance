@@ -385,18 +385,18 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess }: ExportSettingFor
           staged={logoStaged}
           onChange={setLogoStaged}
         />
-        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+        <p className="text-xs art-text-muted">
           Logo size is up to 64×180 px. Leave about 4 empty rows below it.
         </p>
 
         <ArtDivider label="Header layout" />
-        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+        <p className="text-xs art-text-muted">
           Use <span style={{ fontFamily: 'monospace' }}>&lt;Tag&gt;</span> in content for values filled at export time.
         </p>
 
         {items.length > 0 && (
           <div className="flex flex-col gap-2">
-            <div className="grid gap-2 items-center text-xs font-medium" style={{ gridTemplateColumns: '80px 1fr 32px', color: 'var(--text-muted)' }}>
+            <div className="grid gap-2 items-center text-xs font-medium art-text-muted" style={{ gridTemplateColumns: '80px 1fr 32px' }}>
               <span>Cell</span>
               <span>Content</span>
               <span />
@@ -426,14 +426,14 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess }: ExportSettingFor
         </ArtButton>
 
         <ArtFormInput name="headerDataStartCell" label="Data start cell" placeholder="A4" />
-        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+        <p className="text-xs art-text-muted">
           Cell where the table starts. Leave room for the logo and header above it.
         </p>
 
         <ArtDivider label="Value categories" />
         {categories.length > 0 && (
           <div className="flex flex-col gap-2">
-            <div className="grid gap-2 items-center text-xs font-medium" style={{ gridTemplateColumns: '1fr 160px 32px', color: 'var(--text-muted)' }}>
+            <div className="grid gap-2 items-center text-xs font-medium art-text-muted" style={{ gridTemplateColumns: '1fr 160px 32px' }}>
               <span>Name</span>
               <span>Color</span>
               <span />
@@ -463,7 +463,7 @@ function ExportSettingForm({ id, existing, isEdit, onSuccess }: ExportSettingFor
         >
           + Add category
         </ArtButton>
-        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+        <p className="text-xs art-text-muted">
           These names become Display Name options in Row Mappings. Their color is used in reports and exports.
         </p>
 

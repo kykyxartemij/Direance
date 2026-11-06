@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useId, useState } from 'react';
+import React, { useId, useState, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { useAnchoredPanel } from './art.hooks';
 import ArtButton from './ArtButton';
@@ -12,6 +12,7 @@ import type { ArtIconProps } from './ArtIcon';
 import { cn } from './art.utils';
 
 interface ArtDatePickerProps {
+  ref?: Ref<HTMLInputElement>;
   label?: string;
   helperText?: string;
   errorText?: string;
@@ -85,7 +86,7 @@ const keepInputFocus = (e: React.MouseEvent) => e.preventDefault();
 
 // ==== Component ====
 
-function ArtDatePicker({ label, helperText, errorText, value, onChange, disabled, required, clearable = !required }: ArtDatePickerProps) {
+function ArtDatePicker({ ref, label, helperText, errorText, value, onChange, disabled, required, clearable = !required }: ArtDatePickerProps) {
   const id = useId();
   const { triggerRef, panelRef, open, portalTarget, show, hide } = useAnchoredPanel<HTMLDivElement, HTMLDivElement>();
 
@@ -133,6 +134,7 @@ function ArtDatePicker({ label, helperText, errorText, value, onChange, disabled
       {label && <ArtLabel htmlFor={id} required={required}>{label}</ArtLabel>}
       <div ref={triggerRef}>
         <ArtInput
+          ref={ref}
           id={id}
           icon={FIELD_ICON}
           placeholder="dd.mm.yyyy"

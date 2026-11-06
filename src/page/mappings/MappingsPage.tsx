@@ -17,15 +17,11 @@ import { HREF } from '@/lib/hrefUrl';
 import { useAuth } from '@/providers/AuthProvider';
 import { Permission } from '@/lib/permissions';
 
-// ==== Constants ====
-
-const PAGE_SIZE = 20;
-
 // ==== Page ====
 
 export default function MappingsPage() {
-  const { page, search, filters, setFilter, clearFilters, dataProps } = useUrlFilters(MappingFilterValidator);
-  const { data: pagedData, isLoading } = useGetPagedMappings(page, PAGE_SIZE, search, {
+  const { page, pageSize, search, filters, setFilter, clearFilters, dataProps } = useUrlFilters(MappingFilterValidator);
+  const { data: pagedData, isLoading } = useGetPagedMappings(page, pageSize, search, {
     reportType: (filters.reportType as ReportType | null) ?? undefined,
   });
   const deleteMutation = useDeleteMapping();
@@ -105,7 +101,6 @@ export default function MappingsPage() {
         data={pagedData?.data ?? []}
         rowKey={(row) => row.id}
         emptyMessage="No mappings yet. Upload a report to create one."
-        pageSize={PAGE_SIZE}
         total={pagedData?.total ?? 0}
         searchPlaceholder="Search mappings…"
         loading={isLoading}

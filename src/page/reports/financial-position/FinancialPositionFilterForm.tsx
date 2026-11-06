@@ -14,7 +14,7 @@ type Props = {
   onChange: (key: keyof FinancialPositionFilterValues, value: string) => void;
 };
 
-// Bare fields — ArtDataFilters' panel owns the 3-per-row grid layout.
+// Bare fields — the page owns the 3-per-row grid layout.
 export default function FinancialPositionFilterForm({ values, onChange }: Props) {
   return (
     <>

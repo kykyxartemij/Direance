@@ -1,6 +1,5 @@
 'use client';
 
-import { useMemo } from 'react';
 import { useGetLightConnections, useGetFinancialPositionReportsByConnections } from '@/hooks/connection.hooks';
 import { useReports } from '@/providers/ReportProvider/ReportProvider';
 import { isConnectionActive } from '@/providers/ReportProvider/helpers';
@@ -10,7 +9,6 @@ import {
   buildFinancialPositionFetchFilters,
 } from '@/page/reports/financial-position/financialPositionFilterFields';
 import FinancialPositionFilterForm from '@/page/reports/financial-position/FinancialPositionFilterForm';
-import ArtDataFilters from '@/components/ui/ArtDataFilters';
 import ReportView from '../ReportView';
 
 // ==== Financial Position report page ====
@@ -22,7 +20,7 @@ import ReportView from '../ReportView';
 export default function FinancialPositionPage() {
   const { data: connections = [] } = useGetLightConnections();
   const { reports: fileReports, connectionOverrides } = useReports();
-  const { filters, setFilter, clearFilters, activeCount } = useUrlFilters(['dateTo', 'periods'] as const);
+  const { filters, setFilter } = useUrlFilters(['dateTo', 'periods'] as const);
 
   // URL params are string | null — fall back to the field defaults (a balance date + one
   // period are always needed, they just aren't "active filters" until the user changes them).
@@ -41,20 +39,11 @@ export default function FinancialPositionPage() {
     ...connectionReports,
   ];
 
-  const advancedFilters = useMemo(
-    () => <FinancialPositionFilterForm values={{ dateTo, periods }} onChange={(key, value) => setFilter(key, value)} />,
-    [dateTo, periods, setFilter],
-  );
-
   return (
     <div className="flex flex-col gap-4">
-      <ArtDataFilters
-        searchable={false}
-        defaultFiltersOpen
-        advancedFilters={advancedFilters}
-        activeFilterCount={activeCount}
-        onClearFilters={clearFilters}
-      />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <FinancialPositionFilterForm values={{ dateTo, periods }} onChange={setFilter} />
+      </div>
       <ReportView reports={reports} loading={isFetching} />
     </div>
   );

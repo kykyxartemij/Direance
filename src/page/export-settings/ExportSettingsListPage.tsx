@@ -14,8 +14,6 @@ import { FSLink } from '@/components/FSLink';
 
 // ==== Constants ====
 
-const PAGE_SIZE = 20;
-
 const HAS_TOTAL_COLUMN_OPTIONS = [
   { label: 'Yes', value: 'true' },
   { label: 'No', value: 'false' },
@@ -24,8 +22,8 @@ const HAS_TOTAL_COLUMN_OPTIONS = [
 // ==== Page ====
 
 export default function ExportSettingsListPage() {
-  const { page, search, filters, setFilter, clearFilters, dataProps } = useUrlFilters(ExportSettingFilterValidator);
-  const { data: pagedData, isLoading } = useGetPagedExportSettings(page, PAGE_SIZE, search, {
+  const { page, pageSize, search, filters, setFilter, clearFilters, dataProps } = useUrlFilters(ExportSettingFilterValidator);
+  const { data: pagedData, isLoading } = useGetPagedExportSettings(page, pageSize, search, {
     hasTotalColumn: filters.hasTotalColumn == null ? undefined : filters.hasTotalColumn === 'true',
   });
   const deleteMutation = useDeleteExportSetting();
@@ -98,7 +96,6 @@ export default function ExportSettingsListPage() {
       data={pagedData?.data ?? []}
       rowKey={(row) => row.id}
       emptyMessage="No export configs yet."
-      pageSize={PAGE_SIZE}
       total={pagedData?.total ?? 0}
       searchPlaceholder="Search configs…"
       loading={isLoading}

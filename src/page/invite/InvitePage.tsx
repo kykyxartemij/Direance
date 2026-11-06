@@ -99,7 +99,7 @@ export default function InvitePage() {
         <div className="flex flex-col gap-2">
           <ArtLabel>Permissions to grant</ArtLabel>
           {selectable.length === 0 ? (
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-sm art-text-muted">
               You don&apos;t hold any grantable permissions. The user will be invited without permissions.
             </p>
           ) : (
@@ -110,14 +110,14 @@ export default function InvitePage() {
                 className="max-h-60 overflow-y-auto art-scrollable"
                 noOptionsMessage={false}
               />
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              <p className="text-xs art-text-muted">
                 You can only grant permissions you hold yourself.
               </p>
             </>
           )}
         </div>
       ) : (
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+        <p className="text-sm art-text-muted">
           You can invite users but cannot assign permissions. The new user will start with no permissions.
         </p>
       )}

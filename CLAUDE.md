@@ -234,6 +234,11 @@ the suppression.
 - **Docs never reference `CLAUDE.md`.** `CLAUDE.md` is Claude-facing only; `docs/*.md` are for
   every developer, Claude included. A doc that needs to point at a rule points at the doc that
   owns it, never back at this file.
+- **Log every request in `REQUESTS.md`.** Each feature ask, bug report or TODO from the
+  developer gets one line under today's date (newest first) as soon as it's received:
+  `[ ]` while open, `[x]` + commit hash once committed, `*(uncommitted)*` in between.
+  Open items that aren't done this session also go into `TODO.md`. Questions and opinions
+  only get a line when they lead to a decision or work.
 - **Narrate mid-task, not just at the end.** During longer work, check in periodically with a
   short status, not raw tool output: what's been done, any moment that looked risky or
   surprising, what you concluded from it, what's next. Not a transcript of every command run —

@@ -2,20 +2,18 @@
 
 import { useState } from 'react';
 import type { UploadedReport } from '@/providers/ReportProvider/types';
-import { useGetLightExportSettings, useGetExportSettingById } from '@/hooks/export-settings.hooks';
 import { useExportExcel } from '@/hooks/excel.hooks';
 import ArtBadge from '@/components/ui/ArtBadge';
-import ArtComboBox from '@/components/ui/ArtComboBox/ArtComboBox';
-import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox/types';
 import ArtSkeleton from '@/components/ui/ArtSkeleton';
+import ArtSwitch from '@/components/ui/ArtSwitch';
 import ArtDataTable from '@/components/ui/ArtDataTable/ArtDataTable';
 import type { ArtColumn } from '@/components/ui/ArtDataTable/types';
-import ArtTabs from '@/components/ui/ArtTabs';
+// import ArtTabs from '@/components/ui/ArtTabs';
 import type { ArtColor } from '@/components/ui/art.types';
-import type { ExportSettingResolvedModel, MappedValueModel } from '@/models/export-settings.models';
-import { combineReports, buildProcessedWorkbook, type Row } from './combineReports';
-import ExcelViewer from './ExcelViewer';
-import ExportDialog from './ExportDialog';
+import type { MappedValueModel } from '@/models/export-settings.models';
+import { combineReports, /* buildProcessedWorkbook, */ type Row } from './combineReports';
+// import ExcelViewer from './ExcelViewer';
+import ExportDialog, { type ExportRequest } from './ExportDialog';
 import { FSLink } from '@/components/FSLink';
 import { HREF } from '@/lib/hrefUrl';
 
@@ -97,6 +95,7 @@ function buildColumns(
     ...valueHeaders.map((h, vIdx) => ({
       key: `${vIdx}_${h}`,
       label: h,
+      align: 'right' as const,
       sizing: {},
       render: (row: Row, index: number) => (
         <span
@@ -114,6 +113,7 @@ function buildColumns(
     ...(showDerivedTotal ? [{
       key: TOTAL_COL_KEY,
       label: TOTAL_COL_LABEL,
+      align: 'right',
       sizing: {},
       render: (row: Row, index: number) => {
         // Σ Total tinted by the row's name color (matches the category if matched).
@@ -147,10 +147,13 @@ function getRowClass(row: Row, index: number, valueHeaders: string[], rowIndents
 
 // ==== Component ====
 
+// TODO: restore the Excel view once it renders reports correctly (see TODO.md).
+/*
 const VIEW_TABS = [
   { value: 'table', label: 'Table' },
   { value: 'excel', label: 'Excel' },
 ];
+*/
 
 type ReportViewProps = {
   // Already filtered to one report type + merged (file uploads + connection fetches) by the
@@ -161,15 +164,9 @@ type ReportViewProps = {
 };
 
 export default function ReportView({ reports, loading }: ReportViewProps) {
-  const [view, setView] = useState('table');
-
-  // Default ExportSetting comes from the first mapped report's linked ExportSetting.
-  const defaultExportSettingId = reports.find((r) => r.mapping?.exportSetting?.id)?.mapping?.exportSetting?.id ?? null;
-  const [selectedExportSettingId, setSelectedExportSettingId] = useState<string | null>(defaultExportSettingId);
-  const { data: exportSettingsList = [] } = useGetLightExportSettings();
-  const { data: selectedExportSetting } = useGetExportSettingById(selectedExportSettingId ?? undefined, {
-    meta: { withGlobalLoaderBlur: true },
-  });
+  // const [view, setView] = useState('table');
+  // null = not toggled yet, so the default follows the linked setting once reports load.
+  const [showTotalChoice, setShowTotalChoice] = useState<boolean | null>(null);
   const { mutateAsync: exportExcel } = useExportExcel();
 
   if (loading && reports.length === 0) {
@@ -184,10 +181,10 @@ export default function ReportView({ reports, loading }: ReportViewProps) {
   if (reports.length === 0) {
     return (
       <div className="mt-16 flex flex-col items-center gap-2 text-center">
-        <p className="text-lg font-medium" style={{ color: 'var(--text)' }}>
+        <p className="text-lg font-medium">
           Nothing here yet
         </p>
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+        <p className="text-sm art-text-muted">
           Turn on a connection or upload a file from the sidebar.
         </p>
       </div>
@@ -195,59 +192,26 @@ export default function ReportView({ reports, loading }: ReportViewProps) {
   }
 
   const combined = combineReports(reports);
-  const { headers, rows, rowIndents, rowColors: baseRowColors, valueColorByHeader, totalColumns } = combined;
+  const { headers, rows, rowIndents, rowColors: baseRowColors, valueColorByHeader } = combined;
   const [descHeader, ...valueHeaders] = headers;
 
-  const categories: MappedValueModel[] = selectedExportSetting?.mappedValues ?? [];
+  // Categories + Σ Total default come from the first mapped report's linked ExportSetting.
+  const linkedSetting = reports.find((r) => r.mapping?.exportSetting)?.mapping?.exportSetting ?? null;
+  const categories: MappedValueModel[] = linkedSetting?.mappedValues ?? [];
   const rowColors = applyCategoryNameColors(rows, descHeader, baseRowColors, categories);
-  const showDerivedTotal = selectedExportSetting?.hasTotalColumn ?? false;
+  const showTotal = showTotalChoice ?? linkedSetting?.hasTotalColumn ?? false;
 
-  const exportSettingOptions: ArtComboBoxOption[] = exportSettingsList.map((es) => ({
-    label: es.name,
-    value: es.id,
-  }));
-  const selectedExportSettingOption =
-    exportSettingOptions.find((o) => o.value === selectedExportSettingId) ?? null;
-
-  // Original workbook + skipped sheets per report — fed to export when
-  // includeOriginalSheets is on. Skipped sheets are filtered out at export time.
-  const originalWorkbooks = reports.map((r) => ({
-    name: r.fileName.replace(/\.(xlsx|xls)$/i, ''),
-    workbook: r.workbook,
-    skippedSheets: r.mapped?.skippedSheets ?? [],
-  }));
+  // Only reports that feed the table; skipped sheets are dropped at export time.
+  const originalWorkbooks = reports.flatMap((r) => (r.active && r.mapped
+    ? [{ name: r.fileName.replace(/\.(xlsx|xls)$/i, ''), workbook: r.workbook, skippedSheets: r.mapped.skippedSheets }]
+    : []));
 
   const unmappedReports = reports.filter((r) => !r.mapped);
 
-  async function handleExport(
-    setting: ExportSettingResolvedModel | null,
-    placeholders?: Record<string, string>,
-    fileName?: string,
-  ) {
-    // The Σ Total column is derived at render time, so it exists only in `headers`/`rows`
-    // here — appended for export as a SUM over every value column, matching the table.
-    const derivedTotal = setting?.hasTotalColumn ?? false;
-    const exportHeaders = derivedTotal ? [...headers, TOTAL_COL_LABEL] : headers;
-    const exportRows = derivedTotal
-      ? rows.map((row) => ({ ...row, [TOTAL_COL_LABEL]: computeRowTotal(row, valueHeaders) }))
-      : rows;
-    const exportTotalColumns = derivedTotal
-      ? [
-          ...(totalColumns ?? []),
-          {
-            headerIndex: headers.length,
-            // Skip mapping-defined total columns — summing them would double-count.
-            sourceHeaderIndices: valueHeaders.flatMap((_, i) =>
-              (totalColumns ?? []).some((tc) => tc.headerIndex === i + 1) ? [] : [i + 1],
-            ),
-          },
-        ]
-      : totalColumns;
-
+  async function handleExport({ setting, ...options }: ExportRequest) {
     await exportExcel({
-      headers: exportHeaders, rows: exportRows, rowIndents, rowColors, valueColorByHeader,
-      exportSettings: setting, originalWorkbooks, placeholders, fileName,
-      totalColumns: exportTotalColumns,
+      headers, rows, rowIndents, rowColors, valueColorByHeader,
+      exportSettings: setting, originalWorkbooks, ...options,
     });
   }
 
@@ -256,8 +220,8 @@ export default function ReportView({ reports, loading }: ReportViewProps) {
       {/* Top bar: tabs + meta + export controls */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <ArtTabs tabs={VIEW_TABS} value={view} onChange={setView} />
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          {/* <ArtTabs tabs={VIEW_TABS} value={view} onChange={setView} /> */}
+          <p className="text-sm art-text-muted">
             {reports.length} report{reports.length > 1 ? 's' : ''} &nbsp;·&nbsp; {rows.length} rows
           </p>
           {unmappedReports.length > 0 && (
@@ -273,33 +237,20 @@ export default function ReportView({ reports, loading }: ReportViewProps) {
           )}
         </div>
         <div className="flex gap-2 items-center">
-          {exportSettingOptions.length > 0 && (
-            <div style={{ minWidth: 220 }}>
-              <ArtComboBox
-                options={exportSettingOptions}
-                selected={selectedExportSettingOption}
-                placeholder="Export setting…"
-                clearable
-                onChange={(opt) => setSelectedExportSettingId(opt?.value ?? null)}
-              />
-            </div>
-          )}
-          <ExportDialog onExport={handleExport} />
+          <ArtSwitch label="Σ Total" checked={showTotal} onChange={(e) => setShowTotalChoice(e.target.checked)} />
+          <ExportDialog defaultHasTotalColumn={showTotal} onExport={handleExport} />
         </div>
       </div>
 
-      {view === 'table' ? (
-        <ArtDataTable<Row>
-          columns={buildColumns(headers, rowIndents, rowColors, valueColorByHeader, showDerivedTotal)}
-          data={rows}
-          rowKey={(_, index) => String(index)}
-          rowClassName={(row, index) => getRowClass(row, index, valueHeaders, rowIndents)}
-          emptyMessage="No rows found"
-          lastColRightAlign={false}
-        />
-      ) : (
-        <ExcelViewer workbook={buildProcessedWorkbook(headers, rows)} fixedSheet="Report" />
-      )}
+      <ArtDataTable<Row>
+        columns={buildColumns(headers, rowIndents, rowColors, valueColorByHeader, showTotal)}
+        data={rows}
+        rowKey={(_, index) => String(index)}
+        rowClassName={(row, index) => getRowClass(row, index, valueHeaders, rowIndents)}
+        emptyMessage="No rows found"
+        lastColRightAlign={false}
+      />
+      {/* view === 'excel' && <ExcelViewer workbook={buildProcessedWorkbook(headers, rows)} fixedSheet="Report" /> */}
     </div>
   );
 }

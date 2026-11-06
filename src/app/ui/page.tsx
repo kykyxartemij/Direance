@@ -35,6 +35,8 @@ import ArtIconCycle, { type ArtIconCycleOption } from '@/components/ui/ArtIconCy
 import ArtPopover from '@/components/ui/ArtPopover';
 import ArtMenu, { type ArtMenuItemDef } from '@/components/ui/ArtMenu';
 import ArtEmptyState from '@/components/ui/ArtEmptyState';
+import { ArtErrorBoundary } from '@/components/ArtErrorBoundary';
+import { ArtPageError } from '@/components/ArtPage';
 import ArtCopyButton from '@/components/ui/ArtCopyButton';
 import ArtCheckbox from '@/components/ui/ArtCheckbox';
 import ArtRadio, { type ArtRadioOption } from '@/components/ui/ArtRadio';
@@ -155,6 +157,7 @@ const GROUP_SECTIONS: Record<GroupId, { id: string; label: string }[]> = {
     { id: 'artdatafilters', label: 'ArtDataFilters' },
     { id: 'artpagination',  label: 'ArtPagination'  },
     { id: 'artemptystate',  label: 'ArtEmptyState'  },
+    { id: 'arterrorboundary', label: 'ArtErrorBoundary' },
   ],
   providers: [
     { id: 'artdialog',   label: 'ArtDialog'   },
@@ -1774,6 +1777,25 @@ const items: ArtMenuItemDef[] = [
   );
 }
 
+// ==== ErrorBoundarySection ====
+
+function CrashDemo() {
+  const [crashed, setCrashed] = useState(false);
+  if (crashed) throw new Error('Test crash from the /ui page.');
+  return <ArtButton color="danger" variant="outlined" onClick={() => setCrashed(true)}>Crash this section</ArtButton>;
+}
+
+function ErrorBoundarySection() {
+  return (
+    <Section id="arterrorboundary" title="ArtErrorBoundary"
+      tip="Shows the real ArtPage crash screen. Reload reloads the whole page, which also resets this demo.">
+      <ArtErrorBoundary fallback={(err) => <ArtPageError error={err} />}>
+        <CrashDemo />
+      </ArtErrorBoundary>
+    </Section>
+  );
+}
+
 // ==== EmptyStateSection ====
 
 function EmptyStateSection() {
@@ -1935,6 +1957,7 @@ function DataGroup() {
       <DataFiltersSection />
       <PaginationSection />
       <EmptyStateSection />
+      <ErrorBoundarySection />
     </>
   );
 }

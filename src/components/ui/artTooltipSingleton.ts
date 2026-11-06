@@ -18,6 +18,9 @@ function getTooltip(): HTMLSpanElement {
 
 function show(trigger: HTMLElement, label: string) {
   const el = getTooltip();
+  // Browser quirk: showModal() puts the dialog above everything outside it, so live inside it.
+  const host = trigger.closest('dialog') ?? document.body;
+  if (el.parentElement !== host) host.appendChild(el);
   el.textContent = label;
 
   const rect = trigger.getBoundingClientRect();
@@ -41,7 +44,8 @@ function onMouseOver(e: MouseEvent) {
   const target = e.target as HTMLElement;
   if (target === tooltipEl) return;
   const trigger = target.closest<HTMLElement>('[data-tooltip]');
-  if (!trigger) return;
+  // A trigger removed from the page (navigation, closed dialog) never fires mouseout.
+  if (!trigger) { if (!tooltipEl?.contains(target)) hide(); return; }
   const label = trigger.dataset.tooltip;
   if (label) show(trigger, label);
 }
@@ -70,4 +74,5 @@ export function initTooltipSingleton() {
   initialized = true;
   document.addEventListener('mouseover', onMouseOver);
   document.addEventListener('mouseout', onMouseOut);
+  document.addEventListener('pointerdown', (e) => { if (!tooltipEl?.contains(e.target as Node)) hide(); }, true);
 }

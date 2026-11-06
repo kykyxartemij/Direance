@@ -62,10 +62,10 @@ export default function AcceptInvitePage() {
   if (!token) {
     return (
       <AuthFormLayout>
-        <h1 className="mb-3 text-xl font-semibold" style={{ color: 'var(--text)' }}>
+        <h1 className="mb-3 text-xl font-semibold">
           Invalid invite
         </h1>
-        <p className="text-sm" style={{ color: 'var(--art-danger)' }}>Missing invite token.</p>
+        <p className="text-sm art-text-danger">Missing invite token.</p>
       </AuthFormLayout>
     );
   }
@@ -75,10 +75,10 @@ export default function AcceptInvitePage() {
   if (lookup.isError || !lookup.data) {
     return (
       <AuthFormLayout>
-        <h1 className="mb-3 text-xl font-semibold" style={{ color: 'var(--text)' }}>
+        <h1 className="mb-3 text-xl font-semibold">
           Invalid invite
         </h1>
-        <p className="text-sm" style={{ color: 'var(--art-danger)' }}>
+        <p className="text-sm art-text-danger">
           {lookup.error?.message ?? 'Invalid or expired invite link.'}
         </p>
       </AuthFormLayout>

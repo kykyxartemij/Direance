@@ -2,7 +2,6 @@ import * as ExcelJS from 'exceljs';
 import * as XLSX from 'xlsx';
 import type { ArtColor } from '@/components/ui/art.types';
 import type { ExportSettingResolvedModel } from '@/models/export-settings.models';
-import type { TotalColumnInfo } from '@/page/mapping/applyMapping';
 import type { Row } from './combineReports';
 
 // ==== Constants ====
@@ -131,6 +130,15 @@ async function applyHeaderLayout(
 
 // ==== Data table writer ====
 
+const TOTAL_HEADER = 'Σ Total';
+const NUM_FMT = '#,##0';
+
+function toNumber(value: unknown): number | null {
+  if (value === '' || value == null) return null;
+  const num = Number(value);
+  return isNaN(num) ? null : num;
+}
+
 function writeDataTable(
   ws: ExcelJS.Worksheet,
   headers: string[],
@@ -140,22 +148,24 @@ function writeDataTable(
   valueColorByHeader: Record<string, ArtColor | undefined>[],
   startRow: number,
   startCol: number,
-  totalColumns?: TotalColumnInfo[],
+  hasTotalColumn: boolean,
 ) {
   const [descHeader, ...valueHeaders] = headers;
+  const outHeaders = hasTotalColumn ? [...headers, TOTAL_HEADER] : headers;
+  const firstValueLetter = ws.getColumn(startCol + 2).letter;
+  const lastValueLetter = ws.getColumn(startCol + 1 + valueHeaders.length).letter;
 
   // ==== Column widths (never shrink below existing — logo may have widened a column) ====
   const descCol = ws.getColumn(startCol + 1);
   descCol.width = Math.max(descCol.width ?? 0, 38);
-  valueHeaders.forEach((_, i) => {
+  outHeaders.slice(1).forEach((_, i) => {
     const col = ws.getColumn(startCol + 2 + i);
     col.width = Math.max(col.width ?? 0, 20);
   });
 
   // ==== Header row ====
-  const headerRowNum = startRow + 1; // 1-based
-  const xlHeaderRow = ws.getRow(headerRowNum);
-  headers.forEach((h, i) => {
+  const xlHeaderRow = ws.getRow(startRow + 1);
+  outHeaders.forEach((h, i) => {
     const cell = xlHeaderRow.getCell(startCol + 1 + i);
     cell.value = h;
     cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -164,18 +174,8 @@ function writeDataTable(
     cell.alignment = { vertical: 'middle', horizontal: i === 0 ? 'left' : 'right' };
   });
 
-  // ==== Total column lookup: headerIndex → source column letters ====
-  const totalColFormulaMap = new Map<number, string[]>();
-  if (totalColumns) {
-    for (const tc of totalColumns) {
-      const srcLetters = tc.sourceHeaderIndices.map((si) => ws.getColumn(startCol + 1 + si).letter);
-      totalColFormulaMap.set(tc.headerIndex, srcLetters);
-    }
-  }
-
   // ==== Data rows ====
-  const sectionStart: Record<number, number> = {};
-
+  // Values are written as the source sent them: subtotals are never re-derived from row names.
   rows.forEach((row, rowIdx) => {
     const excelRowNum = startRow + 2 + rowIdx; // 1-based, +1 for header
     const desc = String(row[descHeader] ?? '');
@@ -184,91 +184,97 @@ function writeDataTable(
     const indent = rowIndents[rowIdx] ?? 0;
     const isSection = isEmpty && !isTotal;
     const isTopLevel = indent === 0 && (isSection || isTotal);
+    const rowFill: ExcelJS.Fill | undefined = isTopLevel && isSection
+      ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } }
+      : isTotal ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } } : undefined;
 
     const nameArgb = rowColors[rowIdx] ? FONT_COLOR[rowColors[rowIdx]!] : undefined;
     const rowValueColors = valueColorByHeader[rowIdx] ?? {};
-
     const xlRow = ws.getRow(excelRowNum);
 
     // ==== Name cell ====
     const nameCell = xlRow.getCell(startCol + 1);
     nameCell.value = desc;
     nameCell.border = CELL_BORDER;
-    nameCell.font = {
-      bold: isTopLevel,
-      color: nameArgb ? { argb: nameArgb } : undefined,
-    };
-    if (isTopLevel && isSection) {
-      nameCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
-    } else if (isTotal) {
-      nameCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
-    }
+    nameCell.font = { bold: isTopLevel, color: nameArgb ? { argb: nameArgb } : undefined };
+    if (rowFill) nameCell.fill = rowFill;
 
     // ==== Value cells ====
+    let rowSum = 0;
     valueHeaders.forEach((h, vIdx) => {
-      const headerIndex = vIdx + 1; // 1-based index in original headers
       const absCol = startCol + 2 + vIdx;
-      const colLetter = ws.getColumn(absCol).letter;
       const cell = xlRow.getCell(absCol);
       cell.border = CELL_BORDER;
       cell.alignment = { horizontal: 'right' };
       const valColor = rowValueColors[h];
       const valArgb = valColor ? FONT_COLOR[valColor] : undefined;
       cell.font = { bold: isTopLevel, color: valArgb ? { argb: valArgb } : undefined };
+      if (rowFill) cell.fill = rowFill;
 
-      if (isTopLevel && isSection) {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
-      } else if (isTotal) {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
-      }
-
-      // Total column → SUM formula referencing source columns in this row
-      const tcSrcLetters = totalColFormulaMap.get(headerIndex);
-      if (tcSrcLetters && !isEmpty) {
-        cell.value = {
-          formula: tcSrcLetters.map((l) => `${l}${excelRowNum}`).join('+'),
-        };
-        cell.numFmt = '#,##0';
-        cell.font = { bold: true, color: valArgb ? { argb: valArgb } : undefined };
-      } else if (isEmpty) {
+      const num = toNumber(row[h]);
+      if (isEmpty) {
         cell.value = '';
-        delete sectionStart[absCol];
-      } else if (isTotal && sectionStart[absCol] != null) {
-        cell.value = {
-          formula: `SUM(${colLetter}${sectionStart[absCol]}:${colLetter}${excelRowNum - 1})`,
-        };
-        cell.numFmt = '#,##0';
-        delete sectionStart[absCol];
+      } else if (num != null) {
+        cell.value = num;
+        cell.numFmt = NUM_FMT;
+        rowSum += num;
       } else {
-        const num = Number(row[h]);
-        const isNum = !isNaN(num) && row[h] !== '';
-        if (isNum) {
-          cell.value = num;
-          cell.numFmt = '#,##0';
-          if (sectionStart[absCol] == null) sectionStart[absCol] = excelRowNum;
-        } else {
-          cell.value = String(row[h] ?? '');
-        }
+        cell.value = String(row[h] ?? '');
       }
     });
+
+    // ==== Σ Total cell ====
+    // Cached result, so viewers that don't recalculate still show the number.
+    if (hasTotalColumn) {
+      const cell = xlRow.getCell(startCol + 2 + valueHeaders.length);
+      cell.border = CELL_BORDER;
+      cell.alignment = { horizontal: 'right' };
+      cell.font = { bold: true, color: nameArgb ? { argb: nameArgb } : undefined };
+      if (rowFill) cell.fill = rowFill;
+      if (isEmpty) {
+        cell.value = '';
+      } else {
+        cell.value = { formula: `SUM(${firstValueLetter}${excelRowNum}:${lastValueLetter}${excelRowNum})`, result: rowSum };
+        cell.numFmt = NUM_FMT;
+      }
+    }
   });
 }
 
 // ==== Main export ====
 
-export async function exportToExcel(
-  headers: string[],
-  rows: Row[],
-  rowIndents: number[],
-  rowColors: (ArtColor | undefined)[] = [],
-  valueColorByHeader: Record<string, ArtColor | undefined>[] = [],
-  exportSettings?: ExportSettingResolvedModel | null,
-  originalWorkbooks?: { name: string; workbook: XLSX.WorkBook; skippedSheets?: string[] }[],
-  placeholders?: Record<string, string>,
-  fileName?: string,
-  totalColumns?: TotalColumnInfo[],
-) {
+export type ExportExcelOptions = {
+  headers: string[];
+  rows: Row[];
+  rowIndents: number[];
+  rowColors?: (ArtColor | undefined)[];
+  valueColorByHeader?: Record<string, ArtColor | undefined>[];
+  /** Header layout, logo and placeholders. Null = plain export. */
+  exportSettings?: ExportSettingResolvedModel | null;
+  placeholders?: Record<string, string>;
+  hasTotalColumn: boolean;
+  includeOriginalSheets: boolean;
+  applyHeaderToAllSheets: boolean;
+  originalWorkbooks?: { name: string; workbook: XLSX.WorkBook; skippedSheets: string[] }[];
+  fileName?: string;
+};
+
+export async function exportToExcel({
+  headers,
+  rows,
+  rowIndents,
+  rowColors = [],
+  valueColorByHeader = [],
+  exportSettings,
+  placeholders,
+  hasTotalColumn,
+  includeOriginalSheets,
+  applyHeaderToAllSheets,
+  originalWorkbooks = [],
+  fileName,
+}: ExportExcelOptions) {
   const wb = new ExcelJS.Workbook();
+  wb.calcProperties.fullCalcOnLoad = true;
   const ws = wb.addWorksheet('Report');
 
   // ==== Data start offset (from headerLayout.dataStartCell) ====
@@ -280,15 +286,15 @@ export async function exportToExcel(
   if (exportSettings) await applyHeaderLayout(wb, ws, exportSettings, placeholders);
 
   // ==== Write data table ====
-  writeDataTable(ws, headers, rows, rowIndents, rowColors, valueColorByHeader, dataStart.row, dataStart.col, totalColumns);
+  writeDataTable(ws, headers, rows, rowIndents, rowColors, valueColorByHeader, dataStart.row, dataStart.col, hasTotalColumn);
 
-  // ==== Include original uploaded sheets ====
-  if (exportSettings?.includeOriginalSheets && originalWorkbooks?.length) {
+  // ==== Include original sheets (skipped sheets never used by the mapping, so left out) ====
+  if (includeOriginalSheets && originalWorkbooks.length) {
     type SheetJob = { origWs: ExcelJS.Worksheet; aoa: unknown[][] };
     const usedSheetNames = new Set<string>();
     const sheetJobs: SheetJob[] = [];
     for (const { name, workbook, skippedSheets } of originalWorkbooks) {
-      const skippedSet = new Set(skippedSheets ?? []);
+      const skippedSet = new Set(skippedSheets);
       for (const sheetName of workbook.SheetNames.filter((s) => !skippedSet.has(s))) {
         let label = `${name} - ${sheetName}`.slice(0, 31);
         let suffix = 2;
@@ -302,11 +308,12 @@ export async function exportToExcel(
       }
     }
 
-    if (exportSettings.applyHeaderToAllSheets) {
+    const withHeader = applyHeaderToAllSheets && exportSettings;
+    if (withHeader) {
       await Promise.all(sheetJobs.map(({ origWs }) => applyHeaderLayout(wb, origWs, exportSettings, placeholders)));
     }
 
-    const origDataStart = exportSettings.applyHeaderToAllSheets ? dataStart : { col: 0, row: 0 };
+    const origDataStart = withHeader ? dataStart : { col: 0, row: 0 };
     for (const { origWs, aoa } of sheetJobs) {
       aoa.forEach((row, i) => {
         const xlRow = origWs.getRow(origDataStart.row + i + 1);
