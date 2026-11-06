@@ -38,7 +38,6 @@ export function buildMappedReport(report: Pick<UploadedReport, 'workbook'>, mapp
     rows: applied.rows,
     rowColors: applied.rowColors,
     valueColors: applied.valueColors,
-    totalColumns: applied.totalColumns,
     workbook,
     skippedSheets,
   };

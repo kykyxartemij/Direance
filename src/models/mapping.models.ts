@@ -72,21 +72,10 @@ const tableRegionFields = {
 const TableRegionValidator = yup.object(tableRegionFields);
 export type TableRegion = yup.InferType<typeof TableRegionValidator>;
 
-// ==== Total Column Def ====
-
-const totalColumnDefFields = {
-  _id: yup.string().optional(), // client-side React key
-  label: yup.string().required('This field is required'),
-  sourceValueIndices: yup.array().of(yup.number().integer().min(0).required('This field is required')).required('This field is required'),
-};
-const TotalColumnDefValidator = yup.object(totalColumnDefFields);
-export type TotalColumnDef = yup.InferType<typeof TotalColumnDefValidator>;
-
 // ==== Source Layout ====
 
 const sourceLayoutFields = {
   regions: yup.array().of(TableRegionValidator).min(1, 'At least one region is required').required('This field is required'),
-  totalColumns: yup.array().of(TotalColumnDefValidator).optional(),
   headerRow: yup.number().integer().min(0).required('This field is required'),
 };
 const SourceLayoutValidator = yup.object(sourceLayoutFields);
@@ -118,8 +107,7 @@ export type ColumnHeaderMapping = yup.InferType<typeof ColumnHeaderMappingValida
 // Keyed by sheet name (unknown ahead of time) — yup.mixed() passthrough, no validator to derive from.
 
 export type SheetMode = 'combine' | 'skip';
-export type TotalColumnMode = 'none' | 'append' | 'only';
-export type SheetConfig = { mode: SheetMode; totalColumnMode?: TotalColumnMode };
+export type SheetConfig = { mode: SheetMode };
 
 // ==== Mapping Config ====
 

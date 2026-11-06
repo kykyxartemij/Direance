@@ -8,7 +8,7 @@ import { CACHE_KEYS } from '@/lib/cacheKeys';
 import { withHandler, withPublicHandler } from '@/lib/withHandler';
 import { getAuth, getClientIp } from '@/lib/requestContext';
 import { ApiError } from '@/models/api-error';
-import { sendInviteEmail } from '@/lib/email';
+import { sendInviteEmail, sendInviteExtendedEmail } from '@/lib/email';
 import { Permission } from '@/lib/permissions';
 import { checkUserRequestLimit, checkPublicRequestLimit } from '@/lib/rateLimiter';
 import { buildSendInviteValidator, AcceptInviteValidator, INVITE_SELECT } from '@/models/invite.models';
@@ -20,6 +20,7 @@ import { buildSendInviteValidator, AcceptInviteValidator, INVITE_SELECT } from '
 // ==== ==== ====
 
 const INVITE_CACHE_TTL = 300;
+const RESEND_COOLDOWN_MS = 3 * 86_400_000;
 
 // ==== HTTP handlers ====
 
@@ -39,14 +40,27 @@ export const sendInvite = withHandler(
     );
     if (existing) throw new ApiError('A user with this email already exists', 409);
 
-    const token = crypto.randomBytes(32).toString('hex');
-
-    await prisma.invite.upsertAndReturn({
-      where:  { email: data.email },
-      create: { email: data.email, token, invitedBy: inviterId, permissions: data.permissions },
-      update: { token, invitedBy: inviterId, permissions: data.permissions },
-      select: { id: true },
+    // Resend only after the cooldown: it restarts the 14-day expiry and keeps the token,
+    // so the link already in the inbox stays valid. Expired invites were removed by assertLimit.
+    const [extended] = await prisma.invite.updateManyAndReturn({
+      where:  { email: data.email, createdAt: { lt: new Date(Date.now() - RESEND_COOLDOWN_MS) } },
+      data:   { invitedBy: inviterId, permissions: data.permissions, createdAt: new Date() },
+      select: { token: true },
     });
+
+    if (extended) {
+      invalidateCache(...CACHE_KEYS.invite.invalidate());
+      await sendInviteExtendedEmail(data.email, extended.token);
+      return NextResponse.json({ message: 'Invite extended' }, { status: 200 });
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const [created] = await prisma.invite.createManyAndReturn({
+      data:           { email: data.email, token, invitedBy: inviterId, permissions: data.permissions },
+      skipDuplicates: true,
+      select:         { id: true },
+    });
+    if (!created) throw new ApiError('An invite was sent to this email less than 3 days ago. Try again later.', 429);
 
     invalidateCache(...CACHE_KEYS.invite.invalidate());
     await sendInviteEmail(data.email, token);

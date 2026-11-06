@@ -12,7 +12,7 @@ import { useReports } from '@/providers/ReportProvider/ReportProvider';
 import type { UploadedReport } from '@/providers/ReportProvider/types';
 import { useGetLightMappings, useCreateMapping, useUpdateMapping, fetchMappingById } from '@/hooks/mapping.hooks';
 import type {
-  MappingConfig, RowMapping, SourceLayout, ReportType, MappingModel, SheetConfig, TotalColumnMode,
+  MappingConfig, RowMapping, SourceLayout, ReportType, MappingModel, SheetConfig,
 } from '@/models/mapping.models';
 import type { ArtFormButtonProps } from '@/components/ui/ArtForm';
 import type { ArtComboBoxOption } from '@/components/ui/ArtComboBox/types';
@@ -106,7 +106,6 @@ type MappingStepAction =
   | { type: 'APPLY_MAPPING'; mapping: MappingModel; workbook: import('xlsx').WorkBook }
   | { type: 'SET_SHEET_LAYOUT'; sheetName: string; layout: SourceLayout; flushedRows: RowMappingRow[] }
   | { type: 'SET_SHEET_MODE'; sheetName: string; mode: 'combine' | 'skip'; flushedRows: RowMappingRow[] }
-  | { type: 'SET_SHEET_TOTAL_COLUMN_MODE'; sheetName: string; mode: TotalColumnMode }
   | { type: 'SET_ROW_MAPPINGS'; rows: RowMappingRow[] }
   | { type: 'OPEN_LAYOUT'; flushedRows: RowMappingRow[] }
   | { type: 'OPEN_ROW_MAPPINGS'; mergedRows: RowMappingRow[] }
@@ -162,11 +161,6 @@ function reducer(state: MappingStepState, action: MappingStepAction): MappingSte
         sheetsConfig: { ...state.sheetsConfig, [action.sheetName]: { ...(state.sheetsConfig[action.sheetName] ?? { mode: 'combine' }), mode: action.mode } },
         rowMappings: action.flushedRows,
         rowMappingsOpen: false,
-      };
-    case 'SET_SHEET_TOTAL_COLUMN_MODE':
-      return {
-        ...state,
-        sheetsConfig: { ...state.sheetsConfig, [action.sheetName]: { ...(state.sheetsConfig[action.sheetName] ?? { mode: 'combine' }), totalColumnMode: action.mode } },
       };
     case 'SET_ROW_MAPPINGS':
       return { ...state, rowMappings: action.rows };
@@ -255,10 +249,6 @@ function MappingStepInner({ report }: { report: UploadedReport }) {
 
   function handleSheetModeChange(sheetName: string, mode: 'combine' | 'skip') {
     dispatch({ type: 'SET_SHEET_MODE', sheetName, mode, flushedRows: flushRowMappings() });
-  }
-
-  function handleSheetTotalColumnModeChange(sheetName: string, mode: TotalColumnMode) {
-    dispatch({ type: 'SET_SHEET_TOTAL_COLUMN_MODE', sheetName, mode });
   }
 
   function handleLayoutOpen(open: boolean) {
@@ -432,7 +422,6 @@ function MappingStepInner({ report }: { report: UploadedReport }) {
               sheetsConfig={sheetsConfig}
               onSheetLayoutChange={handleSheetLayoutChange}
               onSheetModeChange={handleSheetModeChange}
-              onSheetTotalColumnModeChange={handleSheetTotalColumnModeChange}
               collapseOpen={layoutOpen}
               onCollapseChange={handleLayoutOpen}
             />

@@ -33,8 +33,12 @@ const NAV_MIDDLE: NavItem[] = [
   { label: 'Mappings',        href: HREF.mappings },
   { label: 'Export Settings', href: HREF.exportSettings },
   { label: 'Connections',     href: HREF.connections },
-  { label: 'Invite',          href: HREF.invite, permission: Permission.CAN_INVITE_USERS },
-  { label: 'Admin',           href: HREF.admin,  permission: Permission.CAN_ACCESS_STATS },
+];
+
+// Permission-gated management pages, kept apart from everyday pages
+const NAV_ADMIN: NavItem[] = [
+  { label: 'Invite', href: HREF.invite, permission: Permission.CAN_INVITE_USERS },
+  { label: 'Admin',  href: HREF.admin,  permission: Permission.CAN_ACCESS_STATS },
 ];
 
 // ==== Component ====
@@ -51,6 +55,8 @@ export default function Navbar() {
 
   const isActive = (href: string) =>
     pathname === href || (href !== '/' && pathname.startsWith(href));
+
+  const adminLinks = NAV_ADMIN.filter(isVisible);
 
   const navLink = (item: NavItem) => (
     <Link
@@ -78,7 +84,7 @@ export default function Navbar() {
           <span className="text-base font-semibold">{BRAND.label}</span>
         </div>
       ) : (
-        <div className="mx-auto flex max-w-7xl items-center gap-6">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-6">
           {/* Left: brand + primary report pages */}
           <div className="flex items-center gap-6 shrink-0">
             <Link
@@ -91,10 +97,15 @@ export default function Navbar() {
             {NAV_LEFT.flatMap((item) => (isVisible(item) ? [navLink(item)] : []))}
           </div>
 
-          {/* Middle: secondary nav — grows to push right section to edge */}
-          <div className="flex flex-1 items-center justify-center gap-4">
+          <div className="flex items-center gap-4 shrink-0">
             {NAV_MIDDLE.flatMap((item) => (isVisible(item) ? [navLink(item)] : []))}
           </div>
+
+          {adminLinks.length > 0 && (
+            <div className="flex items-center gap-4 shrink-0">
+              {adminLinks.map(navLink)}
+            </div>
+          )}
 
           {/* Right: name (→ profile) + sign out */}
           <div className="flex items-center gap-4 shrink-0">

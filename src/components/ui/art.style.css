@@ -850,6 +850,8 @@
   .art-data-th--sortable { cursor: pointer; }
   .art-data-th--sortable:hover { color: var(--text); }
   .art-data-th-inner { display: flex; align-items: center; gap: 4px; }
+  .art-data-th--right { text-align: right; }
+  .art-data-th--right .art-data-th-inner { justify-content: flex-end; }
   .art-data-sort-icon { opacity: 0.35; transition: opacity 0.15s, transform 0.15s; }
   .art-data-sort-icon--active { opacity: 1; }
   /* asc = chevron pointing up */

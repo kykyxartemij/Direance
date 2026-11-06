@@ -103,6 +103,8 @@ function ArtDataTable<T>({
     return { tableMinWidth: pxSum > 0 ? pxSum : undefined, colPercents: new Map<string, number>() };
   }, [columns]);
 
+  const hasAutoColumn = columns.some((col) => col.sizing.width === undefined && !colPercents.has(col.key));
+
   const handleSort = (col: ArtColumn<T>) => {
     if (!col.sortable || !onSort) return;
     const newDir = sortKey === col.key && sortDir === 'asc' ? 'desc' : 'asc';
@@ -122,10 +124,10 @@ function ArtDataTable<T>({
           <colgroup>
             {processedColumns.map((col) => {
               if (col._isFiller) {
-                // Pin to 0 when pct widths already fill 100% so the filler
-                // doesn't render as a visible empty cell on the right.
+                // Filler only absorbs space nothing else takes: auto-width columns already
+                // share the leftover, and pct widths may already fill 100%.
                 const pctSum = [...colPercents.values()].reduce((s, p) => s + p, 0);
-                const fillerW = pctSum >= 99.99 ? 0 : undefined;
+                const fillerW = hasAutoColumn || pctSum >= 99.99 ? 0 : undefined;
                 return <col key={col.key} style={fillerW !== undefined ? { width: fillerW } : undefined} />;
               }
               const pct = colPercents.get(col.key);
@@ -148,6 +150,7 @@ function ArtDataTable<T>({
                       isLeft  && 'art-data-sticky',
                       isRight && 'art-data-sticky-right',
                       col.sortable && 'art-data-th--sortable',
+                      col.align === 'right' && 'art-data-th--right',
                     )}
                     style={{
                       ...(isLeft  ? { left:  col._stickyLeft       } : {}),

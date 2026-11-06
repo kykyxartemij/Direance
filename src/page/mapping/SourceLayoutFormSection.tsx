@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import * as XLSX from 'xlsx';
-import type { SourceLayout, SheetConfig, TotalColumnMode, ReportType } from '@/models/mapping.models';
+import type { SourceLayout, SheetConfig, ReportType } from '@/models/mapping.models';
 import type { ConnectionSheet } from '@/models/connection.models';
 import ArtCollapse from '@/components/ui/ArtCollapse';
 import ArtUpload from '@/components/ui/ArtUpload';
@@ -29,7 +29,6 @@ interface SourceLayoutFormSectionProps {
   onWorkbookLoaded: (state: LoadedWorkbookState | null) => void;
   onSheetLayoutChange: (sheetName: string, layout: SourceLayout) => void;
   onSheetModeChange: (sheetName: string, mode: 'combine' | 'skip') => void;
-  onSheetTotalColumnModeChange: (sheetName: string, mode: TotalColumnMode) => void;
   /** When set, shows a "fetch sample from connection" picker scoped to this report type. Omit for manual-upload contexts. */
   reportType?: ReportType;
 }
@@ -105,9 +104,6 @@ function ReadonlySummary({
                   {cfg?.mode === 'skip' && (
                     <span className="text-xs art-text-danger">skipped</span>
                   )}
-                  {cfg?.totalColumnMode && cfg.totalColumnMode !== 'none' && (
-                    <span className="text-xs art-text-muted">· {cfg.totalColumnMode}</span>
-                  )}
                 </div>
                 <div className="text-xs art-text-muted">
                   header row {sl.headerRow + 1}, {sl.regions.length} region{sl.regions.length !== 1 ? 's' : ''}
@@ -132,7 +128,6 @@ function SourceLayoutFormSection({
   onWorkbookLoaded,
   onSheetLayoutChange,
   onSheetModeChange,
-  onSheetTotalColumnModeChange,
   reportType,
 }: SourceLayoutFormSectionProps) {
     const [sourceMode, setSourceMode] = useState<'upload' | 'connection'>('upload');
@@ -280,7 +275,6 @@ function SourceLayoutFormSection({
               sheetsConfig={loaded.sheetsConfig}
               onSheetLayoutChange={onSheetLayoutChange}
               onSheetModeChange={onSheetModeChange}
-              onSheetTotalColumnModeChange={onSheetTotalColumnModeChange}
             />
           )}
         </div>

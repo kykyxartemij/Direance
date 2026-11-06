@@ -1,28 +1,12 @@
 'use client';
 
 import { useMutation, useQueryClient, type UseMutationOptions } from '@tanstack/react-query';
-import { exportToExcel } from '@/page/reports/exportExcel';
+import { exportToExcel, type ExportExcelOptions } from '@/page/reports/exportExcel';
 import type { ApiError } from '@/models/api-error';
-import type { ExportSettingResolvedModel } from '@/models/export-settings.models';
-import type { TotalColumnInfo } from '@/page/mapping/applyMapping';
-import type { ArtColor } from '@/components/ui/art.types';
-import type { Row } from '@/page/reports/combineReports';
-import type * as XLSX from 'xlsx';
 
 // ==== Types ====
 
-export type ExportExcelInput = {
-  headers: string[];
-  rows: Row[];
-  rowIndents: number[];
-  rowColors?: (ArtColor | undefined)[];
-  valueColorByHeader?: Record<string, ArtColor | undefined>[];
-  exportSettings?: ExportSettingResolvedModel | null;
-  originalWorkbooks?: { name: string; workbook: XLSX.WorkBook; skippedSheets?: string[] }[];
-  placeholders?: Record<string, string>;
-  fileName?: string;
-  totalColumns?: TotalColumnInfo[];
-};
+export type ExportExcelInput = ExportExcelOptions;
 
 // ==== Mutations ====
 
@@ -36,29 +20,6 @@ export function useExportExcel(
       queryClient.invalidateQueries({ queryKey: ['placeholder'] });
       options?.onSuccess?.(...args);
     },
-    mutationFn: ({
-      headers,
-      rows,
-      rowIndents,
-      rowColors,
-      valueColorByHeader,
-      exportSettings,
-      originalWorkbooks,
-      placeholders,
-      fileName,
-      totalColumns,
-    }) =>
-      exportToExcel(
-        headers,
-        rows,
-        rowIndents,
-        rowColors,
-        valueColorByHeader,
-        exportSettings,
-        originalWorkbooks,
-        placeholders,
-        fileName,
-        totalColumns,
-      ),
+    mutationFn: exportToExcel,
   });
 }

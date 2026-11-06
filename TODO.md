@@ -12,7 +12,8 @@ Priority order. Older sections below stay as detail for their own topics.
 
 - [ ] **Merged report table (see report with one connection + one upload).** Uploaded file shows its header as a data row (`Description | Period 1`), its column is labelled `Column 3`, and its subtotals show `0`. Cause not checked yet: start with the mapping's `headerRow` and formula cells without saved values.
 - [ ] **Snackbar grouping.** `enqueue` matches any active snackbar, so `n1, n2, n1` becomes `n1 x2, n2`. Compare only with the newest one: `n1, n1, n2` gives `n1 x2, n2`, and `n1, n2, n1` stays three.
-- [ ] **Periods input fetches on each keystroke and arrow click.** Commit on blur/Enter or debounce, same idea as `ArtDatePicker`.
+- [ ] **Connection missing from Connections list until reload.** Seen after: Edit → change name without saving → back → navigate around. Suspect the edit form's optimistic/cached data overwrote the list entry. Not reproduced yet.
+- [ ] **Friendlier Merit error text** (e.g. raw `PA-645 10/1/2026 1562`).
 - [ ] **Spinner on cached pages.** Opening a page cached by Next and TanStack still shows the loader. Find which boundary fires, and use one spinner path through `ArtPage`.
 
 ## 2. Remove unused code (first big task)
@@ -32,7 +33,6 @@ Priority order. Older sections below stay as detail for their own topics.
 - [ ] Password reset by email.
 - [ ] Show who each invite was sent to.
 - [ ] New permission to see emails. Invite list and user list both depend on it.
-- [ ] Invite resend cooldown. `sendInvite` upserts and sends again with no wait, so one address can be spammed.
 - [ ] Revoking permissions takes effect at once (JWT keeps them until next sign-in).
 - [ ] Google/GitHub login. Adapter and `Account` table are kept, sign-up must stay invite-only.
 - [ ] Avatar system, reusable across projects: `{ bg, body, hat, ... }` as numbers in DB, SVG layers composed on FE, or the auth provider's picture.
@@ -45,6 +45,7 @@ Priority order. Older sections below stay as detail for their own topics.
 - [ ] Odoo URL is user input the server calls. Allow `https` only and block private/internal addresses.
 - [ ] Store invite tokens hashed, so a DB leak can't accept invites.
 - [ ] Move connection secrets from pgcrypto to app-level AES-256-GCM (`src/lib/crypto.ts`), so the key never travels to the DB. Needs a one-time re-encrypt and a key version for rotation.
+- [ ] Improve cache invalidation for global mappings. Today a global mapping write selects its linked connection ids and calls `revalidateTag` per id (`CACHE_KEYS.connection.invalidateByIds`). Not urgent, since stale cache only lives up to the TTL. Two problems: the list can get long, and a connection linked after the select is missed. Options: a `mapping:<id>` tag on each connection fetch entry, or one version counter per mapping in the cache key.
 - [ ] Replace manual loading `useState` with TanStack state, e.g. `exporting` in `ExportDialog` becomes `useMutation` + `isPending`.
 
 ## 4. Data table and filters
@@ -64,8 +65,7 @@ Priority order. Older sections below stay as detail for their own topics.
   - `FinalView` (what the UI shows)
 - [ ] "Include original sheets" uses `OriginalExcelFile`.
 - [ ] Uploaded reports keep a mapping snapshot: edits show only after re-applying. Fix with this model.
-- [ ] Combined reports lose `totalColumns`, so Excel export has values but no `SUM` formulas.
-- [ ] Row Mappings "Sum columns" shows no chips when `valueColumns` is empty.
+- [ ] Old mappings in DB still carry `sheetsConfig[*].totalColumnMode` and `sourceLayout.totalColumns` (feature removed, fields ignored). Strip them with a one-off script or on next save.
 - [ ] Decide on `/api/report/upload`. Files are already parsed in the browser, and no client code calls this route.
 - [ ] Find other expensive BE logic that can move to FE (export, mapping, connection).
 - [ ] Test export end to end. Older note: if it can't be made reliable, hide it in FE.
@@ -133,6 +133,7 @@ components/
 
 - [ ] Welcome page: greeting plus how to use the app (connect, map, view, export).
 - [ ] Remove the Upload file page. Instead, a file dropped anywhere in the app loads automatically. Show a snackbar for invalid file types.
+- [ ] Report pages (P&L, Financial Position): option to show the report as an Excel sheet instead of the data table. The Excel tab is commented out in `ReportView.tsx` because it rendered wrong; restore it once `ExcelViewer` is fixed and the UI is friendlier.
 - [ ] Dashboard summary cards (revenue, profit) with a company selector.
 - [ ] Add `error.tsx`/`global-error.tsx`. `ArtPage` only catches page content: a crash in Navbar, ReportSidebar or sign-in shows Next's default error screen.
 - [ ] Stats: Vercel bandwidth and other service health. Check first whether Vercel's API exposes usage on our plan.

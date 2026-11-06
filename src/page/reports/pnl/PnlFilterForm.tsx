@@ -13,7 +13,7 @@ type Props = {
   onChange: (key: keyof PnlFilterValues, value: string) => void;
 };
 
-// Bare fields — ArtDataFilters' panel owns the 3-per-row grid layout.
+// Bare fields — the page owns the 3-per-row grid layout.
 export default function PnlFilterForm({ values, onChange }: Props) {
   return (
     <>

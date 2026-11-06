@@ -34,8 +34,20 @@ function extractPlaceholders(setting: ExportSettingModel | undefined): string[] 
 
 // ==== Props ====
 
+/** What the dialog hands back: the chosen setting plus the per-export option overrides. */
+export type ExportRequest = {
+  setting: ExportSettingResolvedModel | null;
+  placeholders?: Record<string, string>;
+  fileName?: string;
+  hasTotalColumn: boolean;
+  includeOriginalSheets: boolean;
+  applyHeaderToAllSheets: boolean;
+};
+
 interface ExportDialogProps {
-  onExport: (setting: ExportSettingResolvedModel | null, placeholders?: Record<string, string>, fileName?: string) => Promise<void>;
+  /** Σ Total default when no setting is chosen, so export matches the table. */
+  defaultHasTotalColumn: boolean;
+  onExport: (request: ExportRequest) => Promise<void>;
 }
 
 // ==== Form values ====
@@ -43,6 +55,7 @@ interface ExportDialogProps {
 type FormValues = {
   settingId: string | null;
   fileName: string;
+  hasTotalColumn: boolean;
   includeOriginalSheets: boolean;
   applyHeaderToAllSheets: boolean;
   placeholders: Record<string, string>;
@@ -51,6 +64,7 @@ type FormValues = {
 const DEFAULT_VALUES: FormValues = {
   settingId: null,
   fileName: 'combined-report',
+  hasTotalColumn: false,
   includeOriginalSheets: false,
   applyHeaderToAllSheets: false,
   placeholders: {},
@@ -58,7 +72,7 @@ const DEFAULT_VALUES: FormValues = {
 
 // ==== Component ====
 
-export default function ExportDialog({ onExport }: ExportDialogProps) {
+export default function ExportDialog({ defaultHasTotalColumn, onExport }: ExportDialogProps) {
   const { data: lightSettings = [], isLoading: isLoadingSettings } = useGetLightExportSettings();
 
   const [exporting, setExporting] = useState(false);
@@ -67,6 +81,7 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
   const methods = useForm<FormValues>({ defaultValues: DEFAULT_VALUES });
   const { reset, handleSubmit, control } = methods;
   const settingId = useWatch({ control, name: 'settingId' });
+  const includeOriginalSheets = useWatch({ control, name: 'includeOriginalSheets' });
 
   const { data: fullSetting } = useGetExportSettingById(settingId ?? undefined, {
     meta: { withGlobalLoaderBlur: true },
@@ -89,11 +104,12 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
     reset({
       settingId,
       fileName: fullSetting?.name ?? 'combined-report',
+      hasTotalColumn: fullSetting?.hasTotalColumn ?? defaultHasTotalColumn,
       includeOriginalSheets: fullSetting?.includeOriginalSheets ?? false,
       applyHeaderToAllSheets: fullSetting?.applyHeaderToAllSheets ?? false,
       placeholders: {},
     });
-  }, [fullSetting, settingId, reset]);
+  }, [fullSetting, settingId, defaultHasTotalColumn, reset]);
 
   async function submit(data: FormValues) {
     setExporting(true);
@@ -108,8 +124,6 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
           logoData: logo.data?.data ?? null,
           logoMime: logo.data?.mime ?? null,
           logoName: logo.data?.name ?? null,
-          includeOriginalSheets: data.includeOriginalSheets,
-          applyHeaderToAllSheets: data.applyHeaderToAllSheets,
         } satisfies ExportSettingResolvedModel;
 
         if (placeholderTags.length > 0) {
@@ -122,7 +136,14 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
       }
 
       const fileName = data.fileName.trim() || undefined;
-      await onExport(resolved, placeholders, fileName);
+      await onExport({
+        setting: resolved,
+        placeholders,
+        fileName,
+        hasTotalColumn: data.hasTotalColumn,
+        includeOriginalSheets: data.includeOriginalSheets,
+        applyHeaderToAllSheets: !!resolved && data.includeOriginalSheets && data.applyHeaderToAllSheets,
+      });
       setOpen(false);
     } finally {
       setExporting(false);
@@ -136,7 +157,7 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (next) reset(DEFAULT_VALUES);
+        if (next) reset({ ...DEFAULT_VALUES, hasTotalColumn: defaultHasTotalColumn });
       }}
       cancelButton
       buttons={[
@@ -162,26 +183,27 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
               isLoading={isLoadingSettings}
             />
 
-            {settingId && fullSetting && (
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-3">
-                  <ArtFormCheckbox name="includeOriginalSheets" label="Include original sheets" />
-                  <ArtFormCheckbox name="applyHeaderToAllSheets" label="Apply header to all sheets" />
-                </div>
+            <div className="flex flex-col gap-3">
+              <ArtFormCheckbox name="hasTotalColumn" label="Add Σ Total column" />
+              <ArtFormCheckbox name="includeOriginalSheets" label="Include original sheets" />
+              <ArtFormCheckbox
+                name="applyHeaderToAllSheets"
+                label="Apply header to all sheets"
+                disabled={!fullSetting || !includeOriginalSheets}
+              />
+            </div>
 
-                {placeholderTags.length > 0 && (
-                  <div className="flex flex-col gap-3">
-                    <ArtLabel>Header placeholders</ArtLabel>
-                    {placeholderTags.map((tag) => (
-                      <ArtFormInput
-                        key={tag}
-                        name={`placeholders.${tag}`}
-                        label={tag}
-                        placeholder={`Value for <${tag}>`}
-                      />
-                    ))}
-                  </div>
-                )}
+            {settingId && fullSetting && placeholderTags.length > 0 && (
+              <div className="flex flex-col gap-3">
+                <ArtLabel>Header placeholders</ArtLabel>
+                {placeholderTags.map((tag) => (
+                  <ArtFormInput
+                    key={tag}
+                    name={`placeholders.${tag}`}
+                    label={tag}
+                    placeholder={`Value for <${tag}>`}
+                  />
+                ))}
               </div>
             )}
           </div>
