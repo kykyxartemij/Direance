@@ -10,7 +10,7 @@ export default function NotFound() {
   return (
     <ArtPage title="Page not found" maxWidth="2xl">
       <div className="flex flex-col items-start gap-4">
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+        <p className="text-sm art-text-muted">
           This page does not exist, or it was moved. Check the address, or head back to your
           reports.
         </p>

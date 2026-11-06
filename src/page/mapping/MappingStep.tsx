@@ -393,7 +393,7 @@ function MappingStepInner({ report }: { report: UploadedReport }) {
 
   return (
     <>
-      <p className="mb-6 text-sm" style={{ color: 'var(--text-muted)' }}>
+      <p className="mb-6 text-sm art-text-muted">
         Set how <strong>{report.fileName}</strong> should be read and displayed.
       </p>
 
@@ -415,7 +415,7 @@ function MappingStepInner({ report }: { report: UploadedReport }) {
             required
           />
           {selectedMapping && (
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-xs art-text-muted">
               {selectedMapping.isGlobal
                 ? 'Global mapping — changes are not saved unless you save a copy.'
                 : `Editing: ${selectedMapping.name}`}
@@ -463,7 +463,7 @@ export default function MappingStep() {
     : reports[reports.length - 1];
 
   if (!report) return (
-    <div className="flex items-center gap-4 p-6 text-sm" style={{ color: 'var(--text-muted)' }}>
+    <div className="flex items-center gap-4 p-6 text-sm art-text-muted">
       No report loaded.
       <FSLink href={HREF.upload} className="underline">← Back to upload</FSLink>
     </div>

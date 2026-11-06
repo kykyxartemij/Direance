@@ -29,6 +29,7 @@ export function ArtFormSelect({ name, helperText, options = EMPTY_OPTIONS, ...pr
           onChange={(opt: ArtSelectOption | null) => field.onChange(opt?.value ?? null)}
           errorText={fieldState.error?.message}
           helperText={helperText}
+          ref={field.ref}
         />
       )}
     />

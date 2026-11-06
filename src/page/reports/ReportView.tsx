@@ -184,10 +184,10 @@ export default function ReportView({ reports, loading }: ReportViewProps) {
   if (reports.length === 0) {
     return (
       <div className="mt-16 flex flex-col items-center gap-2 text-center">
-        <p className="text-lg font-medium" style={{ color: 'var(--text)' }}>
+        <p className="text-lg font-medium">
           Nothing here yet
         </p>
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+        <p className="text-sm art-text-muted">
           Turn on a connection or upload a file from the sidebar.
         </p>
       </div>
@@ -257,7 +257,7 @@ export default function ReportView({ reports, loading }: ReportViewProps) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <ArtTabs tabs={VIEW_TABS} value={view} onChange={setView} />
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          <p className="text-sm art-text-muted">
             {reports.length} report{reports.length > 1 ? 's' : ''} &nbsp;·&nbsp; {rows.length} rows
           </p>
           {unmappedReports.length > 0 && (

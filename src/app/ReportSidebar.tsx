@@ -19,7 +19,7 @@ import type { UploadedReport } from '@/providers/ReportProvider/types';
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-1 px-1 text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+    <p className="mb-1 px-1 text-xs font-medium uppercase tracking-wide art-text-muted">
       {children}
     </p>
   );
@@ -50,7 +50,7 @@ function SidebarItemBox({ active, onToggle, name, badge, mappingName, sourceLabe
       {/* Row 1: toggle, name */}
       <div className="flex items-center gap-2">
         <ArtCheckbox checked={active} onChange={(e) => onToggle(e.target.checked)} aria-label={name} />
-        <span className="flex-1 text-sm truncate" style={{ color: 'var(--text)' }} title={name}>
+        <span className="flex-1 text-sm truncate" title={name}>
           {name}
         </span>
         {badge}
@@ -58,14 +58,14 @@ function SidebarItemBox({ active, onToggle, name, badge, mappingName, sourceLabe
 
       {/* Row 2: mapping name */}
       {mappingName && (
-        <span className="truncate text-xs" style={{ color: 'var(--text-muted)' }} title={mappingName}>
+        <span className="truncate text-xs art-text-muted" title={mappingName}>
           {mappingName}
         </span>
       )}
 
       {/* Row 3: source, actions */}
       <div className="flex items-center gap-1">
-        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{sourceLabel}</span>
+        <span className="text-xs art-text-muted">{sourceLabel}</span>
         <span className="flex-1" />
         {actions}
       </div>

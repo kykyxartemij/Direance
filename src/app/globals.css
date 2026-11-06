@@ -100,12 +100,15 @@ body {
   color: var(--text);
 }
 
-a {
-  color: var(--primary);
-  text-decoration: none;
-}
-a:hover {
-  text-decoration: none;
+/* Base layer: Art classes (components layer) and Tailwind utilities can override link color. */
+@layer base {
+  a {
+    color: var(--primary);
+    text-decoration: none;
+  }
+  a:hover {
+    text-decoration: none;
+  }
 }
 
 /* ==== GlobalLoader / PageLoader ==== */

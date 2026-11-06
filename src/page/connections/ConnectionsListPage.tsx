@@ -81,7 +81,7 @@ export default function ConnectionsListPage() {
     {
       key: 'actions',
       label: '',
-      sizing: { width: 140 },
+      sizing: { renderLoading: true },
       render: (row) => (
         <div className="flex gap-2">
           <FSLink href={HREF.connectionById(row.id)}>

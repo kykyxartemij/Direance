@@ -88,7 +88,7 @@ function RowMappingRowItem({ row, mappedValueOptions, mappedValues, editable, on
               onChange={(e) => onChange({ sourceName: e.target.value })}
             />
           ) : (
-            <span className="text-sm" style={{ color: 'var(--text-muted)', opacity: isHidden ? 0.38 : undefined }}>{row.sourceName}</span>
+            <span className="text-sm art-text-muted" style={{ opacity: isHidden ? 0.38 : undefined }}>{row.sourceName}</span>
           )}
         </ArtDataTd>
         <ArtDataTd>
@@ -223,7 +223,7 @@ function RowMappingsSection({ rowMappings = EMPTY_ROWS, onRowsChange, initialExp
               onChange={(opt) => setExportSettingId(opt?.value ?? null)}
             />
             {mappedValueOptions.length > 0 && (
-              <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+              <p className="mt-1 text-xs art-text-muted">
                 Display name options come from this export setting.
               </p>
             )}

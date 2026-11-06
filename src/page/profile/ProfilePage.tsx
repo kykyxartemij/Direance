@@ -15,7 +15,7 @@ function UserInfoSection() {
 
   return (
     <div className="flex flex-col gap-3 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
-      <h3 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+      <h3 className="text-sm font-semibold uppercase tracking-wide art-text-muted">
         Account
       </h3>
       <Field label="Name" value={user.name ?? ''} />
@@ -27,8 +27,8 @@ function UserInfoSection() {
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid gap-1" style={{ gridTemplateColumns: '120px 1fr' }}>
-      <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{label}</span>
-      <span className="text-sm" style={{ color: 'var(--text)' }}>{value}</span>
+      <span className="text-sm art-text-muted">{label}</span>
+      <span className="text-sm">{value}</span>
     </div>
   );
 }
@@ -59,7 +59,7 @@ function LogoRow({
         isLoading={query.isFetching}
         onRequestLoad={() => query.refetch()}
       />
-      <span className="flex-1 text-sm" style={{ color: 'var(--text)' }}>{name ?? '(unnamed)'}</span>
+      <span className="flex-1 text-sm">{name ?? '(unnamed)'}</span>
       <ArtConfirmDialog
         title="Delete logo"
         description={`Delete "${name ?? 'this logo'}"? Export settings using it will have no logo.`}
@@ -92,7 +92,7 @@ function LogosSection() {
   return (
     <div className="flex flex-col gap-3 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+        <h3 className="text-sm font-semibold uppercase tracking-wide art-text-muted">
           Logos
         </h3>
         <ArtButton type="button" variant="outlined" size="sm" loading={createLogo.isPending} onClick={() => fileInputRef.current?.click()}>
@@ -109,7 +109,7 @@ function LogosSection() {
       </div>
 
       {logos.length === 0 ? (
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No logos uploaded yet.</p>
+        <p className="text-sm art-text-muted">No logos uploaded yet.</p>
       ) : (
         <div className="flex flex-col">
           {logos.map((logo) => (
@@ -124,7 +124,7 @@ function LogosSection() {
         </div>
       )}
 
-      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+      <p className="text-xs art-text-muted">
         Use these logos in any export setting.
       </p>
     </div>

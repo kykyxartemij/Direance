@@ -70,7 +70,9 @@ export function ArtDialogProvider({ children }: { children: ReactNode }) {
     setConfig(cfg);
   }, []);
   const close = useCallback(() => {
-    onCloseRef.current?.();
+    const onClose = onCloseRef.current;
+    onCloseRef.current = undefined;
+    onClose?.();
     setConfig(null);
   }, []);
 

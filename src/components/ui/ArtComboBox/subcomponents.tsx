@@ -78,6 +78,7 @@ export function ChipsInputField({
         </button>
       )}
       <input
+        autoComplete="off"
         ref={setInputRef}
         id={labelId}
         className="art-combobox-chips-input"
@@ -97,6 +98,7 @@ export function ChipsInputField({
 // ==== Button trigger (single-select, non-searchable) ====
 
 export interface ButtonTriggerProps {
+  triggerRef?: Ref<HTMLButtonElement>;
   labelId: string;
   disabled: boolean;
   readOnly: boolean;
@@ -109,11 +111,12 @@ export interface ButtonTriggerProps {
   onClear?: () => void;
 }
 
-export function ButtonTrigger({ labelId, disabled, readOnly, size, selectedSingle, placeholder, toggle, handleTriggerKeyDown, clearable, onClear }: ButtonTriggerProps) {
+export function ButtonTrigger({ triggerRef, labelId, disabled, readOnly, size, selectedSingle, placeholder, toggle, handleTriggerKeyDown, clearable, onClear }: ButtonTriggerProps) {
   const showClear = clearable && !readOnly && !disabled && !!selectedSingle;
   return (
     <div className="art-field-inner">
       <button
+        ref={triggerRef}
         type="button"
         id={labelId}
         disabled={disabled}

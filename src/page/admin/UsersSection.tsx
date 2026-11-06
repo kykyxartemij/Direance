@@ -12,7 +12,7 @@ import type { UserModel } from '@/models/user.models';
 // ==== PermissionsCell ====
 
 function PermissionsCell({ permissions }: { permissions: string[] }) {
-  if (!permissions?.length) return <span style={{ color: 'var(--text-muted)' }}>None</span>;
+  if (!permissions?.length) return <span className="art-text-muted">None</span>;
   const [first, ...rest] = permissions;
   return (
     <div className="flex items-center gap-1.5">

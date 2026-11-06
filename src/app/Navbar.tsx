@@ -75,7 +75,7 @@ export default function Navbar() {
     >
       {!user ? (
         <div className="flex items-center justify-center">
-          <span className="text-base font-semibold" style={{ color: 'var(--text)' }}>{BRAND.label}</span>
+          <span className="text-base font-semibold">{BRAND.label}</span>
         </div>
       ) : (
         <div className="mx-auto flex max-w-7xl items-center gap-6">
@@ -84,8 +84,7 @@ export default function Navbar() {
             <Link
               href={BRAND.href}
               prefetch={BRAND.prefetch !== false}
-              className="text-base font-semibold"
-              style={{ color: 'var(--text)' }}
+              className="text-base font-semibold art-text-default"
             >
               {BRAND.label}
             </Link>

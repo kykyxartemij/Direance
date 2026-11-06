@@ -78,7 +78,51 @@ Priority order. Older sections below stay as detail for their own topics.
 - [ ] Theme: dark, white, pink contrast. Docs say dark-only, but `theme-light`/`theme-contrast` CSS and switching code still exist: restore or remove them.
 - [ ] `helperText` and description styling for inputs.
 - [ ] One loading pattern: when to use `ArtSkeleton`, spinner, blur. Apply everywhere, then write it in `docs/InstantNavigationAndLoadingState.md`.
-- [ ] Decide on Tailwind vs regular CSS. It's used through `className` plus about 50 `@apply` rules. Compare on one component before migrating.
+- [ ] Remove Tailwind from the Art library only; pages keep it for layout. Left: about 30 utilities inside Art components, 54 `@apply` rules, and `tailwind-merge` in `cn` (use plain `clsx`). Art needs its own CSS reset so it works without Tailwind.
+- [ ] Replace remaining `style={{ }}` in feature code that isn't a runtime value.
+
+## Component folders (current thoughts, not final)
+
+Rename `components/ui` to `components/art`. One folder = one `/ui` showcase group. Keep code next to what uses it.
+
+```
+components/
+  art/
+    art.style.css  art.types.ts  art.utils.ts   only truly shared, no core/ folder
+    stupid/     Text, Row, Stack, Grid, Card, Divider, Title, Badge, art.layout
+    icons/      Icon, IconButton, IconToggle, IconCycle, CopyButton, svg/
+    controls/   Button, ButtonRow, Tabs, Switch, Checkbox, Radio, Slider, Collapse
+    form/       Input + useArtDebounced, Textarea, DatePicker, Upload, Label, HelperText, Form, ArtForm* wrappers
+    select/     ComboBox, Select, Listbox
+    portal/     Tooltip, Popover, Menu, useAnchoredPanel, tooltip singleton
+    providers/  Dialog, Snackbar + useLazyValue
+    data/       Data, DataTable, DataFilters, Pagination, EmptyState, Cut
+    image/      Image, later Avatar
+    loading/    Skeleton, Progress, LoadingBar
+    page/       ArtPage, ArtErrorBoundary
+  permission/   PermissionPage, PermissionGuard, PermissionBadge, permissionMeta
+  FSLink.tsx  GlobalMutationSnackbar.tsx
+```
+
+- [ ] Decide where non-Art loaders go (`PageLoader`, `PageLoaderBlur`, `GlobalLoader`, `GlobalLoaderBlur`, `LoaderRingDots`, `useDebouncedActive`). Loading code belongs together, but Art and non-Art components must stay separate.
+- [ ] Remove `art.hooks.ts`: each hook moves next to its only user.
+- [ ] Merge or rename the two `ArtForm` files. `MappingStep` uses `ui/ArtForm.tsx`, the rest use `form/ArtForm.tsx`.
+- [ ] Delete `computeAnchoredPos`, it has no callers.
+- [ ] Move `ApiError` out of `ArtSnackbar`, so `art/` imports nothing from outside itself.
+- [ ] Split `art.style.css` per folder during Tailwind removal.
+- [ ] Do the move as one commit with no logic changes, then update `/ui` groups and the guide.
+
+## Art component rules (current thoughts, not final)
+
+- **Field** (takes a value): `label`, `helperText`, `errorText`, `required`, `disabled`, `readOnly`, `size`, `color`, and `ref` to its focusable element. Without `ref`, react-hook-form can't focus and scroll to the first invalid field. `ArtFormListbox` still has none.
+- **Action** (clicked): `variant`, `color`, `size`, `disabled`, `loading`.
+- **Display** (read only): `color`, plus `size` or `variant` where they change the look.
+- **Layout**: spacing props only.
+- `size` is `sm | md | lg`, `color` is `ArtColor`, `variant` is `default | outlined | ghost`.
+- `disabled`: dimmed, skipped by Tab. `readOnly`: normal look, can focus and copy, can't change.
+- [ ] Decide whether `errorText` replaces helper text while an error shows.
+- [ ] Props required by a type stay with no caller; any other prop needs a real caller.
+- [ ] Fill gaps: `ArtDatePicker`, `ArtRadio`, `ArtSlider`, `ArtTextarea` `size`, `ArtUpload` (`color`, and restore `readOnly` and `errorText`).
 
 ## 7. Hooks and performance
 
@@ -88,6 +132,7 @@ Priority order. Older sections below stay as detail for their own topics.
 ## 8. Pages
 
 - [ ] Welcome page: greeting plus how to use the app (connect, map, view, export).
+- [ ] Remove the Upload file page. Instead, a file dropped anywhere in the app loads automatically. Show a snackbar for invalid file types.
 - [ ] Dashboard summary cards (revenue, profit) with a company selector.
 - [ ] Add `error.tsx`/`global-error.tsx`. `ArtPage` only catches page content: a crash in Navbar, ReportSidebar or sign-in shows Next's default error screen.
 - [ ] Stats: Vercel bandwidth and other service health. Check first whether Vercel's API exposes usage on our plan.

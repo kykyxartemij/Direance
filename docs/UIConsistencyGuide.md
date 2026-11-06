@@ -103,12 +103,34 @@ Dark only. Token definitions live in `src/app/globals.css`. Art component overri
 ## ==== CSS Architecture ====
 
 - `src/app/globals.css` — theme tokens (CSS custom properties) + feature-level global styles.
-- `src/components/ui/art.style.css` — Art component styles only. Feature UI uses Tailwind
-  inline.
+- `src/components/ui/art.style.css` — Art component styles and text color classes. Feature UI
+  uses Tailwind for layout and spacing.
 - `art-scrollable` — shared thin scrollbar class defined in `art.style.css`. Add to any
   scrollable Art element.
 - Memoization (`React.memo`, `useMemo`) only in Art library components, not in feature
   components.
+
+## ==== Styling rule — components own the look ====
+
+The Art library is independent: it works in a project with no Tailwind installed.
+
+| Where | Allowed |
+|-------|---------|
+| Art components (`src/components/ui/`) | Plain CSS classes in `art.style.css` with theme tokens. No Tailwind, no `@apply`. |
+| Feature pages: layout and spacing | Tailwind classes (`flex flex-col gap-2`), including `className` on Art components |
+| Feature pages: text color | `art-text-default` (only under a parent that changes color, like a link or muted text), `art-text-muted`, `art-text-primary`, `art-text-success`, `art-text-warning`, `art-text-danger` |
+| Feature pages: component looks | Art props (`color="primary"`, `size="sm"`) |
+| `style={{ }}` | Values known only at runtime (computed width, position) |
+
+```tsx
+// bad
+<p style={{ color: 'var(--text-muted)' }}>Saved</p>
+
+// good
+<p className="text-sm art-text-muted">Saved</p>
+```
+
+Tailwind utilities load after Art's `@layer components`, so a page's `className` overrides Art's own CSS.
 
 ## ==== Interactive State Rule ====
 

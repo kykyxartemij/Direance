@@ -7,11 +7,11 @@ export default function LoaderRingDots({ subtitle }: LoaderRingDotsProps) {
   return (
     <div className="flex flex-col items-center gap-2">
       <div className="global-loader-ring" aria-hidden="true" />
-      <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
+      <span className="text-sm art-text-muted">
         Loading<span className="global-loader-dots" />
       </span>
       {subtitle && (
-        <span className="text-xs" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>
+        <span className="text-xs art-text-muted" style={{ opacity: 0.6 }}>
           Please wait a moment
         </span>
       )}

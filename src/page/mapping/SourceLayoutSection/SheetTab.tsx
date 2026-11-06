@@ -154,9 +154,9 @@ export function SheetTab({
           className="rounded px-3 py-2 text-sm"
           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
         >
-          <p style={{ color: 'var(--text-muted)' }}>
+          <p className="art-text-muted">
             Auto-detected:{' '}
-            <strong style={{ color: 'var(--text)' }}>{autoRegionCount}</strong>{' '}
+            <strong className="art-text-default">{autoRegionCount}</strong>{' '}
             region{autoRegionCount !== 1 ? 's' : ''}
             {autoDetectedLayout && autoDetectedLayout.regions.length > 0 && (
               <span>
@@ -164,14 +164,14 @@ export function SheetTab({
                 {autoDetectedLayout.regions.map((r, i) => (
                   <span key={r.descriptionColumn}>
                     {i > 0 && ', '}
-                    <strong style={{ color: 'var(--text)' }}>{colLetter(r.descriptionColumn)}</strong>
+                    <strong className="art-text-default">{colLetter(r.descriptionColumn)}</strong>
                     {r.valueColumns.length > 0 && (
                       <>
                         {' '}→{' '}
                         {r.valueColumns.map((vc, vi) => (
                           <span key={vc}>
                             {vi > 0 && ', '}
-                            <strong style={{ color: 'var(--text)' }}>{colLetter(vc)}</strong>
+                            <strong className="art-text-default">{colLetter(vc)}</strong>
                           </span>
                         ))}
                       </>
@@ -182,15 +182,15 @@ export function SheetTab({
               </span>
             )}
             {' — '}
-            <strong style={{ color: 'var(--text)' }}>{autoValueColCount}</strong> value col{autoValueColCount !== 1 ? 's' : ''} of{' '}
-            <strong style={{ color: 'var(--text)' }}>{totalCols}</strong> total
+            <strong className="art-text-default">{autoValueColCount}</strong> value col{autoValueColCount !== 1 ? 's' : ''} of{' '}
+            <strong className="art-text-default">{totalCols}</strong> total
           </p>
-          <p className="mt-1" style={{ color: 'var(--text-muted)' }}>
+          <p className="mt-1 art-text-muted">
             {currentUnassigned === 0 ? (
-              <span style={{ color: 'var(--art-success)' }}>All columns assigned</span>
+              <span className="art-text-success">All columns assigned</span>
             ) : (
               <>
-                <strong style={{ color: 'var(--art-warning)' }}>{currentUnassigned}</strong>
+                <strong className="art-text-warning">{currentUnassigned}</strong>
                 {' '}col{currentUnassigned !== 1 ? 's' : ''} unassigned (ignored when reading)
               </>
             )}
@@ -252,14 +252,14 @@ export function SheetTab({
                       updateRegion(i, { startRow: display - 1 });
                     }}
                   />
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <span className="text-xs art-text-muted">
                     Labels on row above
                   </span>
                 </div>
 
                 {/* Value columns */}
                 <div className="flex flex-col gap-1">
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Value columns</span>
+                  <span className="text-xs art-text-muted">Value columns</span>
                   <div className="flex flex-wrap gap-1">
                     {colOptions.flatMap((o) => {
                         const col = Number(o.value);
@@ -286,7 +286,7 @@ export function SheetTab({
                       })}
                   </div>
                   {region.valueColumns.length === 0 && (
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    <span className="text-xs art-text-muted">
                       None, click columns above to include them
                     </span>
                   )}
@@ -319,7 +319,7 @@ export function SheetTab({
           >
             {/* Row 1: Label + Remove */}
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>
+              <span className="text-xs font-semibold uppercase art-text-muted">
                 Total Column {totalColumns.length > 1 ? i + 1 : ''}
               </span>
               <ArtButton
@@ -342,7 +342,7 @@ export function SheetTab({
               />
 
               <div className="flex flex-col gap-1">
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                <span className="text-xs art-text-muted">
                   Sum columns {tc.sourceValueIndices.length === 0 && '(all)'}
                 </span>
                 <div className="flex flex-wrap gap-1">
@@ -378,7 +378,7 @@ export function SheetTab({
                   })}
                 </div>
                 {valueHeaders.length === 0 && (
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <span className="text-xs art-text-muted">
                     Add value columns to regions first
                   </span>
                 )}
