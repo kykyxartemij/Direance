@@ -6,24 +6,24 @@ session notes, so they are grouped, not dated one by one.
 
 ## 2026-11-06
 
-- [ ] Report table: period headers right-aligned over their numbers (`ArtColumn.align`). *(uncommitted)*
-- [ ] Invite resend cooldown: first send = invite email; again within 3 days = 429, nothing sent; after 3 days = "extended" email, same token, expiry restarts (14 days). *(uncommitted)*
+- [x] Report table: period headers right-aligned over their numbers (`ArtColumn.align`). `b61f412`
+- [x] Invite resend cooldown: first send = invite email; again within 3 days = 429, nothing sent; after 3 days = "extended" email, same token, expiry restarts (14 days). `b61f412`
 - [x] Periods input fetching per keystroke: confirmed fixed by the date-picker work.
 - [x] Check saved mappings for With/Only Total: not needed, old field is ignored and drops on next edit.
 - [x] Test-connection rate limit: `withHandler` limits are enough, skipped.
-- [ ] Export: "Total …" rows got `=SUM(...)` guessed from row names (wrong for nested totals). Values now plain, formula only in Σ Total column. *(uncommitted)*
-- [ ] ArtDataTable: empty extra column on the right when some columns have no width (report with 2+ periods). *(uncommitted)*
-- [ ] Header: four groups evenly spread (home+reports, mapping/export/connections, invite/admin, profile). *(uncommitted)*
-- [ ] Header: Invite + Admin in their own group, separated like the other nav groups. *(uncommitted)*
+- [x] Export: "Total …" rows got `=SUM(...)` guessed from row names (wrong for nested totals). Values now plain, formula only in Σ Total column. `b61f412`
+- [x] ArtDataTable: empty extra column on the right when some columns have no width (report with 2+ periods). `b61f412`
+- [x] Header: four groups evenly spread (home+reports, mapping/export/connections, invite/admin, profile). `b61f412`
+- [x] Header: Invite + Admin in their own group, separated like the other nav groups. `b61f412`
 - [ ] Improve invalidate-by-connection-ids for global mappings (list of ids may cause issues). Low priority, in `TODO.md` → Security and state.
-- [ ] Mapping: remove "Regular / With Total / Only Total" per sheet, rely on Export Setting and the report toggle. *(uncommitted)*
-- [ ] Export: Σ Total not calculated in the file. Total is now computed by the writer with a cached result, so it works for any table position and for combined reports. *(uncommitted)*
-- [ ] P&L and Financial Position: drop the collapsible filter panel, show fields directly. *(uncommitted)*
-- [ ] Report page: a Σ Total switch instead of choosing an Export Setting. *(uncommitted)*
-- [ ] Export dialog: show all three options (Σ Total, include original sheets, apply header to all sheets). *(uncommitted)*
-- [ ] Include original sheets: leave out skipped sheets, plus inactive and unmapped reports. *(uncommitted)*
-- [ ] Report pages: hide the Excel view for now (commented out); TODO to bring it back. *(uncommitted)*
-- [ ] Keep a log of every request as todo/done. → this file + rule in `CLAUDE.md`. *(uncommitted)*
+- [x] Mapping: remove "Regular / With Total / Only Total" per sheet, rely on Export Setting and the report toggle. `b61f412`
+- [x] Export: Σ Total not calculated in the file. Total is now computed by the writer with a cached result, so it works for any table position and for combined reports. `b61f412`
+- [x] P&L and Financial Position: drop the collapsible filter panel, show fields directly. `b61f412`
+- [x] Report page: a Σ Total switch instead of choosing an Export Setting. `b61f412`
+- [x] Export dialog: show all three options (Σ Total, include original sheets, apply header to all sheets). `b61f412`
+- [x] Include original sheets: leave out skipped sheets, plus inactive and unmapped reports. `b61f412`
+- [x] Report pages: hide the Excel view for now (commented out); TODO to bring it back. `b61f412`
+- [x] Keep a log of every request as todo/done. → this file + rule in `CLAUDE.md`. `b61f412`
 - [x] TODO: remove the Upload page, drop files anywhere, snackbar on invalid type. `532dc56`
 - [x] Dialog can't be closed (infinite loop in `handleClose`). `532dc56`
 - [x] Tooltip shown under dialogs, and stays visible after click or navigation. `532dc56`
